@@ -1,8 +1,8 @@
 // bluetooth against canned core/bluetooth.* replies.
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
-import { checkView, type BluetoothDevice, type View, type ViewNode } from "../../../sdk/src/index.ts";
-import { Host } from "../harness.ts";
-import { XDG_ICONS } from "../../../sdk/src/icons.ts";
+import { checkView, type BluetoothDevice, type View, type ViewNode } from "../.pal/sdk/src/index.ts";
+import { Host } from "../.pal/host/test/harness.ts";
+import { XDG_ICONS } from "../.pal/sdk/src/icons.ts";
 
 let devices: BluetoothDevice[] = [
   { address: "14:28:76:8B:AE:C8", name: "AirPods Pro", connected: true, kind: "headphones", battery: 75, battery_detail: "L 80% · R 75% · Case 90%" },

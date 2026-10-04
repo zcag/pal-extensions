@@ -1,9 +1,9 @@
 // emoji: the bundled data.json as a grid, sections by category after the
 // recents the harness's storage holds, the skin tone and paste settings.
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
-import { tile } from "../../../sdk/src/icon.ts";
-import { withSkinTone } from "../../../extensions/emoji/skin.ts";
-import { Host, stored } from "../harness.ts";
+import { tile } from "../.pal/sdk/src/icon.ts";
+import { withSkinTone } from "../emoji/skin.ts";
+import { Host, stored } from "../.pal/host/test/harness.ts";
 
 let host: Host;
 beforeAll(async () => {

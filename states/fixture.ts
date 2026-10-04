@@ -1,13 +1,13 @@
-// Writes app/src/gallery/shots/states.json and bar-states.json, the store
+// Writes test/shots/states.json and bar-states.json, the store
 // screenshots' fixtures: the palette and the bar item through the host
 // harness over a made-up states table standing in for the core's
-// (`core/states.*`, as host/test/extensions/states.test.ts does): a few
+// (`core/states.*`, as test/states.test.ts does): a few
 // declared states (one on an expression, one held by hand for a while), a
 // publisher's, the built-ins at the fixed clock. `bun run
-// extensions/states/fixture.ts`, then `make shots EXT=states`.
-import { Host } from "../../host/test/harness.ts";
-import { NOW, pinClock, writeFixture } from "../../app/scripts/fixture-kit.ts";
-import type { StateEntry } from "../../sdk/src/protocol.ts";
+// states/fixture.ts`, then `make shots EXT=states`.
+import { Host } from "../.pal/host/test/harness.ts";
+import { NOW, pinClock, writeFixture } from "../.pal/app/scripts/fixture-kit.ts";
+import type { StateEntry } from "../.pal/sdk/src/protocol.ts";
 import manifest from "./pal.json" with { type: "json" };
 
 pinClock();
@@ -64,7 +64,7 @@ try {
       "sketchybar": { target: "sketchybar", caption: "On sketchybar: the state and the time left on amber" },
     },
   });
-  console.log("wrote app/src/gallery/shots/states.json and bar-states.json");
+  console.log("wrote test/shots/states.json and bar-states.json");
 } finally {
   host.kill();
 }

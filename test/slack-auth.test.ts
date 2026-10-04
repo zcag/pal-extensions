@@ -11,9 +11,9 @@ import { createHash } from "node:crypto";
 import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { localConfig } from "../../../extensions/slack/auth.ts";
-import { decrypt, derive, encrypt, encryptedCookie } from "../../../extensions/slack/cookies.ts";
-import { latest, localStorageText, log, snappy, sstable } from "../../../extensions/slack/leveldb.ts";
+import { localConfig } from "../slack/auth.ts";
+import { decrypt, derive, encrypt, encryptedCookie } from "../slack/cookies.ts";
+import { latest, localStorageText, log, snappy, sstable } from "../slack/leveldb.ts";
 import { buildAppDir, buildJar, buildLog, buildSSTable, bytes, lsKey, lsValue, snappyEncode, u32, u64 } from "./slack-fixtures.ts";
 
 // ---- tests -------------------------------------------------------------------------------

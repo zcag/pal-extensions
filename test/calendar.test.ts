@@ -14,14 +14,14 @@
 // fixed instants around Wed 16 Sep 2026 10:30 UTC and every `over`, `now`,
 // `in 42 min`, tomorrow and horizon reads the same at any hour of any day.
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
-import { addDays, DAY, dayName, details, parseDay, parseTime, plusMinutes, section, soonTag, startOfDay, timeRange, upcoming } from "../../../extensions/calendar/schedule.ts";
-import type { Settings } from "../../../extensions/calendar/source.ts";
-import { barName, barWhen, callsNow, callWhen, eligible, escalation, nextEvent, nextWords, onDay, phaseOf, service, shortSpan, span, state, upcomingItem, type ItemSettings } from "../../../extensions/calendar/today.ts";
-import { parseLength, parseQuick, type Quick } from "../../../extensions/calendar/quick.ts";
-import { actions as popoverActions, focusable, freshPopover, listed, popover } from "../../../extensions/calendar/view.ts";
-import type { BarItem, Calendar, CalendarEvent, Form, View, ViewNode } from "../../../sdk/src/index.ts";
-import { checkView } from "../../../sdk/src/view.ts";
-import { Host } from "../harness.ts";
+import { addDays, DAY, dayName, details, parseDay, parseTime, plusMinutes, section, soonTag, startOfDay, timeRange, upcoming } from "../calendar/schedule.ts";
+import type { Settings } from "../calendar/source.ts";
+import { barName, barWhen, callsNow, callWhen, eligible, escalation, nextEvent, nextWords, onDay, phaseOf, service, shortSpan, span, state, upcomingItem, type ItemSettings } from "../calendar/today.ts";
+import { parseLength, parseQuick, type Quick } from "../calendar/quick.ts";
+import { actions as popoverActions, focusable, freshPopover, listed, popover } from "../calendar/view.ts";
+import type { BarItem, Calendar, CalendarEvent, Form, View, ViewNode } from "../.pal/sdk/src/index.ts";
+import { checkView } from "../.pal/sdk/src/view.ts";
+import { Host } from "../.pal/host/test/harness.ts";
 
 process.env.TZ = "UTC";
 process.env.PAL_NOW = "2026-09-16T10:30:00";

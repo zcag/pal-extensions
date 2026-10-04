@@ -1,14 +1,14 @@
-// Writes app/src/gallery/shots/odak.json and bar-odak.json: the store
+// Writes test/shots/odak.json and bar-odak.json: the store
 // screenshots' fixture. The rows, the add preview, the forms and the bar
 // item come out of the real extension run through the host harness
-// against the tests' mock server (host/test/extensions/odak-mock.ts), with
+// against the tests' mock server (test/odak-mock.ts), with
 // a few more todos added so the listings look lived in; nothing here is
 // the owner's. The mock's days sit around the tests' clock (22 Sep); they
 // move with it to the shots' (16 Sep), so an overdue stays overdue and
 // today's today. `make shots EXT=odak`.
-import { Host, stored } from "../../host/test/harness.ts";
-import { BASE, ITEMS, NOW as MOCK_NOW, SETTINGS, idOf, server } from "../../host/test/extensions/odak-mock.ts";
-import { NOW, pinClock, settle, writeFixture } from "../../app/scripts/fixture-kit.ts";
+import { Host, stored } from "../.pal/host/test/harness.ts";
+import { BASE, ITEMS, NOW as MOCK_NOW, SETTINGS, idOf, server } from "../test/odak-mock.ts";
+import { NOW, pinClock, settle, writeFixture } from "../.pal/app/scripts/fixture-kit.ts";
 import manifest from "./pal.json" with { type: "json" };
 
 pinClock();

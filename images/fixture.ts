@@ -1,19 +1,19 @@
-// Writes app/src/gallery/shots/images.json, the store screenshots'
-// fixture: pictures drawn here (host/test/extensions/images-png.ts) in a
+// Writes test/shots/images.json, the store screenshots'
+// fixture: pictures drawn here (test/images-png.ts) in a
 // temp folder, listed through the host harness as the Finder selection
 // and the clipboard, one compressed so a Results row shows; the resize and
 // convert levels and the web view come from the same run. Nothing is the
 // owner's; the folder reads as ~/Desktop/site in the shots. Thumbnails are
 // data urls here (`PAL_IMAGES_DATA_THUMBS`), since the gallery has no
-// `icon://` scheme. `bun run extensions/images/fixture.ts`, then
+// `icon://` scheme. `bun run images/fixture.ts`, then
 // `node app/scripts/shots.mjs images`.
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { ViewNode } from "@zcag/pal";
-import { NOW, pinClock, seeded, writeFixture } from "../../app/scripts/fixture-kit.ts";
-import { Host } from "../../host/test/harness.ts";
-import { png, type Pixel } from "../../host/test/extensions/images-png.ts";
+import { NOW, pinClock, seeded, writeFixture } from "../.pal/app/scripts/fixture-kit.ts";
+import { Host } from "../.pal/host/test/harness.ts";
+import { png, type Pixel } from "../test/images-png.ts";
 
 const dir = mkdtempSync(join(tmpdir(), "pal-images-fixture-"));
 const grain = seeded(7);
@@ -90,7 +90,7 @@ try {
   };
   const text = JSON.stringify(fixture, null, 2).split(join(dir, "cache", "clipboard")).join("~/Library/Caches/pal/images/clipboard").split(dir).join("~/Desktop/site");
   writeFixture("images", JSON.parse(text));
-  console.log("wrote app/src/gallery/shots/images.json", rows.length, "rows");
+  console.log("wrote test/shots/images.json", rows.length, "rows");
 } finally {
   host.kill();
   rmSync(dir, { recursive: true, force: true });

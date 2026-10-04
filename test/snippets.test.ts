@@ -8,10 +8,10 @@ import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { asSnippets, badKeyword, fromJson, preview } from "../../../extensions/snippets/placeholders.ts";
-import { expand, formatDate, hasPlaceholders, isoDate, isoTime, offsetDate } from "../../../sdk/src/placeholders.ts";
-import type { Form } from "../../../sdk/src/protocol.ts";
-import { Host, fixtures, stored } from "../harness.ts";
+import { asSnippets, badKeyword, fromJson, preview } from "../snippets/placeholders.ts";
+import { expand, formatDate, hasPlaceholders, isoDate, isoTime, offsetDate } from "../.pal/sdk/src/placeholders.ts";
+import type { Form } from "../.pal/sdk/src/protocol.ts";
+import { Host, fixtures, stored } from "../.pal/host/test/harness.ts";
 
 process.env.PAL_NOW = "2026-09-16T09:05:00"; // the host's clock, local to its zone
 const at = new Date(2026, 8, 16, 9, 5); // local 2026-09-16 09:05

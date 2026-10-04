@@ -6,17 +6,17 @@
 // The Finder selection is the canned `core/selection.files` (and the
 // `front_app` state for the reason row). Skipped where `find` is missing.
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
-import { tile } from "../../../sdk/src/icon.ts";
+import { tile } from "../.pal/sdk/src/icon.ts";
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { basename, dirname, join } from "node:path";
-import { BROWSE_CAP, filterEntries, isRoot, moreRow, parentOf, sortEntries, upRow, type Entry } from "../../../extensions/files/browse.ts";
-import { contentArgv, parseQuery, snippet, snippetArgv } from "../../../extensions/files/content.ts";
-import { parseMdls } from "../../../extensions/files/meta.ts";
-import { archiveArgv, archiveName, copyForm, moveForm, renameForm } from "../../../sdk/src/files.ts";
-import { parseMdfindRecent, parseXbel } from "../../../extensions/files/recent.ts";
-import type { Ctx, Item } from "../../../sdk/src/index.ts";
-import { Host, writeTool } from "../harness.ts";
+import { BROWSE_CAP, filterEntries, isRoot, moreRow, parentOf, sortEntries, upRow, type Entry } from "../files/browse.ts";
+import { contentArgv, parseQuery, snippet, snippetArgv } from "../files/content.ts";
+import { parseMdls } from "../files/meta.ts";
+import { archiveArgv, archiveName, copyForm, moveForm, renameForm } from "../.pal/sdk/src/files.ts";
+import { parseMdfindRecent, parseXbel } from "../files/recent.ts";
+import type { Ctx, Item } from "../.pal/sdk/src/index.ts";
+import { Host, writeTool } from "../.pal/host/test/harness.ts";
 
 const HAS_FIND = Bun.which("find") !== null;
 const HAS_GREP = Bun.which("grep") !== null;
@@ -188,7 +188,7 @@ const pick = (id: string, action?: string) => host.pick("files", "files", id, ac
 
 describe.skipIf(!HAS_FIND)("files at the root", () => {
   test("a typed path lists the file, or the entries its last segment starts (hidden ones only when the segment does); inline and inside the palette alike", async () => {
-    const { pathRows } = await import("../../../extensions/files/index.ts");
+    const { pathRows } = await import("../files/index.ts");
     expect((await pathRows(join(dir, "report-alpha.txt"), false)).map((i) => i.id)).toEqual([join(dir, "report-alpha.txt")]);
     expect((await pathRows(join(dir, "rep"), false)).map((i) => i.name)).toEqual(["report-alpha.txt", "Report-Beta.md", "reports"]);
     expect((await pathRows(join(dir, ".rep"), false)).map((i) => i.name)).toEqual([".report-hidden.txt"]);

@@ -1,15 +1,15 @@
-// Writes app/src/gallery/shots/store.json, the store screenshots' fixture:
+// Writes test/shots/store.json, the store screenshots' fixture:
 // the rows as index.ts lists them through the host harness over a store
 // state made from the repo's own manifests. The machine it shows has the
 // core set (docs/design/distribution.md, "What is bundled") coming with
 // pal, Spotify, GitHub and Wordle installed from pal's registry (Spotify
 // with an update that waits), and the rest listed, not installed.
-// `bun run extensions/store/fixture.ts`, then `make shots EXT=store`.
+// `bun run store/fixture.ts`, then `make shots EXT=store`.
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
-import { Host, extensionsByName } from "../../host/test/harness.ts";
-import { NOW_S, pinClock, writeFixture } from "../../app/scripts/fixture-kit.ts";
-import type { AvailableExtension, StoreState, StoreStatus } from "../../sdk/src/index.ts";
+import { Host, extensionsByName } from "../.pal/host/test/harness.ts";
+import { NOW_S, pinClock, writeFixture } from "../.pal/app/scripts/fixture-kit.ts";
+import type { AvailableExtension, StoreState, StoreStatus } from "../.pal/sdk/src/index.ts";
 import manifest from "./pal.json" with { type: "json" };
 
 const CORE = new Set("apps files calc clipboard snippets windows window-management system quicklinks emoji store games states scripts bookmarks browser-tabs downloads audio bluetooth displays wifi network media screenshots timer processes power menu-bar shortcuts unicode generate colors shell".split(" "));
@@ -60,7 +60,7 @@ try {
       "3-actions": { palette: "store", keys: ["down*3", "cmd+k"], caption: "Install on Enter; the store page and the install command a keystroke away" },
     },
   });
-  console.log(`wrote app/src/gallery/shots/store.json: ${available.length} listed`);
+  console.log(`wrote test/shots/store.json: ${available.length} listed`);
 } finally {
   host.kill();
 }

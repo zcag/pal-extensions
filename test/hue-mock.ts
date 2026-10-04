@@ -2,14 +2,14 @@
 // https with a self-signed certificate (as an old bridge has, so pairing
 // pins it), `POST /api` press-link (the button is `press()`), the event
 // stream fed by every PUT and by `emit`, and the cloud discovery endpoint.
-// The home is `extensions/hue/sample.ts`, deep-copied per mock.
+// The home is `hue/sample.ts`, deep-copied per mock.
 import { execFileSync } from "node:child_process";
 import { mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import type { Resource } from "../../../extensions/hue/api.ts";
-import { deepMerge } from "../../../extensions/hue/model.ts";
-import { SAMPLE_BRIDGE_ID, SAMPLE_KEY, SAMPLE_RESOURCES } from "../../../extensions/hue/sample.ts";
+import type { Resource } from "../hue/api.ts";
+import { deepMerge } from "../hue/model.ts";
+import { SAMPLE_BRIDGE_ID, SAMPLE_KEY, SAMPLE_RESOURCES } from "../hue/sample.ts";
 
 /** A self-signed P-256 certificate with the bridge id as its CN, made with openssl (on every macOS and the CI image). */
 export function selfSigned(cn: string): { cert: string; key: string } {

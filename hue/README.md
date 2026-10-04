@@ -212,6 +212,6 @@ palette), `pal://hue/off`. Rooms and scenes go by name, slug or id.
 
 ## Tests
 
-`host/test/extensions/hue.test.ts` against `hue-mock.ts`, a bridge over
+`test/hue.test.ts` against `hue-mock.ts`, a bridge over
 https with a self-signed certificate that answers the routes above,
 feeds the event stream from every PUT, and arms its button on `press()`.

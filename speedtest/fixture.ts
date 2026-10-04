@@ -1,4 +1,4 @@
-// Writes app/src/gallery/shots/speedtest.json, the store screenshots'
+// Writes test/shots/speedtest.json, the store screenshots'
 // fixture. The idle and no-tool views come through the host harness with
 // a stand-in Ookla CLI (found, never run); the running view is view.ts's `spec` over
 // a run fed Ookla's own lines up to mid-download (the parser the live
@@ -9,9 +9,9 @@
 import { mkdirSync, mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { Host, stored, writeTool } from "../../host/test/harness.ts";
-import type { View } from "../../sdk/src/protocol.ts";
-import { NOW, pinClock, writeFixture } from "../../app/scripts/fixture-kit.ts";
+import { Host, stored, writeTool } from "../.pal/host/test/harness.ts";
+import type { View } from "../.pal/sdk/src/protocol.ts";
+import { NOW, pinClock, writeFixture } from "../.pal/app/scripts/fixture-kit.ts";
 import { spec } from "./view.ts";
 import { feed, finish, start, type Run } from "./tools.ts";
 
@@ -77,7 +77,7 @@ try {
     },
   };
   writeFixture("speedtest", fixture);
-  console.log("wrote app/src/gallery/shots/speedtest.json");
+  console.log("wrote test/shots/speedtest.json");
 } finally {
   host.kill();
   rmSync(dir, { recursive: true, force: true });

@@ -1,11 +1,11 @@
-// Writes app/src/gallery/shots/weather.json and bar-weather.json, the store
+// Writes test/shots/weather.json and bar-weather.json, the store
 // screenshots' fixtures: the palette's rows and the bar item drawn through
 // the host harness against a stand-in Open-Meteo (geocoder and forecast)
 // answering a made-up mid-September afternoon in Istanbul: showers
 // clearing to a mild evening, then a thunderstorm for the red state.
-// `bun run extensions/weather/fixture.ts`, then `make shots EXT=weather`.
-import { pinClock, settle, writeFixture } from "../../app/scripts/fixture-kit.ts";
-import { Host } from "../../host/test/harness.ts";
+// `bun run weather/fixture.ts`, then `make shots EXT=weather`.
+import { pinClock, settle, writeFixture } from "../.pal/app/scripts/fixture-kit.ts";
+import { Host } from "../.pal/host/test/harness.ts";
 
 pinClock();
 const ISTANBUL = { name: "Istanbul", country: "Republic of Türkiye", country_code: "TR", admin1: "Istanbul", population: 15701602, latitude: 41.01, longitude: 28.98 };

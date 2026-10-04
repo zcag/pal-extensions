@@ -10,11 +10,11 @@
 // reaction), the bar item and its popover keys, the links, a 401, a 429,
 // a session that is not ready, an unreachable gateway, no key.
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
-import { chatLink, conversationMarkdown, mediaLabel, msgOf, msgOfDb, opener, pictureExpiry, pictureFresh, prettyPhone, REACTIONS, vcard } from "../../../extensions/whatsapp/data.ts";
-import { initial, initialIcon, render, type BarState } from "../../../extensions/whatsapp/view.ts";
-import type { Item, View, ViewNode } from "../../../sdk/src/protocol.ts";
-import { checkView } from "../../../sdk/src/view.ts";
-import { Host, marksOf, stored, bundledIcon } from "../harness.ts";
+import { chatLink, conversationMarkdown, mediaLabel, msgOf, msgOfDb, opener, pictureExpiry, pictureFresh, prettyPhone, REACTIONS, vcard } from "../whatsapp/data.ts";
+import { initial, initialIcon, render, type BarState } from "../whatsapp/view.ts";
+import type { Item, View, ViewNode } from "../.pal/sdk/src/protocol.ts";
+import { checkView } from "../.pal/sdk/src/view.ts";
+import { Host, marksOf, stored, bundledIcon } from "../.pal/host/test/harness.ts";
 import { KEY, SESSION_ID, WhatsAppMock, m } from "./whatsapp-mock.ts";
 
 const X = "whatsapp";
@@ -147,7 +147,7 @@ describe("whatsapp", () => {
   let mock: WhatsAppMock;
   let host: Host;
   const settings = (extra: Record<string, unknown> = {}) => ({ base_url: mock.url, api_key: KEY, open: "web", ...extra });
-  /** Search waits this long after a keystroke before it asks (SEARCH_WAIT_MS, extensions/whatsapp/index.ts). */
+  /** Search waits this long after a keystroke before it asks (SEARCH_WAIT_MS, whatsapp/index.ts). */
   const SEARCH_WAIT_MS = 300;
   /** A listing; search's waits out its keystroke debounce first. */
   const list = async (palette: string, q = "", ctx?: Parameters<Host["list"]>[3]) => {

@@ -11,10 +11,10 @@ import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import { mkdtempSync, readdirSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { clientOf, clip, downloadName, durationOf, exposureOf, isoCeiling, isoFloor, looksLikeFile, parseAsset, parseQuery, permissionOf, placeOf, takenClock, takenDay } from "../../../extensions/immich/api.ts";
-import type { Effect, Item } from "../../../sdk/src/protocol.ts";
-import { picture } from "../png.ts";
-import { Host, stored, writeTool, bundledIcon } from "../harness.ts";
+import { clientOf, clip, downloadName, durationOf, exposureOf, isoCeiling, isoFloor, looksLikeFile, parseAsset, parseQuery, permissionOf, placeOf, takenClock, takenDay } from "../immich/api.ts";
+import type { Effect, Item } from "../.pal/sdk/src/protocol.ts";
+import { picture } from "../.pal/host/test/png.ts";
+import { Host, stored, writeTool, bundledIcon } from "../.pal/host/test/harness.ts";
 import { ALBUMS, startMock } from "./immich-mock.ts";
 
 describe("api", () => {
@@ -109,7 +109,7 @@ afterAll(() => {
   delete process.env.PAL_IMMICH_CACHE; delete process.env.PAL_NOW; delete process.env.PAL_COPY_IMAGE;
 });
 
-/** extensions/immich/index.ts DEBOUNCE_MS: a typed search waits it out on the host's clock. */
+/** immich/index.ts DEBOUNCE_MS: a typed search waits it out on the host's clock. */
 const DEBOUNCE_MS = 300;
 const debounced = <T>(p: Promise<T>) => host.after(p, DEBOUNCE_MS);
 /** A listing with the debounce advanced past. */

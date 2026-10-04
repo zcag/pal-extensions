@@ -12,7 +12,7 @@
 // 503 the owner's wsearch gave on 2026-09-17; `status` other than `ready`
 // makes the chat list answer 409 as the live gateway does while it waits
 // for a QR scan. The people and messages are invented.
-import { now } from "../../../sdk/src/clock.ts";
+import { now } from "../.pal/sdk/src/clock.ts";
 
 export type MockChat = { id: string; name: string; group: boolean; unread: number; at: number; last?: string | null; phone?: string; picture?: boolean };
 export type MockMsg = { id: string; chatId: string; fromMe: boolean; author?: string; body: string; type: string; at: number; chatName?: string; quoted?: string };

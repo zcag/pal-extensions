@@ -8,13 +8,16 @@
 // pick (a push of an installed game; an install, then the push, for one on
 // offer), the row while it installs, and an install that fails.
 import { afterAll, beforeAll, expect, test } from "bun:test";
+import { existsSync } from "node:fs";
 import { join } from "node:path";
-import type { AvailableExtension, StoreResult } from "../../../sdk/src/index.ts";
-import { offered } from "../../../extensions/games/index.ts";
-import { Host } from "../harness.ts";
+import type { AvailableExtension, StoreResult } from "../.pal/sdk/src/index.ts";
+import { offered } from "../games/index.ts";
+import { Host } from "../.pal/host/test/harness.ts";
 
-const ROOT = join(import.meta.dir, "../../../extensions");
-const ext = (name: string, loaded = true) => ({ name, version: "0.1.0", root: ROOT, loaded, store: false, bundled: true });
+const REPO = join(import.meta.dir, "..");
+/** A game's manifest from the copies in games-shelf/ (zcag/pal-games has the games), the rest from this repo. */
+const rootOf = (name: string) => (existsSync(join(REPO, name, "pal.json")) ? REPO : join(import.meta.dir, "games-shelf"));
+const ext = (name: string, loaded = true) => ({ name, version: "0.1.0", root: rootOf(name), loaded, store: false, bundled: true });
 const INSTALLED = [...["games", "snake", "solitaire", "blackjack", "minesweeper", "yahtzee", "crossword", "sudoku", "2048", "gifs", "calc"].map((n) => ext(n)), ext("wordle", false), { ...ext("gone"), root: "/nowhere" }];
 const PLATFORM = process.platform === "darwin" ? "macos" : "linux";
 const listing = (title: string, over: Partial<AvailableExtension["listing"]> = {}) => ({ title, description: "", tagline: `${title}, the game`, features: [], category: "fun", keywords: [], icon: { tile: { glyph: "g", bg: "green" } }, author: "pal", platforms: null, play: true, palettes: [{ id: title.toLowerCase(), title, kind: "view" }], screenshots: [], requires: [], suggests: [], ...over });

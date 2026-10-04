@@ -1,5 +1,5 @@
 // Generates data.json: the curated character table the palette lists.
-// Run by hand (`bun run extensions/unicode/build.ts`) and the output is
+// Run by hand (`bun run unicode/build.ts`) and the output is
 // committed, so the extension has no fetch at runtime. Names come from
 // the UCD's UnicodeData.txt, HTML entity names from the WHATWG table; the
 // sections, LaTeX names and the plain-word keywords are the tables below.

@@ -1,13 +1,13 @@
-// Writes app/src/gallery/shots/bluetooth.json and bar-bluetooth.json, the
+// Writes test/shots/bluetooth.json and bar-bluetooth.json, the
 // store screenshots' fixtures: the palette's rows and the battery item
 // drawn through the host harness against canned `core/bluetooth.*`
 // replies (made-up devices: AirPods nearly flat, a mouse low, a keyboard
 // fine, a speaker with no reading, and a few paired but away), at the
 // item's default 25% threshold.
-// `bun run extensions/bluetooth/fixture.ts`, then `make shots EXT=bluetooth`.
+// `bun run bluetooth/fixture.ts`, then `make shots EXT=bluetooth`.
 import type { BarItem, BluetoothDevice } from "@zcag/pal";
-import { pinClock, writeFixture } from "../../app/scripts/fixture-kit.ts";
-import { Host } from "../../host/test/harness.ts";
+import { pinClock, writeFixture } from "../.pal/app/scripts/fixture-kit.ts";
+import { Host } from "../.pal/host/test/harness.ts";
 
 pinClock();
 const dev = (address: string, name: string, kind: string, connected: boolean, battery: number | null = null, battery_detail: string | null = null): BluetoothDevice => ({ address, name, kind, connected, battery, battery_detail });

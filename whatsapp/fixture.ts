@@ -1,19 +1,19 @@
-// Writes app/src/gallery/shots/whatsapp.json and bar-whatsapp.json, the
+// Writes test/shots/whatsapp.json and bar-whatsapp.json, the
 // store screenshots' fixtures: the palettes listed through the host
-// harness against the OpenWA mock (host/test/extensions/whatsapp-mock.ts,
+// harness against the OpenWA mock (test/whatsapp-mock.ts,
 // invented people and messages, nothing the owner's) at the fixed clock,
 // with `send` on so the message form shows, the pictures the mock serves
 // inlined by `settle`, the bar item rendered the same way with its popover
-// from view.ts. `bun run extensions/whatsapp/fixture.ts`, then
+// from view.ts. `bun run whatsapp/fixture.ts`, then
 // `node app/scripts/shots.mjs whatsapp`.
 import { writeFileSync } from "node:fs";
-import { pinClock, settle, writeFixture } from "../../app/scripts/fixture-kit.ts";
-import type { View } from "../../sdk/src/protocol.ts";
+import { pinClock, settle, writeFixture } from "../.pal/app/scripts/fixture-kit.ts";
+import type { View } from "../.pal/sdk/src/protocol.ts";
 
 // Before the mock and the harness load: the mock dates its messages by the SDK's clock, read once at load.
 pinClock();
-const { KEY, WhatsAppMock } = await import("../../host/test/extensions/whatsapp-mock.ts");
-const { Host, stored } = await import("../../host/test/harness.ts");
+const { KEY, WhatsAppMock } = await import("../test/whatsapp-mock.ts");
+const { Host, stored } = await import("../.pal/host/test/harness.ts");
 
 const MARA = "254011223344556@lid";
 
@@ -80,7 +80,7 @@ try {
       "sketchybar": { target: "sketchybar", caption: "On sketchybar: the glyph and the count" },
     },
   };
-  writeFileSync(new URL("../../app/src/gallery/shots/bar-whatsapp.json", import.meta.url), JSON.stringify(await settle(bar, hosts)) + "\n");
+  writeFileSync(new URL("../test/shots/bar-whatsapp.json", import.meta.url), JSON.stringify(await settle(bar, hosts)) + "\n");
   console.log(`bar-whatsapp.json: badge ${item.badge}, ${view.actions.length} actions`);
 } finally {
   host.kill();

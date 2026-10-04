@@ -5,11 +5,11 @@ import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { tmpdir } from "node:os";
-import { NOW, pmsetTool, samples, stage, STATE } from "../../../extensions/power/fixture.ts";
-import { tailSamples } from "../../../extensions/power/data.ts";
-import { buckets, nameOf, ranked, renderPopover, why } from "../../../extensions/power/view.ts";
-import type { View, ViewNode } from "../../../sdk/src/protocol.ts";
-import { Host, writeTool } from "../harness.ts";
+import { NOW, pmsetTool, samples, stage, STATE } from "../power/fixture.ts";
+import { tailSamples } from "../power/data.ts";
+import { buckets, nameOf, ranked, renderPopover, why } from "../power/view.ts";
+import type { View, ViewNode } from "../.pal/sdk/src/protocol.ts";
+import { Host, writeTool } from "../.pal/host/test/harness.ts";
 
 let host: Host, dir: string, state: string, pmset: string;
 const texts = (n: ViewNode | View): string[] => ("tree" in n ? texts(n.tree) : n.type === "text" ? [n.value] : n.type === "badge" ? [n.text] : n.type === "tile" ? [n.text ?? ""] : n.type === "stack" ? n.children.flatMap(texts) : []);

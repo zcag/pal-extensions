@@ -6,11 +6,11 @@
 // nothing is typed, Enter pasting and cmd+c copying, the links with and
 // without a text.
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
-import { asciify, changed, CONVERSIONS, convert, deasciify, lower, title, upper } from "../../../extensions/turkish/turkish.ts";
-import { TEXT_AT_HAND_TTL_MS } from "../../../sdk/src/api.ts";
-import { tile } from "../../../sdk/src/icon.ts";
-import type { Effect } from "../../../sdk/src/protocol.ts";
-import { Host, stored } from "../harness.ts";
+import { asciify, changed, CONVERSIONS, convert, deasciify, lower, title, upper } from "../turkish/turkish.ts";
+import { TEXT_AT_HAND_TTL_MS } from "../.pal/sdk/src/api.ts";
+import { tile } from "../.pal/sdk/src/icon.ts";
+import type { Effect } from "../.pal/sdk/src/protocol.ts";
+import { Host, stored } from "../.pal/host/test/harness.ts";
 
 describe("turkish.ts", () => {
   test("deasciify restores the letters from context: sentences", async () => {

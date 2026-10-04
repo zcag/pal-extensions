@@ -1,7 +1,7 @@
 # Unicode Characters
 
 A grid of 1795 characters one pastes rather than types, from
-`extensions/unicode/data.json`: arrows, math, Greek, currency, quotes and
+`unicode/data.json`: arrows, math, Greek, currency, quotes and
 dashes, punctuation, typographic and zero-width spaces, superscripts and
 fractions, accented Latin letters (the Turkish, German, French, Nordic
 and Spanish sets), letterlike symbols, the Mac keyboard glyphs (⌘ ⌥ ⇧ ⌃ ⎋
@@ -55,7 +55,7 @@ pal shows the system prompt once per run and a toast saying what to grant
 nothing. On Linux the paste is Ctrl+V through `wtype`, else `ydotool`
 (which needs `ydotoold` running).
 
-The table is generated: `bun run extensions/unicode/build.ts` fetches
+The table is generated: `bun run unicode/build.ts` fetches
 `UnicodeData.txt` (names) and the WHATWG `entities.json` (entity names),
 applies the sections, LaTeX and keyword tables in the script, and writes
 `data.json` (160 KB), which is committed. The whole UCD is not shipped;

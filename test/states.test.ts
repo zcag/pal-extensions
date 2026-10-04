@@ -5,9 +5,9 @@
 // item that shows only what is held; and `state.onChange` in an
 // extension of its own reached by the core's `states/changed`.
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
-import { left } from "../../../extensions/states/index.ts";
-import type { BarItem, Item, StateEntry } from "../../../sdk/src/protocol.ts";
-import { API, Host, Root } from "../harness.ts";
+import { left } from "../states/index.ts";
+import type { BarItem, Item, StateEntry } from "../.pal/sdk/src/protocol.ts";
+import { API, Host, Root } from "../.pal/host/test/harness.ts";
 
 describe("helpers", () => {
   test("left: hours and minutes, minutes, seconds", () => {

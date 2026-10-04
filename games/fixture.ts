@@ -1,4 +1,4 @@
-// Writes app/src/gallery/shots/games.json, the store screenshots' fixture:
+// Writes test/shots/games.json, the store screenshots' fixture:
 // the rows as index.ts lists them through the host harness, from the
 // repo's own manifests. The machine it shows is a 0.9 one: the games come
 // from pal's registry (docs/design/distribution.md, "What is bundled"),
@@ -7,12 +7,12 @@
 // tagline. The third shot is Wordle's leaderboards, as boards.ts draws them
 // from a canned board (the core's `leaderboard.get`) and a canned list of
 // boards (pal's server, a local one here).
-// `bun run extensions/games/fixture.ts`, then `make shots EXT=games`.
+// `bun run games/fixture.ts`, then `make shots EXT=games`.
 import { readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
-import { Host, extensionsByName } from "../../host/test/harness.ts";
-import { pinClock, writeFixture } from "../../app/scripts/fixture-kit.ts";
-import type { AvailableExtension, LeaderboardRow, View } from "../../sdk/src/index.ts";
+import { Host, extensionsByName } from "../.pal/host/test/harness.ts";
+import { pinClock, writeFixture } from "../.pal/app/scripts/fixture-kit.ts";
+import type { AvailableExtension, LeaderboardRow, View } from "../.pal/sdk/src/index.ts";
 import manifest from "./pal.json" with { type: "json" };
 
 const INSTALLED = new Set(["games", "solitaire", "wordle", "snake"]);
@@ -57,7 +57,7 @@ try {
       "3-leaderboards": { palette: "leaderboards", keys: ["wait:1000"], caption: "A game's leaderboards: today's Wordle, fewest guesses first, anonymous players marked and your own row ringed" },
     },
   });
-  console.log(`wrote app/src/gallery/shots/games.json: ${items.length} games`);
+  console.log(`wrote test/shots/games.json: ${items.length} games`);
 } finally {
   host.kill();
   server.stop(true);

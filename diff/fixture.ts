@@ -1,11 +1,11 @@
-// Writes app/src/gallery/shots/diff.json, the store screenshots' fixture:
+// Writes test/shots/diff.json, the store screenshots' fixture:
 // the view and the pick palette through the host harness over a made-up
 // clipboard history (a CI workflow copied before and after an edit, a few
 // other texts), so every tree is what index.ts and view.ts draw for it.
-// `bun run extensions/diff/fixture.ts`, then `make shots EXT=diff`.
-import { Host } from "../../host/test/harness.ts";
-import { NOW, pinClock, writeFixture } from "../../app/scripts/fixture-kit.ts";
-import type { View } from "../../sdk/src/protocol.ts";
+// `bun run diff/fixture.ts`, then `make shots EXT=diff`.
+import { Host } from "../.pal/host/test/harness.ts";
+import { NOW, pinClock, writeFixture } from "../.pal/app/scripts/fixture-kit.ts";
+import type { View } from "../.pal/sdk/src/protocol.ts";
 pinClock();
 const BEFORE = `name: release
 on:
@@ -84,7 +84,7 @@ try {
       "4-history": { palette: "pick", keys: [], caption: "Any two from the clipboard history: pick the left, then the right, or mark two and press Enter" },
     },
   });
-  console.log("wrote app/src/gallery/shots/diff.json");
+  console.log("wrote test/shots/diff.json");
 } finally {
   host.kill();
 }

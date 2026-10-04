@@ -12,9 +12,9 @@ import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { decode, localeOf, parseBrave, parseFirefox, parseSearxng, parseSerpApi, parseSummary, parseWiz, searchUrl } from "../../../extensions/google/google.ts";
-import type { Item } from "../../../sdk/src/protocol.ts";
-import { Host, writeTool, logLines } from "../harness.ts";
+import { decode, localeOf, parseBrave, parseFirefox, parseSearxng, parseSerpApi, parseSummary, parseWiz, searchUrl } from "../google/google.ts";
+import type { Item } from "../.pal/sdk/src/protocol.ts";
+import { Host, writeTool, logLines } from "../.pal/host/test/harness.ts";
 
 const WIZ = `)]}'\n[[["tarkan",46,[512,433],{"zh":"Tarkan","zi":"Şarkıcı-şarkı yazarı","zs":"https://img/tarkan.jpg"}],["tarkan<b> konseri</b>",0,[512]],["tarkan<b> &amp; sezen</b>",0,[512]]],{"ag":{}}]`;
 
@@ -61,7 +61,7 @@ const seen: string[] = [];
 /** The `slow` query's answer waits on this; the test releases it. */
 let releaseSlow!: () => void;
 const slowHeld = new Promise<void>((r) => (releaseSlow = r));
-/** A suggestion's pane and a typed query's results wait this long (PREVIEW_MS, RESULTS_MS in extensions/google/index.ts; the screenshot fixture shortens them with PAL_GOOGLE_PREVIEW_MS / _RESULTS_MS). */
+/** A suggestion's pane and a typed query's results wait this long (PREVIEW_MS, RESULTS_MS in google/index.ts; the screenshot fixture shortens them with PAL_GOOGLE_PREVIEW_MS / _RESULTS_MS). */
 const PREVIEW_MS = 250, RESULTS_MS = 350;
 const iso = (s: string) => new Uint8Array([...s].map((c) => ({ ç: 0xe7, ı: 0xfd, ğ: 0xf0, ş: 0xfe })[c] ?? c.charCodeAt(0)));
 const server = Bun.serve({

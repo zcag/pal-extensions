@@ -6,7 +6,7 @@ import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { Host, writeTool, bundledIcon } from "../harness.ts";
+import { Host, writeTool, bundledIcon } from "../.pal/host/test/harness.ts";
 
 const dir = mkdtempSync(join(tmpdir(), "pal-op-"));
 const state = join(dir, "state");

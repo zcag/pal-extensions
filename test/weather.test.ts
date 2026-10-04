@@ -1,6 +1,6 @@
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
-import type { View, ViewNode } from "../../../sdk/src/protocol.ts";
-import { Host } from "../harness.ts";
+import type { View, ViewNode } from "../.pal/sdk/src/protocol.ts";
+import { Host } from "../.pal/host/test/harness.ts";
 
 // Open-Meteo's geocoder searches one bare place name and answers nothing at all
 // for "Istanbul, Turkey", so the fake matches the same way: anything looser here

@@ -2,9 +2,9 @@
 // layout rows, the `layout` effect with the settings' knobs, the drill-in
 // to `arrange` and back, the Resize to… arguments writing a frame.
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
-import { tile } from "../../../sdk/src/icon.ts";
-import { LAYOUTS, displayOf, parseSize, resizeFrame } from "../../../extensions/window-management/index.ts";
-import { Host } from "../harness.ts";
+import { tile } from "../.pal/sdk/src/icon.ts";
+import { LAYOUTS, displayOf, parseSize, resizeFrame } from "../window-management/index.ts";
+import { Host } from "../.pal/host/test/harness.ts";
 
 // The canned frames: w1 on a 1440x900 display (a 25 px menu bar), w3 on a second one to the right.
 const DISPLAYS = [

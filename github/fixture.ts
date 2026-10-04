@@ -1,8 +1,8 @@
-// Writes app/src/gallery/shots/bar-github.json: the store screenshots'
+// Writes test/shots/bar-github.json: the store screenshots'
 // fixture for the bar item, its popover tree from view.ts over a made-up
 // inbox (the repositories are the panel fixture's acme/* and a few public
 // projects', not a real account's) at the kit's clock. `make shots EXT=github`.
-import { NOW, writeFixture } from "../../app/scripts/fixture-kit.ts";
+import { NOW, writeFixture } from "../.pal/app/scripts/fixture-kit.ts";
 import type { Notification } from "./data.ts";
 import { render } from "./view.ts";
 

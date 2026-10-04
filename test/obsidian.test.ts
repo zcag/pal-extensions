@@ -10,11 +10,11 @@ import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { paneMarkdown } from "../../../extensions/obsidian/index.ts";
-import { dailyConfig, excluded, fileName, fillTemplate, firstVault, formatDate, frontMatter, isoWeek, parseNote, resolve, tags, wikilink, wikilinks, type Note } from "../../../extensions/obsidian/notes.ts";
-import { MAX_AGE_MS, parseRg, rgArgv, WATCH_SETTLE_MS } from "../../../extensions/obsidian/vault.ts";
-import type { Item } from "../../../sdk/src/index.ts";
-import { Host, stored, writeTool, bundledIcon } from "../harness.ts";
+import { paneMarkdown } from "../obsidian/index.ts";
+import { dailyConfig, excluded, fileName, fillTemplate, firstVault, formatDate, frontMatter, isoWeek, parseNote, resolve, tags, wikilink, wikilinks, type Note } from "../obsidian/notes.ts";
+import { MAX_AGE_MS, parseRg, rgArgv, WATCH_SETTLE_MS } from "../obsidian/vault.ts";
+import type { Item } from "../.pal/sdk/src/index.ts";
+import { Host, stored, writeTool, bundledIcon } from "../.pal/host/test/harness.ts";
 
 const HAS_RG = Bun.which("rg") !== null;
 const NOTE_ACTIONS = ["obsidian", "editor", "copy-link", "read", "backlinks", "outgoing", "copy-path", "append"];

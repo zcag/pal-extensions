@@ -4,11 +4,11 @@
 // now-playing state built from recorded messages, the model names and the
 // pairing errors in words.
 import { describe, expect, test } from "bun:test";
-import { Cipher, frameHeader, nonce, pairError } from "../../../extensions/appletv/protocol/companion.ts";
-import { Extra, Players, T, chaptersOf, commandFields, decode as mrpDecode, encode as mrpEncode, languagesOf, parseLyrics, queueItems, schema, CF_EPOCH } from "../../../extensions/appletv/protocol/mrp.ts";
-import { Uuid, decode, float, pack, sized, unpack } from "../../../extensions/appletv/protocol/opack.ts";
-import { archive, clearPayload, insertPayload, readArchive, readSession } from "../../../extensions/appletv/protocol/rti.ts";
-import { MODELS, modelName, pairFailure } from "../../../extensions/appletv/device.ts";
+import { Cipher, frameHeader, nonce, pairError } from "../appletv/protocol/companion.ts";
+import { Extra, Players, T, chaptersOf, commandFields, decode as mrpDecode, encode as mrpEncode, languagesOf, parseLyrics, queueItems, schema, CF_EPOCH } from "../appletv/protocol/mrp.ts";
+import { Uuid, decode, float, pack, sized, unpack } from "../appletv/protocol/opack.ts";
+import { archive, clearPayload, insertPayload, readArchive, readSession } from "../appletv/protocol/rti.ts";
+import { MODELS, modelName, pairFailure } from "../appletv/device.ts";
 
 const h = (s: string) => Buffer.from(s.replace(/\s/g, ""), "hex");
 const bytes = (...b: number[]) => Buffer.from(b);

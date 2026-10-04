@@ -6,9 +6,9 @@
 // provider's context, a `same` bundle id drops the system's row, and the bar
 // item leaves a player alone while the provider's own item shows it.
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
-import type { MediaPlayer, NowPlaying, PlayerState } from "../../../sdk/src/index.ts";
-import { fromPublished, merged } from "../../../extensions/media/index.ts";
-import { API, Host, ROOTS, Root, manifest, stored } from "../harness.ts";
+import type { MediaPlayer, NowPlaying, PlayerState } from "../.pal/sdk/src/index.ts";
+import { fromPublished, merged } from "../media/index.ts";
+import { API, Host, ROOTS, Root, manifest, stored } from "../.pal/host/test/harness.ts";
 
 /** A device that plays: its pick publishes the state the id spells (null withdraws), its transport is logged in its own storage. */
 const BOX = `

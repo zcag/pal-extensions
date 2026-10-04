@@ -3,9 +3,9 @@
 // a hidden app's window; three spaces for the Spaces palette, the middle
 // one in front and the first the one left last.
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
-import { tile } from "../../../sdk/src/icon.ts";
-import type { Window, Workspace } from "../../../sdk/src/index.ts";
-import { Host, fixtures } from "../harness.ts";
+import { tile } from "../.pal/sdk/src/icon.ts";
+import type { Window, Workspace } from "../.pal/sdk/src/index.ts";
+import { Host, fixtures } from "../.pal/host/test/harness.ts";
 
 const MAC = process.platform === "darwin";
 const WINDOWS: Window[] = [

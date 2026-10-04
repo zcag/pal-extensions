@@ -1,11 +1,11 @@
-// Writes app/src/gallery/shots/hue.json and bar-hue.json: the store
+// Writes test/shots/hue.json and bar-hue.json: the store
 // screenshots' fixtures, from the sample home (sample.ts) through the same
 // rows, trees and bar item the extension draws, so the shots show what the
 // panel draws without a bridge on the network.
-// `bun run extensions/hue/fixture.ts`, then `node app/scripts/shots.mjs hue`
+// `bun run hue/fixture.ts`, then `node app/scripts/shots.mjs hue`
 // and `node app/scripts/shots.mjs bar hue`.
 import { writeFileSync } from "node:fs";
-import { NOW } from "../../app/scripts/fixture-kit.ts";
+import { NOW } from "../.pal/app/scripts/fixture-kit.ts";
 import { Home, lightsOf, roomsOf, scenesOf, sensorsOf } from "./model.ts";
 import { freshPopover, renderPopover, type PopoverData } from "./popover.ts";
 import { fresh, render, renderSetup } from "./render.ts";
@@ -65,7 +65,7 @@ const fixture = {
     "6-setup": { palette: "setup", keys: ["wait:400"], raw: true, caption: "Set up Hue waiting for the button, with the countdown" },
   },
 };
-writeFileSync(new URL("../../app/src/gallery/shots/hue.json", import.meta.url), JSON.stringify(fixture) + "\n");
+writeFileSync(new URL("../test/shots/hue.json", import.meta.url), JSON.stringify(fixture) + "\n");
 
 // The bar item: the sample home with the living room as the main room; the popover from the same tree the extension draws (popover.ts).
 const on = lights.filter((l) => l.on).length;
@@ -88,5 +88,5 @@ const bar = {
     "sketchybar": { target: "sketchybar", caption: "On sketchybar: the bulb and the count on the label" },
   },
 };
-writeFileSync(new URL("../../app/src/gallery/shots/bar-hue.json", import.meta.url), JSON.stringify(bar) + "\n");
+writeFileSync(new URL("../test/shots/bar-hue.json", import.meta.url), JSON.stringify(bar) + "\n");
 console.log(`${roomItems.length} rooms, ${lightItems.length} lights, ${sceneItems.length} scenes, ${sensorItems.length} sensors; the bar says ${on} on`);

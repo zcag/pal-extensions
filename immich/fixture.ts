@@ -1,6 +1,6 @@
-// Writes app/src/gallery/shots/immich.json, the store screenshots' fixture:
+// Writes test/shots/immich.json, the store screenshots' fixture:
 // the grids and lists through the host harness against the Immich mock
-// (host/test/extensions/immich-mock.ts). The mock's days sit around the
+// (test/immich-mock.ts). The mock's days sit around the
 // tests' clock (22 Sep); they move six days back to the shots' (16 Sep).
 // Its pictures are seeded patterns; each is swapped here for a small SVG
 // scene of what the asset's title says (a receipt, the cat, the sea at
@@ -9,11 +9,11 @@
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { Host, stored } from "../../host/test/harness.ts";
-import { ALBUMS, ASSETS, DAYS, PEOPLE, startMock } from "../../host/test/extensions/immich-mock.ts";
-import { picture } from "../../host/test/png.ts";
-import { pinClock, seeded, settle, writeFixture } from "../../app/scripts/fixture-kit.ts";
-import type { Item } from "../../sdk/src/protocol.ts";
+import { Host, stored } from "../.pal/host/test/harness.ts";
+import { ALBUMS, ASSETS, DAYS, PEOPLE, startMock } from "../test/immich-mock.ts";
+import { picture } from "../.pal/host/test/png.ts";
+import { pinClock, seeded, settle, writeFixture } from "../.pal/app/scripts/fixture-kit.ts";
+import type { Item } from "../.pal/sdk/src/protocol.ts";
 
 pinClock();
 
@@ -107,7 +107,7 @@ try {
     },
   };
   writeFixture("immich", await settle(withScenes(fixture), { hosts: { [base]: "https://photos.example.com" } }));
-  console.log("wrote app/src/gallery/shots/immich.json");
+  console.log("wrote test/shots/immich.json");
 } finally {
   host.kill();
   server.stop(true);

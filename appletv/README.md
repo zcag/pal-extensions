@@ -171,7 +171,7 @@ States: `appletv/power` (`on`, `off`, `screensaver`, `unknown`),
 
 ## Tests
 
-`host/test/extensions/appletv.test.ts` runs the extension over the host
+`test/appletv.test.ts` runs the extension over the host
 against a stand-in TV (`fake.ts`, `PAL_APPLETV_FAKE`: the TV's state a
 JSON file, every command a log line). `appletv-protocol.test.ts` covers the
 wire: OPACK against pyatv's vectors, the cipher's header and nonce, the

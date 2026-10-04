@@ -9,11 +9,11 @@ import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import { existsSync, mkdirSync, mkdtempSync, realpathSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { CAP, commandsOf, duration, envTable, looksDestructive, PICK_GRACE_MS, run, shellArgv, terminalArgv } from "../../../extensions/shell/run.ts";
-import { tile } from "../../../sdk/src/icon.ts";
-import type { Item, View, ViewNode } from "../../../sdk/src/protocol.ts";
-import { checkView } from "../../../sdk/src/view.ts";
-import { Host, stored, writeTool, logLines } from "../harness.ts";
+import { CAP, commandsOf, duration, envTable, looksDestructive, PICK_GRACE_MS, run, shellArgv, terminalArgv } from "../shell/run.ts";
+import { tile } from "../.pal/sdk/src/icon.ts";
+import type { Item, View, ViewNode } from "../.pal/sdk/src/protocol.ts";
+import { checkView } from "../.pal/sdk/src/view.ts";
+import { Host, stored, writeTool, logLines } from "../.pal/host/test/harness.ts";
 
 const MAC = process.platform === "darwin";
 

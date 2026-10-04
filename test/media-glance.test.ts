@@ -7,8 +7,8 @@
 // more"; with nothing playing the last paused one leads, muted; nothing at
 // all is no card.
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
-import type { MediaPlayer, NowPlaying, PlayerState } from "../../../sdk/src/index.ts";
-import { API, Host, ROOTS, Root, manifest } from "../harness.ts";
+import type { MediaPlayer, NowPlaying, PlayerState } from "../.pal/sdk/src/index.ts";
+import { API, Host, ROOTS, Root, manifest } from "../.pal/host/test/harness.ts";
 
 const BOX = `
 import { controls } from "${API}";

@@ -5,9 +5,9 @@
 // rows for a missing setting, a refused key and a service that does not
 // answer.
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
-import { checkView } from "../../../sdk/src/index.ts";
-import type { Form, View, ViewNode } from "../../../sdk/src/protocol.ts";
-import { Host, marksOf, stored } from "../harness.ts";
+import { checkView } from "../.pal/sdk/src/index.ts";
+import type { Form, View, ViewNode } from "../.pal/sdk/src/protocol.ts";
+import { Host, marksOf, stored } from "../.pal/host/test/harness.ts";
 import { BASE, JF_USER, SETTINGS, calls, seen, server, state } from "./theater-mock.ts";
 
 let host: Host;
@@ -20,7 +20,7 @@ beforeAll(async () => {
 });
 afterAll(() => { host.kill(); server.stop(true); });
 
-/** extensions/theater/rows.ts SEARCH_WAIT_MS: an input palette waits this long for more keystrokes before it asks (importing it would load the SDK outside a host). */
+/** theater/rows.ts SEARCH_WAIT_MS: an input palette waits this long for more keystrokes before it asks (importing it would load the SDK outside a host). */
 const SEARCH_WAIT_MS = 300;
 const INPUT = new Set(["jellyfin-search", "seerr-request", "radarr-add", "sonarr-add", "lidarr-add", "prowlarr-search", "hydra-search", "navidrome-search", "abs-search", "kavita-search", "shelfmark"]);
 /** A listing; for an input palette the clock moves past its wait. */

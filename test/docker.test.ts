@@ -6,7 +6,7 @@ import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { Host, writeTool, logLines } from "../harness.ts";
+import { Host, writeTool, logLines } from "../.pal/host/test/harness.ts";
 
 const dir = mkdtempSync(join(tmpdir(), "pal-docker-"));
 const calls = join(dir, "calls");
@@ -111,7 +111,7 @@ describe("docker", () => {
   test("a command still running after 8 s answers with a toast saying so, and goes on", async () => {
     let done = false;
     const r = host.request<Record<string, unknown>>("pick", { extension: "docker", palette: "docker", id: "dd44ee55ff66", action: "stop" }).finally(() => { done = true; });
-    // The stand-in logs its call once spawned, and the extension's 8 s wait (WAIT_MS, extensions/docker/index.ts) is set by then.
+    // The stand-in logs its call once spawned, and the extension's 8 s wait (WAIT_MS, docker/index.ts) is set by then.
     await host.until(() => called().includes("stop dd44ee55ff66"));
     await host.advance(7999);
     expect(done).toBe(false);

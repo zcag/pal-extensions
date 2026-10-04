@@ -1,5 +1,5 @@
 // Generates data.json: every Nerd Font glyph by set, from the release's
-// glyphnames.json. Run by hand (`bun run extensions/icons/build.ts`) and
+// glyphnames.json. Run by hand (`bun run icons/build.ts`) and
 // the output is committed. The version pinned here is the one the app
 // bundles (app/src/assets/fonts/LICENSES), so every code point listed has
 // a glyph in the font the tiles are drawn with.

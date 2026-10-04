@@ -1,10 +1,10 @@
-// Writes app/src/gallery/shots/spotify.json and bar-spotify.json: the
+// Writes test/shots/spotify.json and bar-spotify.json: the
 // store screenshots' fixtures. The lyrics view's trees come from view.ts
 // over a made-up track (its words are this file's, not a real song's; the
 // covers are SVGs drawn here, since the gallery has no Spotify), the rows
 // from the same shapes the palettes build; the library's dates count back
 // from fixture-kit's clock. `make shots EXT=spotify`.
-import { NOW, writeFixture } from "../../app/scripts/fixture-kit.ts";
+import { NOW, writeFixture } from "../.pal/app/scripts/fixture-kit.ts";
 import { tintFrom } from "./color.ts";
 import { parseLrc } from "./lyrics.ts";
 import { render, type NowState } from "./view.ts";

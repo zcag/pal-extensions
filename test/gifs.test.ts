@@ -9,10 +9,10 @@ import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import { mkdtempSync, readdirSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { fileName, GIPHY_RATING, mimeOf, parseGiphy } from "../../../extensions/gifs/backends.ts";
-import type { Item } from "../../../sdk/src/protocol.ts";
-import { picture } from "../png.ts";
-import { Host, stored, bundledIcon } from "../harness.ts";
+import { fileName, GIPHY_RATING, mimeOf, parseGiphy } from "../gifs/backends.ts";
+import type { Item } from "../.pal/sdk/src/protocol.ts";
+import { picture } from "../.pal/host/test/png.ts";
+import { Host, stored, bundledIcon } from "../.pal/host/test/harness.ts";
 import { startMock } from "./gifs-mock.ts";
 
 describe("backends", () => {
@@ -62,7 +62,7 @@ afterAll(() => {
   delete process.env.PAL_GIFS_GIPHY; delete process.env.PAL_GIFS_CACHE;
 });
 
-/** extensions/gifs/index.ts DEBOUNCE_MS: a typed search waits it out on the host's clock. */
+/** gifs/index.ts DEBOUNCE_MS: a typed search waits it out on the host's clock. */
 const DEBOUNCE_MS = 300;
 /** A listing; a typed one with the debounce advanced past. */
 const list = async (q?: string) => {

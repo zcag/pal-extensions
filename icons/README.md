@@ -77,7 +77,7 @@ Iconify Icons:
 ## Setup
 
 Nothing to install and no permission. The glyph table is generated: `bun
-run extensions/icons/build.ts` fetches `glyphnames.json` at the pinned
+run icons/build.ts` fetches `glyphnames.json` at the pinned
 release and writes `data.json` (282 KB, `[name, code]` pairs by set),
 committed; bump the version in the script together with the font.
 

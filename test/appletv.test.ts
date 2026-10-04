@@ -1,4 +1,4 @@
-// Apple TV over the host against the stand-in TV (extensions/appletv/
+// Apple TV over the host against the stand-in TV (appletv/
 // fake.ts: the TV's state is a JSON file this test writes, every command a
 // line in a log it reads back): the palettes and the bar item before
 // anything is paired, the guided setup (discovery, the remote's code, a
@@ -11,17 +11,17 @@ import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import { mkdtempSync, readFileSync, renameSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import type { FakeTv } from "../../../extensions/appletv/fake.ts";
-import { clickpad, positionAt, render as renderRemote, titles, type RemoteState } from "../../../extensions/appletv/remote.ts";
-import { render as renderSetup } from "../../../extensions/appletv/setup.ts";
-import { letterTile, placeholderArt, wideArt } from "../../../extensions/appletv/art.ts";
-import { findLink, linkKey, parseLink, seconds, target } from "../../../extensions/appletv/links.ts";
+import type { FakeTv } from "../appletv/fake.ts";
+import { clickpad, positionAt, render as renderRemote, titles, type RemoteState } from "../appletv/remote.ts";
+import { render as renderSetup } from "../appletv/setup.ts";
+import { letterTile, placeholderArt, wideArt } from "../appletv/art.ts";
+import { findLink, linkKey, parseLink, seconds, target } from "../appletv/links.ts";
 
-import { actions as nowActions, chapterAt, panels, render as renderNow, type NowState } from "../../../extensions/appletv/nowplaying.ts";
-import { backdrop, dominant, pngData, rounded } from "../../../extensions/appletv/image.ts";
-import { checkView } from "../../../sdk/src/view.ts";
-import type { BarItem, Served, View } from "../../../sdk/src/protocol.ts";
-import { API, Host, ROOTS, Root, bundledIcon, logLines, manifest, stored } from "../harness.ts";
+import { actions as nowActions, chapterAt, panels, render as renderNow, type NowState } from "../appletv/nowplaying.ts";
+import { backdrop, dominant, pngData, rounded } from "../appletv/image.ts";
+import { checkView } from "../.pal/sdk/src/view.ts";
+import type { BarItem, Served, View } from "../.pal/sdk/src/protocol.ts";
+import { API, Host, ROOTS, Root, bundledIcon, logLines, manifest, stored } from "../.pal/host/test/harness.ts";
 
 const E = "appletv";
 const LIVING = { id: "32:C4:F2:8D:8E:A9", name: "Living Room", address: "192.168.1.113", model: "AppleTV11,1", modelName: "Apple TV 4K (2nd generation)", os: "26.6", companionPort: 49153, airplayPort: 7000 };

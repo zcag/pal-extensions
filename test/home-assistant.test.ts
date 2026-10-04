@@ -6,9 +6,9 @@
 // hint rows for an unset URL, a bad token, a dead host, a slow one, and a
 // redirecting one.
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
-import { coerce, flatFields, serviceFormField, targets, unconfigured, type ServiceDomain, type Settings, type State } from "../../../extensions/home-assistant/ha.ts";
-import type { Form } from "../../../sdk/src/protocol.ts";
-import { Host } from "../harness.ts";
+import { coerce, flatFields, serviceFormField, targets, unconfigured, type ServiceDomain, type Settings, type State } from "../home-assistant/ha.ts";
+import type { Form } from "../.pal/sdk/src/protocol.ts";
+import { Host } from "../.pal/host/test/harness.ts";
 
 const E = "home-assistant";
 const TOKEN = "secret";

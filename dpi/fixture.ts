@@ -1,16 +1,16 @@
-// Writes app/src/gallery/shots/dpi.json and bar-dpi.json, the store
+// Writes test/shots/dpi.json and bar-dpi.json, the store
 // screenshots' fixtures: the palette, the test level and the popover drawn
 // through the host harness against a stand-in `dpi` (the bypass on over
 // Wi-Fi, or half on: byedpi up, the SOCKS and the DNS not pointed at it)
 // and a stand-in curl answering the default urls through the proxy, under
 // a made-up home whose byedpi log exists. Nothing is the owner's.
-// `bun run extensions/dpi/fixture.ts`, then `make shots EXT=dpi`.
+// `bun run dpi/fixture.ts`, then `make shots EXT=dpi`.
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
-import { pinClock, writeFixture } from "../../app/scripts/fixture-kit.ts";
-import { Host, writeTool } from "../../host/test/harness.ts";
-import type { BarItem, Item, View } from "../../sdk/src/protocol.ts";
+import { pinClock, writeFixture } from "../.pal/app/scripts/fixture-kit.ts";
+import { Host, writeTool } from "../.pal/host/test/harness.ts";
+import type { BarItem, Item, View } from "../.pal/sdk/src/protocol.ts";
 
 const ON = "proxy   : up (pid 5317, :1080)\nservice : Wi-Fi\ndns     : 1.1.1.1 9.9.9.9 \nsocks   : 127.0.0.1:1080\n";
 const HALF = "proxy   : up (pid 5317, :1080)\nservice : Wi-Fi\ndns     : There aren't any DNS Servers set on Wi-Fi. \nsocks   : off\n";

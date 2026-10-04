@@ -132,7 +132,7 @@ Each item's own settings, `[bar.items."stats/<item>".settings]` (Settings › Ba
 
 ## Tests
 
-`host/test/extensions/stats.test.ts`: the parsers on canned `vm_stat`,
+`test/stats.test.ts`: the parsers on canned `vm_stat`,
 `sysctl`, `df -kP`, `mount`, `netstat -ibn`, `/proc/meminfo`,
 `/proc/pressure/memory`, `/proc/net/dev`, `/proc/mounts` and `ps` output;
 the level and colour logic; the five popovers through `checkView` on

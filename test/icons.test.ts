@@ -5,11 +5,11 @@ import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import { existsSync, mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { tile } from "../../../sdk/src/icon.ts";
-import type { Item } from "../../../sdk/src/protocol.ts";
-import { XDG_ICONS } from "../../../sdk/src/icons.ts";
-import { DEBOUNCE_MS, dataUrl, fileName, svgOf } from "../../../extensions/icons/iconify.ts";
-import { Host } from "../harness.ts";
+import { tile } from "../.pal/sdk/src/icon.ts";
+import type { Item } from "../.pal/sdk/src/protocol.ts";
+import { XDG_ICONS } from "../.pal/sdk/src/icons.ts";
+import { DEBOUNCE_MS, dataUrl, fileName, svgOf } from "../icons/iconify.ts";
+import { Host } from "../.pal/host/test/harness.ts";
 import { startMock, type Mock } from "./icons-mock.ts";
 
 let host: Host;

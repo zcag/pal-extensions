@@ -1,5 +1,5 @@
 // Generates data.json: the named colours the grid lists, by set. Run by
-// hand (`bun run extensions/colors/build.ts`) and the output is committed,
+// hand (`bun run colors/build.ts`) and the output is committed,
 // so nothing is fetched at runtime. Sets: the CSS names (the SDK's `colors`), pal's
 // own tokens (app/src/ui/tokens.css, light and dark), Tailwind's palette
 // (the tailwindcss package on unpkg), Material's 2014 palette (the
@@ -20,7 +20,7 @@ const MATERIAL = "https://unpkg.com/material-colors@1.2.6/dist/colors.json";
 const MCU = "https://esm.sh/@material/material-color-utilities@0.3.0/es2022/material-color-utilities.bundle.mjs";
 const M3_SEED = "#6750A4";
 const CATPPUCCIN = "https://raw.githubusercontent.com/catppuccin/palette/v1.8.0/palette.json";
-const TOKENS = join(import.meta.dir, "../../app/src/ui/tokens.css");
+const TOKENS = join(import.meta.dir, "../.pal/app/src/ui/tokens.css");
 const OUT = join(import.meta.dir, "data.json");
 
 const rows: Row[] = [];

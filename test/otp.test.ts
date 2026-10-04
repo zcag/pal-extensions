@@ -3,15 +3,15 @@
 // `attributedBody` when `text` is NULL) and a fixture Contacts database, so
 // the real ~/Library/Messages is never touched.
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
-import { tile } from "../../../sdk/src/icon.ts";
+import { tile } from "../.pal/sdk/src/icon.ts";
 import { Database } from "bun:sqlite";
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { Host } from "../harness.ts";
-import { groups, render } from "../../../extensions/otp/view.ts";
-import { checkView } from "../../../sdk/src/view.ts";
-import type { View, ViewNode } from "../../../sdk/src/protocol.ts";
+import { Host } from "../.pal/host/test/harness.ts";
+import { groups, render } from "../otp/view.ts";
+import { checkView } from "../.pal/sdk/src/view.ts";
+import type { View, ViewNode } from "../.pal/sdk/src/protocol.ts";
 
 const MAC = process.platform === "darwin";
 const dir = mkdtempSync(join(tmpdir(), "pal-otp-"));

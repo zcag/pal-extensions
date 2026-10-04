@@ -8,16 +8,16 @@ import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { answers, check, diff } from "../../../extensions/flashcards/answer.ts";
-import { FOLDER_TTL_MS, parsePack, parseTable, readFolder, type Pack } from "../../../extensions/flashcards/packs.ts";
-import { roles } from "../../../extensions/flashcards/apkg.ts";
-import { encode } from "../../../extensions/flashcards/pb.ts";
+import { answers, check, diff } from "../flashcards/answer.ts";
+import { FOLDER_TTL_MS, parsePack, parseTable, readFolder, type Pack } from "../flashcards/packs.ts";
+import { roles } from "../flashcards/apkg.ts";
+import { encode } from "../flashcards/pb.ts";
 import { Database } from "bun:sqlite";
-import { zipSync } from "../../../extensions/flashcards/node_modules/fflate/esm/index.mjs";
-import { DAY, answer, dayStart, items, mastered, previews, progress, queue, recall, span, stats, weak, type Mem, type Settings } from "../../../extensions/flashcards/srs.ts";
-import type { Data } from "../../../extensions/flashcards/store.ts";
-import type { Screen } from "../../../extensions/flashcards/index.ts";
-import { Host } from "../harness.ts";
+import { zipSync } from "../flashcards/node_modules/fflate/esm/index.mjs";
+import { DAY, answer, dayStart, items, mastered, previews, progress, queue, recall, span, stats, weak, type Mem, type Settings } from "../flashcards/srs.ts";
+import type { Data } from "../flashcards/store.ts";
+import type { Screen } from "../flashcards/index.ts";
+import { Host } from "../.pal/host/test/harness.ts";
 
 describe("checking a typed answer", () => {
   test("case, punctuation, ¿¡ and a leading 'to' do not matter", () => {
@@ -137,8 +137,8 @@ describe("Anki decks", () => {
 });
 
 describe("the bundled packs", () => {
-  const words = JSON.parse(readFileSync(join(import.meta.dir, "../../../extensions/flashcards/packs/spanish-words.json"), "utf8")) as Pack & { cards: { weight: number }[] };
-  const phrases = JSON.parse(readFileSync(join(import.meta.dir, "../../../extensions/flashcards/packs/spanish-phrases.json"), "utf8")) as Pack;
+  const words = JSON.parse(readFileSync(join(import.meta.dir, "../flashcards/packs/spanish-words.json"), "utf8")) as Pack & { cards: { weight: number }[] };
+  const phrases = JSON.parse(readFileSync(join(import.meta.dir, "../flashcards/packs/spanish-phrases.json"), "utf8")) as Pack;
   test("6001 words, most common first, each with a short back; nouns carry their article; all but a few have an example", () => {
     expect(words.cards.length).toBe(6001);
     expect(new Set(words.cards.map((c) => c.id)).size).toBe(6001);
@@ -410,7 +410,7 @@ describe("the extension", () => {
   });
 
   test("stats: the streak, the heatmap, the week ahead, each pack", async () => {
-    const st = await send({ op: "stats" }) as unknown as import("../../../extensions/flashcards/index.ts").Stats;
+    const st = await send({ op: "stats" }) as unknown as import("../flashcards/index.ts").Stats;
     expect(st.heat).toHaveLength(112);
     expect(st.forecast).toHaveLength(7);
     expect(st.total).toBe(saved().log.length);

@@ -12,9 +12,9 @@ import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { isConference, joinLink, links, parseAccounts, text, toEvent } from "../../../extensions/calendar/google.ts";
-import type { CalendarEvent } from "../../../sdk/src/index.ts";
-import { Host, writeTool } from "../harness.ts";
+import { isConference, joinLink, links, parseAccounts, text, toEvent } from "../calendar/google.ts";
+import type { CalendarEvent } from "../.pal/sdk/src/index.ts";
+import { Host, writeTool } from "../.pal/host/test/harness.ts";
 import fixture from "./calendar-google.fixture.json" with { type: "json" };
 
 const E = "calendar";

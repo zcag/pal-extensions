@@ -6,7 +6,7 @@
 // writes, `readonly` reads only (a 403 naming the permission on a write,
 // as Immich answers), `admin` may also read the statistics; anything else
 // is Immich's 401. `requests` records every call with its body.
-import { picture } from "../png.ts";
+import { picture } from "../.pal/host/test/png.ts";
 
 export type Seen = { method: string; path: string; body?: Record<string, unknown> };
 

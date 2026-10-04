@@ -11,11 +11,11 @@ import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { LIBRARY } from "../../../extensions/quicklinks/library.ts";
-import { asLinks, badUrl, fill, fillNamed, fromJson, placeholder, placeholders, splitKeywords } from "../../../extensions/quicklinks/links.ts";
-import type { Form } from "../../../sdk/src/protocol.ts";
-import type { Item } from "../../../sdk/src/index.ts";
-import { Host, fixtures, stored, writeTool, logLines } from "../harness.ts";
+import { LIBRARY } from "../quicklinks/library.ts";
+import { asLinks, badUrl, fill, fillNamed, fromJson, placeholder, placeholders, splitKeywords } from "../quicklinks/links.ts";
+import type { Form } from "../.pal/sdk/src/protocol.ts";
+import type { Item } from "../.pal/sdk/src/index.ts";
+import { Host, fixtures, stored, writeTool, logLines } from "../.pal/host/test/harness.ts";
 
 describe("links", () => {
   test("placeholder: {query}, {argument}, a named argument, or none", () => {

@@ -1,11 +1,11 @@
-// Writes app/src/gallery/shots/bar-slack.json: the store screenshots'
+// Writes test/shots/bar-slack.json: the store screenshots'
 // fixture for the bar item, the popover's tree from view.ts over a made-up
 // inbox (names and messages are this file's; the avatars are SVG initials
 // drawn here, since the gallery has no Slack), at fixture-kit's clock; the
 // badge and the tooltip are counted from the rows as index.ts counts them.
 // `make shots EXT=slack`. The panel's slack.json is written by hand.
 import { when } from "@zcag/pal";
-import { NOW, pinClock, writeFixture } from "../../app/scripts/fixture-kit.ts";
+import { NOW, pinClock, writeFixture } from "../.pal/app/scripts/fixture-kit.ts";
 import { render, type BarRow, type BarState } from "./view.ts";
 
 pinClock();

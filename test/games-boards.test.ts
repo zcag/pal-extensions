@@ -1,4 +1,4 @@
-// The Games shelf's Leaderboards (extensions/games/boards.ts) against the
+// The Games shelf's Leaderboards (games/boards.ts) against the
 // repo's own manifests: a canned `extensions.list`, the core's
 // `leaderboard.get` and `account.*` from a table, and pal's server's
 // boards list from a local server (`PAL_ACCOUNT_API`). The row's action
@@ -8,14 +8,17 @@
 // rows marked and hidden on `a` (remembered), the period switch, the
 // sign-in row when signed out; values as each format shows them.
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
+import { existsSync } from "node:fs";
 import { join } from "node:path";
-import { formatValue, tabsOf, type BoardGame } from "../../../extensions/games/boards.ts";
-import type { LeaderboardRow, View, ViewNode } from "../../../sdk/src/protocol.ts";
-import { checkView } from "../../../sdk/src/view.ts";
-import { Host, stored } from "../harness.ts";
+import { formatValue, tabsOf, type BoardGame } from "../games/boards.ts";
+import type { LeaderboardRow, View, ViewNode } from "../.pal/sdk/src/protocol.ts";
+import { checkView } from "../.pal/sdk/src/view.ts";
+import { Host, stored } from "../.pal/host/test/harness.ts";
 
-const ROOT = join(import.meta.dir, "../../../extensions");
-const ext = (name: string) => ({ name, version: "0.1.0", root: ROOT, loaded: true, store: false, bundled: true });
+const REPO = join(import.meta.dir, "..");
+/** A game's manifest from the copies in games-shelf/ (zcag/pal-games has the games), the rest from this repo. */
+const rootOf = (name: string) => (existsSync(join(REPO, name, "pal.json")) ? REPO : join(import.meta.dir, "games-shelf"));
+const ext = (name: string) => ({ name, version: "0.1.0", root: rootOf(name), loaded: true, store: false, bundled: true });
 const INSTALLED = ["games", "2048", "wordle", "snake", "calc"].map(ext);
 
 const find = (n: ViewNode, pred: (n: ViewNode) => boolean, out: ViewNode[] = []): ViewNode[] => {

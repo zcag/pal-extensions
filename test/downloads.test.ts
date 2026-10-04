@@ -10,10 +10,10 @@ import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import { existsSync, mkdirSync, mkdtempSync, readdirSync, rmSync, utimesSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { browserDirsFrom, finalName, inProgress, kindOf, olderThan, rate, safariProgress, sectionOf, SUGGEST_MS } from "../../../extensions/downloads/scan.ts";
-import { tile } from "../../../sdk/src/icon.ts";
-import type { Form, Item } from "../../../sdk/src/protocol.ts";
-import { Host, writeTool, logLines } from "../harness.ts";
+import { browserDirsFrom, finalName, inProgress, kindOf, olderThan, rate, safariProgress, sectionOf, SUGGEST_MS } from "../downloads/scan.ts";
+import { tile } from "../.pal/sdk/src/icon.ts";
+import type { Form, Item } from "../.pal/sdk/src/protocol.ts";
+import { Host, writeTool, logLines } from "../.pal/host/test/harness.ts";
 
 const MAC = process.platform === "darwin";
 

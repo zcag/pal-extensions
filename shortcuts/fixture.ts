@@ -1,9 +1,9 @@
-// Writes app/src/gallery/shots/shortcuts.json, the store screenshots'
+// Writes test/shots/shortcuts.json, the store screenshots'
 // fixture: rows shaped as `row()` in index.ts shapes them, from made-up
 // shortcuts in three folders (nothing is read from this Mac), plus the
-// Run with input form the shot opens. `bun run extensions/shortcuts/fixture.ts`,
+// Run with input form the shot opens. `bun run shortcuts/fixture.ts`,
 // then `node app/scripts/shots.mjs shortcuts`.
-import { pinClock, writeFixture } from "../../app/scripts/fixture-kit.ts";
+import { pinClock, writeFixture } from "../.pal/app/scripts/fixture-kit.ts";
 import manifest from "./pal.json" with { type: "json" };
 
 // No host and nothing timed here; pinned all the same, so a row that ever shows a time shows the strip's.
@@ -44,4 +44,4 @@ const fixture = {
   },
 };
 writeFixture("shortcuts", fixture);
-console.log("wrote app/src/gallery/shots/shortcuts.json");
+console.log("wrote test/shots/shortcuts.json");

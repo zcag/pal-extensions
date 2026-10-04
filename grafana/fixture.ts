@@ -1,12 +1,12 @@
-// Writes app/src/gallery/shots/grafana.json and bar-grafana.json, the store
+// Writes test/shots/grafana.json and bar-grafana.json, the store
 // screenshots' fixtures: the three palettes, the panes and the alerts
 // popover drawn through the host harness against a made-up Grafana served
 // here (an online shop's production stack: its dashboards, six hours of
 // panel data, two alerts firing, two pending, one silenced; nothing is the
 // owner's, the tests' grafana-mock.ts carries a real fleet's names).
 // `make shots EXT=grafana`.
-import { NOW, pinClock, seeded, settle, writeFixture } from "../../app/scripts/fixture-kit.ts";
-import { Host } from "../../host/test/harness.ts";
+import { NOW, pinClock, seeded, settle, writeFixture } from "../.pal/app/scripts/fixture-kit.ts";
+import { Host } from "../.pal/host/test/harness.ts";
 import manifest from "./pal.json" with { type: "json" };
 
 pinClock();

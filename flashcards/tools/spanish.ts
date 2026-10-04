@@ -10,7 +10,7 @@
 // OpenSubtitles counts, lemmatised in doozan/spanish_data) for "the words
 // you know cover N%". Regenerate with
 //
-//   bun extensions/flashcards/tools/spanish.ts [dir with notes.csv and frequency.csv]
+//   bun flashcards/tools/spanish.ts [dir with notes.csv and frequency.csv]
 //
 // (downloads them when no dir is given; ~11 MB). Writes packs/spanish-words.json
 // (CC BY-SA 4.0: Wiktionary, FrequencyWords; sentences CC BY 2.0 FR, Tatoeba:

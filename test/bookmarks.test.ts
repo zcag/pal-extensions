@@ -9,9 +9,9 @@ import { Database } from "bun:sqlite";
 import { chmodSync, mkdirSync, mkdtempSync, readdirSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { chromeTime, COPY_MIN_MS, firefoxTime, like, merge, visits } from "../../../extensions/bookmarks/history.ts";
-import { chromeBookmarks, excludedFolder, firefoxBookmarks, markdownLink, parsePlist, safariBookmarks } from "../../../extensions/bookmarks/sources.ts";
-import { Host } from "../harness.ts";
+import { chromeTime, COPY_MIN_MS, firefoxTime, like, merge, visits } from "../bookmarks/history.ts";
+import { chromeBookmarks, excludedFolder, firefoxBookmarks, markdownLink, parsePlist, safariBookmarks } from "../bookmarks/sources.ts";
+import { Host } from "../.pal/host/test/harness.ts";
 
 const MAC = process.platform === "darwin";
 

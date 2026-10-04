@@ -10,10 +10,10 @@ import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { gravatarUrl, initialIcon } from "../../../extensions/gmail/avatar.ts";
-import { QUOTE_FOLD, bodyOf, buildRaw, displayName, foldTextQuotes, htmlToText, labelQuery, labelTitle, labelUrl, looksAttached, mdEscape, messageText, parseAddress, parseAddresses, quoted, replySubject, sectionOf, threadUrl, withSignature } from "../../../extensions/gmail/mail.ts";
-import type { Item, PaletteMeta, View, ViewNode } from "../../../sdk/src/protocol.ts";
-import { Host, bundledIcon, marksOf, stored, writeTool } from "../harness.ts";
+import { gravatarUrl, initialIcon } from "../gmail/avatar.ts";
+import { QUOTE_FOLD, bodyOf, buildRaw, displayName, foldTextQuotes, htmlToText, labelQuery, labelTitle, labelUrl, looksAttached, mdEscape, messageText, parseAddress, parseAddresses, quoted, replySubject, sectionOf, threadUrl, withSignature } from "../gmail/mail.ts";
+import type { Item, PaletteMeta, View, ViewNode } from "../.pal/sdk/src/protocol.ts";
+import { Host, bundledIcon, marksOf, stored, writeTool } from "../.pal/host/test/harness.ts";
 import { GmailMock, personal, work } from "./gmail-mock.ts";
 
 const P = "gmail";
@@ -137,7 +137,7 @@ describe("gmail", () => {
   });
   afterAll(() => { host.kill(); mock.stop(); rmSync(dir, { recursive: true, force: true }); });
 
-  /** Search waits this long after a keystroke before it asks (SEARCH_WAIT_MS, extensions/gmail/index.ts). */
+  /** Search waits this long after a keystroke before it asks (SEARCH_WAIT_MS, gmail/index.ts). */
   const SEARCH_WAIT_MS = 300;
   /** A listing; search's waits out its keystroke debounce first. */
   const list = async (ext: string, palette: string, q = "", ctx?: Parameters<Host["list"]>[3]) => {

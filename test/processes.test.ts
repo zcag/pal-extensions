@@ -3,9 +3,9 @@
 // mode is exercised with a listener opened here, and its parsers over
 // canned lsof and ss output.
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
-import { tile } from "../../../sdk/src/icon.ts";
-import { parseLsofListeners, parseSsListeners, portQuery } from "../../../extensions/processes/ports.ts";
-import { Host } from "../harness.ts";
+import { tile } from "../.pal/sdk/src/icon.ts";
+import { parseLsofListeners, parseSsListeners, portQuery } from "../processes/ports.ts";
+import { Host } from "../.pal/host/test/harness.ts";
 
 const MAC = process.platform === "darwin";
 const ACTIONS = ["kill", "force-kill", "copy-pid", ...(MAC ? ["activity-monitor"] : [])];

@@ -7,8 +7,8 @@ import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import { existsSync, mkdirSync, mkdtempSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { execArgv, parseDesktop } from "../../../extensions/apps/desktop.ts";
-import { Host } from "../harness.ts";
+import { execArgv, parseDesktop } from "../apps/desktop.ts";
+import { Host } from "../.pal/host/test/harness.ts";
 
 const mac = process.platform === "darwin";
 

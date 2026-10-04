@@ -1,5 +1,5 @@
 // sessions against a temporary home holding the three CLIs' files in
-// their own shapes (extensions/sessions/fixture.ts) and stand-ins for
+// their own shapes (sessions/fixture.ts) and stand-ins for
 // every command the extension runs (`ps`, `lsof`, `tmux`, `kitten`,
 // `osascript`, `open`, `kill`, `code`) on PATH, each printing a canned
 // answer from a file the tests rewrite and logging its argv.
@@ -10,15 +10,15 @@ import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import { mkdirSync, mkdtempSync, readFileSync, rmSync, symlinkSync, utimesSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import type { BarItem, View, ViewNode } from "../../../sdk/src/index.ts";
-import { checkBarItem, checkView } from "../../../sdk/src/view.ts";
-import { acc, fold, parseWorkspace, pending, summarise, title, working as busy } from "../../../extensions/sessions/agents.ts";
-import { claude, codex, copilot, ps } from "../../../extensions/sessions/fixture.ts";
-import { agentOf, ancestors, appOf, cputime, kittyCandidates, kittyListenOn, kittyPids, kittyWindowOf, stepsFor, tool, ttyOf } from "../../../extensions/sessions/procs.ts";
-import { actions, render as renderPopover, shown, type Session } from "../../../extensions/sessions/view.ts";
-import { IDLE_OVER_MS, STREAM_DEBOUNCE_MS, WATCH_DEBOUNCE_MS } from "../../../extensions/sessions/index.ts";
-import { CAP, PAGE } from "../../../extensions/sessions/transcript.ts";
-import { Host, marksOf, writeTool, logLines } from "../harness.ts";
+import type { BarItem, View, ViewNode } from "../.pal/sdk/src/index.ts";
+import { checkBarItem, checkView } from "../.pal/sdk/src/view.ts";
+import { acc, fold, parseWorkspace, pending, summarise, title, working as busy } from "../sessions/agents.ts";
+import { claude, codex, copilot, ps } from "../sessions/fixture.ts";
+import { agentOf, ancestors, appOf, cputime, kittyCandidates, kittyListenOn, kittyPids, kittyWindowOf, stepsFor, tool, ttyOf } from "../sessions/procs.ts";
+import { actions, render as renderPopover, shown, type Session } from "../sessions/view.ts";
+import { IDLE_OVER_MS, STREAM_DEBOUNCE_MS, WATCH_DEBOUNCE_MS } from "../sessions/index.ts";
+import { CAP, PAGE } from "../sessions/transcript.ts";
+import { Host, marksOf, writeTool, logLines } from "../.pal/host/test/harness.ts";
 
 const base = mkdtempSync(join(tmpdir(), "pal-sessions-"));
 const MAC = process.platform === "darwin";

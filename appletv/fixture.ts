@@ -1,9 +1,9 @@
-// Writes app/src/gallery/shots/appletv.json and bar-appletv.json: the store
+// Writes test/shots/appletv.json and bar-appletv.json: the store
 // screenshots' fixtures, an invented living room drawn through the same
 // trees and rows the extension draws (remote.ts, setup.ts, rows.ts), so
 // the shots show what the panel draws without an Apple TV on the network.
-// `bun run extensions/appletv/fixture.ts`, then `make shots EXT=appletv`.
-import { NOW, writeFixture } from "../../app/scripts/fixture-kit.ts";
+// `bun run appletv/fixture.ts`, then `make shots EXT=appletv`.
+import { NOW, writeFixture } from "../.pal/app/scripts/fixture-kit.ts";
 import { appleApp, sampleApp, wideArt } from "./art.ts";
 import { backdrop } from "./image.ts";
 import { render as renderNow, type NowState } from "./nowplaying.ts";

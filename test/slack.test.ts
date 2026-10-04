@@ -12,10 +12,10 @@ import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import { mkdirSync, mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { derive } from "../../../extensions/slack/cookies.ts";
-import type { Form, View, ViewNode } from "../../../sdk/src/protocol.ts";
-import { checkView } from "../../../sdk/src/view.ts";
-import { Host, HostError, marksOf, stored, writeTool } from "../harness.ts";
+import { derive } from "../slack/cookies.ts";
+import type { Form, View, ViewNode } from "../.pal/sdk/src/protocol.ts";
+import { checkView } from "../.pal/sdk/src/view.ts";
+import { Host, HostError, marksOf, stored, writeTool } from "../.pal/host/test/harness.ts";
 import { buildAppDir } from "./slack-fixtures.ts";
 
 // ---- fixtures ---------------------------------------------------------------
@@ -170,7 +170,7 @@ beforeAll(async () => {
 });
 afterAll(() => { host.kill(); server.stop(true); avatars.stop(true); process.env.PATH = PATH0; delete process.env.PAL_SLACK_API; delete process.env.PAL_SLACK_APP_DIR; rmSync(dir, { recursive: true, force: true }); });
 
-/** The search palette waits this long after a keystroke before it asks (SEARCH_WAIT_MS, extensions/slack/index.ts). */
+/** The search palette waits this long after a keystroke before it asks (SEARCH_WAIT_MS, slack/index.ts). */
 const SEARCH_WAIT_MS = 300;
 /** A listing; the search palette's waits out its keystroke debounce first. */
 const list = async (palette: string, query?: string, ctx?: Parameters<Host["list"]>[3]) => {

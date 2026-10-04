@@ -5,12 +5,12 @@ import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
-import { INPUTS, findMode, formatPlacements, levelFrom, mergeMac, parseBrightnessCli, parseDdcctl, parseDdcutilDetect, parseDdcutilVcp, parseDisplayplacer, parseHyprctl, parseInput, parseM1ddcList, parsePlacement, parseProfiler, parseWlrRandr, parseXrandr, withMain, withMirror, withMode, withoutMirror, type Screen } from "../../../extensions/displays/model.ts";
-import { popover, sliderView } from "../../../extensions/displays/view.ts";
-import { resolveScreen } from "../../../extensions/displays/index.ts";
-import { checkView } from "../../../sdk/src/view.ts";
-import type { View, ViewNode } from "../../../sdk/src/protocol.ts";
-import { Host, marksOf, stored, writeTool } from "../harness.ts";
+import { INPUTS, findMode, formatPlacements, levelFrom, mergeMac, parseBrightnessCli, parseDdcctl, parseDdcutilDetect, parseDdcutilVcp, parseDisplayplacer, parseHyprctl, parseInput, parseM1ddcList, parsePlacement, parseProfiler, parseWlrRandr, parseXrandr, withMain, withMirror, withMode, withoutMirror, type Screen } from "../displays/model.ts";
+import { popover, sliderView } from "../displays/view.ts";
+import { resolveScreen } from "../displays/index.ts";
+import { checkView } from "../.pal/sdk/src/view.ts";
+import type { View, ViewNode } from "../.pal/sdk/src/protocol.ts";
+import { Host, marksOf, stored, writeTool } from "../.pal/host/test/harness.ts";
 import { BRIGHTNESS_L, BUILTIN, DDCCTL, DDCUTIL_DETECT, DELL, DISPLAYPLACER, DISPLAYPLACER_MIRRORED, HYPRCTL, M1DDC_LIST, PROFILER, WLR_RANDR, XRANDR } from "./displays-fixtures.ts";
 
 const walk = (n: ViewNode): ViewNode[] => [n, ...(n.type === "stack" ? n.children.flatMap(walk) : [])];

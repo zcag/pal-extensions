@@ -2,14 +2,14 @@
 // LRC parsing, the line for a position at the boundaries, the lyrics
 // window the view draws, the colour sampler, and the view tree's shape.
 import { describe, expect, test } from "bun:test";
-// jpeg-js is the extension's own dependency (extensions/spotify/package.json), reached by path from here.
-import { encode } from "../../../extensions/spotify/node_modules/jpeg-js/index.js";
-import { checkView } from "../../../sdk/src/view.ts";
-import { authorizeUrl, challenge, redirectUri, verifier } from "../../../extensions/spotify/auth.ts";
-import { positionOf, toPlayer, toTrack } from "../../../extensions/spotify/api.ts";
-import { dominant, nearestTag, tintOf } from "../../../extensions/spotify/color.ts";
-import { currentLine, lineAt, parseLrc } from "../../../extensions/spotify/lyrics.ts";
-import { actions, clock, render, window as lyricWindow, type NowState } from "../../../extensions/spotify/view.ts";
+// jpeg-js is the extension's own dependency (spotify/package.json), reached by path from here.
+import { encode } from "../spotify/node_modules/jpeg-js/index.js";
+import { checkView } from "../.pal/sdk/src/view.ts";
+import { authorizeUrl, challenge, redirectUri, verifier } from "../spotify/auth.ts";
+import { positionOf, toPlayer, toTrack } from "../spotify/api.ts";
+import { dominant, nearestTag, tintOf } from "../spotify/color.ts";
+import { currentLine, lineAt, parseLrc } from "../spotify/lyrics.ts";
+import { actions, clock, render, window as lyricWindow, type NowState } from "../spotify/view.ts";
 
 describe("pkce", () => {
   test("S256 of the RFC 7636 appendix B verifier is its challenge", () => {

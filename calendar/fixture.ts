@@ -1,4 +1,4 @@
-// Writes app/src/gallery/shots/calendar.json and bar-calendar.json: the
+// Writes test/shots/calendar.json and bar-calendar.json: the
 // store screenshots' fixtures over one made-up week (the names are this
 // file's) at the kit's clock, Wed 16 Sep 2026 14:32. The palettes are
 // listed through the host harness against canned core/calendar.* replies,
@@ -8,8 +8,8 @@
 // coloured by the manifest's rules as the core colours them.
 // `make shots EXT=calendar`.
 import type { BarItem, Calendar, CalendarEvent } from "@zcag/pal";
-import { NOW, pinClock, writeFixture } from "../../app/scripts/fixture-kit.ts";
-import { Host } from "../../host/test/harness.ts";
+import { NOW, pinClock, writeFixture } from "../.pal/app/scripts/fixture-kit.ts";
+import { Host } from "../.pal/host/test/harness.ts";
 import manifest from "./pal.json";
 import type { Settings } from "./source.ts";
 import { upcomingItem, type ItemSettings } from "./today.ts";

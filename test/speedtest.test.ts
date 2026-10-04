@@ -8,11 +8,11 @@ import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import { mkdirSync, mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { argv, detect, feed, finish, ms, speed, start, summary, noteLine } from "../../../extensions/speedtest/tools.ts";
-import { tile } from "../../../sdk/src/icon.ts";
-import type { Effect, View, ViewNode } from "../../../sdk/src/protocol.ts";
-import { checkView } from "../../../sdk/src/view.ts";
-import { Host, stored, writeTool, logLines } from "../harness.ts";
+import { argv, detect, feed, finish, ms, speed, start, summary, noteLine } from "../speedtest/tools.ts";
+import { tile } from "../.pal/sdk/src/icon.ts";
+import type { Effect, View, ViewNode } from "../.pal/sdk/src/protocol.ts";
+import { checkView } from "../.pal/sdk/src/view.ts";
+import { Host, stored, writeTool, logLines } from "../.pal/host/test/harness.ts";
 
 const OOKLA_LINES = [
   `{"type":"testStart","timestamp":"2026-09-17T08:00:00Z","isp":"Turk Telekom","interface":{"internalIp":"10.0.0.5","name":"en0","macAddr":"aa","isVpn":false,"externalIp":"85.1.2.3"},"server":{"id":1234,"host":"speedtest.example.net:8080","port":8080,"name":"Example Net","location":"Istanbul","country":"Türkiye","ip":"1.2.3.4"}}`,

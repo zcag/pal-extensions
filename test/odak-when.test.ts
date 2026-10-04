@@ -1,8 +1,8 @@
-// The add line's grammar and the day words (extensions/odak/when.ts), pure:
+// The add line's grammar and the day words (odak/when.ts), pure:
 // tags, the flag, the section by prefix, `d:` and `w:`, the day at the end
 // with a time left in the text, and how a due day reads on a row.
 import { describe, expect, test } from "bun:test";
-import { due, isoDay, linkIn, parseAdd, parseWhen, waits } from "../../../extensions/odak/when.ts";
+import { due, isoDay, linkIn, parseAdd, parseWhen, waits } from "../odak/when.ts";
 
 process.env.TZ = "Europe/Istanbul";
 /** Tuesday 22 September 2026, mid-morning. */

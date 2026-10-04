@@ -10,10 +10,10 @@ import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import { mkdirSync, mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { age, count, duration, isoSeconds, parseApiChannels, parseApiVideos, parseInvChannels, parseInvVideos } from "../../../extensions/youtube/api.ts";
-import { DEBOUNCE_MS, matches, playerArgv } from "../../../extensions/youtube/index.ts";
-import type { Item } from "../../../sdk/src/protocol.ts";
-import { Host, stored, writeTool, logLines, bundledIcon } from "../harness.ts";
+import { age, count, duration, isoSeconds, parseApiChannels, parseApiVideos, parseInvChannels, parseInvVideos } from "../youtube/api.ts";
+import { DEBOUNCE_MS, matches, playerArgv } from "../youtube/index.ts";
+import type { Item } from "../.pal/sdk/src/protocol.ts";
+import { Host, stored, writeTool, logLines, bundledIcon } from "../.pal/host/test/harness.ts";
 import { CHANNELS, startMock, VIDEOS } from "./youtube-mock.ts";
 
 describe("api.ts", () => {

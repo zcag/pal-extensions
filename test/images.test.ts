@@ -13,11 +13,11 @@ import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { basename, dirname, join } from "node:path";
-import { ASPECTS, cropped, fmtOf, geomFormat, ICONSET, isImage, outputFor, outputFmt, parseExiftool, parseIdentify, parseResize, parseSips, percent, plan, resized, strip, stripJpeg, stripPng, suffixFor, TOOL_ORDER, type Avail, type Plan } from "../../../extensions/images/ops.ts";
-import type { Item, View, ViewNode } from "../../../sdk/src/index.ts";
-import { tile } from "../../../sdk/src/icon.ts";
-import { bytes } from "../../../sdk/src/text.ts";
-import { Host, writeTool } from "../harness.ts";
+import { ASPECTS, cropped, fmtOf, geomFormat, ICONSET, isImage, outputFor, outputFmt, parseExiftool, parseIdentify, parseResize, parseSips, percent, plan, resized, strip, stripJpeg, stripPng, suffixFor, TOOL_ORDER, type Avail, type Plan } from "../images/ops.ts";
+import type { Item, View, ViewNode } from "../.pal/sdk/src/index.ts";
+import { tile } from "../.pal/sdk/src/icon.ts";
+import { bytes } from "../.pal/sdk/src/text.ts";
+import { Host, writeTool } from "../.pal/host/test/harness.ts";
 import { chunk, flat, gradient, png, text } from "./images-png.ts";
 
 const MAC = process.platform === "darwin";

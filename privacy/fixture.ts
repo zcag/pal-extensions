@@ -1,11 +1,11 @@
-// Writes app/src/gallery/shots/privacy.json and bar-privacy.json: the store
+// Writes test/shots/privacy.json and bar-privacy.json: the store
 // screenshots' fixtures, the popover and the rows from view.ts over made-up
 // uses at a fixed clock. The apps are invented (Huddle, a call app, and
 // Terminal running ffmpeg) with SVG icons drawn here, since the gallery has
 // no `icon://` scheme and a real app's icon is someone's mark.
 // `make shots EXT=privacy`.
 import type { PrivacyUse, ViewNode } from "@zcag/pal";
-import { NOW_S as NOW, writeFixture } from "../../app/scripts/fixture-kit.ts";
+import { NOW_S as NOW, writeFixture } from "../.pal/app/scripts/fixture-kit.ts";
 import { GLYPH, groups, paletteItem, render } from "./view.ts";
 
 const svg = (body: string) => `data:image/svg+xml;base64,${Buffer.from(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">${body}</svg>`).toString("base64")}`;

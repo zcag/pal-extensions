@@ -6,7 +6,7 @@
 // `requests` records every call; `hold(from)` holds back the media from that
 // GIF on until the function it returns runs, so a test sees the first
 // previews land before the rest.
-import { picture } from "../png.ts";
+import { picture } from "../.pal/host/test/png.ts";
 
 export type Seen = { path: string; q?: string; key?: string; filter?: string };
 

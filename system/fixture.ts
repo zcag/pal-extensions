@@ -1,17 +1,17 @@
-// Writes app/src/gallery/shots/system.json and bar-system.json, the store
+// Writes test/shots/system.json and bar-system.json, the store
 // screenshots' fixtures: the palette's rows through the host harness over
 // the core's catalogue (core/src/system.rs, every command available), a
 // made-up Trash of three files, a dark appearance from a stand-in
 // `defaults` and two files marked in Finder; the Keep Awake bar item with
 // its popover tree from view.ts over a made-up run at a fixed clock, and
-// the strip variants the shots pick. `bun run extensions/system/fixture.ts`,
+// the strip variants the shots pick. `bun run system/fixture.ts`,
 // then `make shots EXT=system`.
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { Host, stored, writeTool } from "../../host/test/harness.ts";
-import { NOW, pinClock, writeFixture } from "../../app/scripts/fixture-kit.ts";
-import type { SystemCommand } from "../../sdk/src/index.ts";
+import { Host, stored, writeTool } from "../.pal/host/test/harness.ts";
+import { NOW, pinClock, writeFixture } from "../.pal/app/scripts/fixture-kit.ts";
+import type { SystemCommand } from "../.pal/sdk/src/index.ts";
 import { fmtLeft, summary, type Awake } from "./awake.ts";
 import { DISPLAY_GLYPH, GLYPH, render, type PopoverState } from "./view.ts";
 const run = (o: Partial<Awake> = {}): Awake => ({ pid: 4242, started: NOW - 35 * 60_000, until: NOW + 25 * 60_000, display: false, ...o });

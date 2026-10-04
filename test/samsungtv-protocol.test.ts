@@ -5,12 +5,12 @@
 // (plain ws, the same messages the TV's wss carries).
 import { afterEach, describe, expect, test } from "bun:test";
 import type { Server, ServerWebSocket } from "bun";
-import { makeDriver } from "../../../extensions/samsungtv/device.ts";
-import { isSamsung, magicPacket, msearch, parseResponse } from "../../../extensions/samsungtv/protocol/net.ts";
-import { appsMsg, imeText, keyMsg, parseApps, refusal, remoteUrl, textEndMsg, textMsg } from "../../../extensions/samsungtv/protocol/remote.ts";
-import { decodeEntities, parseInfo } from "../../../extensions/samsungtv/protocol/rest.ts";
-import { envelope, fault, fields, hms, mediaOf, RC } from "../../../extensions/samsungtv/protocol/upnp.ts";
-import type { ChangeEvent, Conn, Paired } from "../../../extensions/samsungtv/types.ts";
+import { makeDriver } from "../samsungtv/device.ts";
+import { isSamsung, magicPacket, msearch, parseResponse } from "../samsungtv/protocol/net.ts";
+import { appsMsg, imeText, keyMsg, parseApps, refusal, remoteUrl, textEndMsg, textMsg } from "../samsungtv/protocol/remote.ts";
+import { decodeEntities, parseInfo } from "../samsungtv/protocol/rest.ts";
+import { envelope, fault, fields, hms, mediaOf, RC } from "../samsungtv/protocol/upnp.ts";
+import type { ChangeEvent, Conn, Paired } from "../samsungtv/types.ts";
 
 /** `/api/v2/` from the living-room TV, 2026-10-04 (trimmed). */
 const INFO = {

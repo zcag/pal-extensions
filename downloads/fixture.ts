@@ -1,19 +1,19 @@
-// Writes app/src/gallery/shots/downloads.json, the store screenshots'
+// Writes test/shots/downloads.json, the store screenshots'
 // fixture: a temp folder filled with made-up downloads (dated across the
 // sections, two generated pictures for the thumbnails, a Chrome partial
 // growing between two listings) listed through the host harness, the
 // temp path scrubbed to ~/Downloads, at the fixed clock. The partial's rate
 // is measured on the real clock between the two listings, so it is said
 // again (scan.ts `rate`) as if exactly a second had passed. Nothing is the owner's.
-// `bun run extensions/downloads/fixture.ts`, then `node app/scripts/shots.mjs downloads`.
+// `bun run downloads/fixture.ts`, then `node app/scripts/shots.mjs downloads`.
 import { mkdirSync, mkdtempSync, rmSync, utimesSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { bytes } from "@zcag/pal";
-import { NOW, pinClock, writeFixture } from "../../app/scripts/fixture-kit.ts";
-import { Host } from "../../host/test/harness.ts";
+import { NOW, pinClock, writeFixture } from "../.pal/app/scripts/fixture-kit.ts";
+import { Host } from "../.pal/host/test/harness.ts";
 import { rate } from "./scan.ts";
-import { png } from "../../host/test/png.ts";
+import { png } from "../.pal/host/test/png.ts";
 
 const sunset = png(96, 64, (x, y) => [Math.round(240 - y * 1.6), Math.round(120 + x * 0.6 - y), Math.round(80 + y * 2)]);
 const plot = png(96, 64, (x, y) => (Math.abs(y - (32 + 20 * Math.sin(x / 8))) < 2 ? [60, 90, 220] : (x % 16 === 0 || y % 16 === 0 ? [225, 228, 235] : [250, 250, 252])));
@@ -73,7 +73,7 @@ try {
     },
   };
   writeFixture("downloads", fixture);
-  console.log("wrote app/src/gallery/shots/downloads.json");
+  console.log("wrote test/shots/downloads.json");
 } finally {
   host.kill();
   rmSync(root, { recursive: true, force: true });

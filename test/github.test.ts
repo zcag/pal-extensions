@@ -8,12 +8,12 @@ import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import { mkdtempSync, mkdirSync, readFileSync, realpathSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { tinted } from "../../../sdk/src/icon.ts";
-import type { Form, View, ViewNode } from "../../../sdk/src/protocol.ts";
-import { checkView } from "../../../sdk/src/view.ts";
-import { REASONS, render as renderNotifs, renderIssues, renderPrs, shown, shownIssues, shownPrs } from "../../../extensions/github/view.ts";
-import type { Issue as GhIssue, Notification, PR as GhPR } from "../../../extensions/github/data.ts";
-import { Host, marksOf, stored, writeTool } from "../harness.ts";
+import { tinted } from "../.pal/sdk/src/icon.ts";
+import type { Form, View, ViewNode } from "../.pal/sdk/src/protocol.ts";
+import { checkView } from "../.pal/sdk/src/view.ts";
+import { REASONS, render as renderNotifs, renderIssues, renderPrs, shown, shownIssues, shownPrs } from "../github/view.ts";
+import type { Issue as GhIssue, Notification, PR as GhPR } from "../github/data.ts";
+import { Host, marksOf, stored, writeTool } from "../.pal/host/test/harness.ts";
 
 // ---- fixtures ---------------------------------------------------------------
 
@@ -87,7 +87,7 @@ const seen: Seen[] = [];
 const NOTIF_ETAG = 'W/"notif-1"', REPOS_ETAG = 'W/"repos-1"';
 const json = (data: unknown, init: ResponseInit = {}) => Response.json(data, { ...init, headers: { "x-ratelimit-remaining": "4999", "x-ratelimit-reset": String(Math.floor(Date.now() / 1000) + 3600), ...(init.headers as Record<string, string>) } });
 
-/** The search level waits this long after a keystroke before it asks (SEARCH_WAIT_MS, extensions/github/index.ts). */
+/** The search level waits this long after a keystroke before it asks (SEARCH_WAIT_MS, github/index.ts). */
 const SEARCH_WAIT_MS = 300;
 let releaseThing!: () => void;
 const thingHeld = new Promise<void>((r) => (releaseThing = r));

@@ -1,11 +1,11 @@
-// Writes app/src/gallery/shots/media.json and bar-media.json: the store
+// Writes test/shots/media.json and bar-media.json: the store
 // screenshots' fixtures, made-up players (invented tracks by invented
 // artists; the covers are SVGs drawn here, since a real cover is someone's
 // artwork) through the extension's own row (index.ts `item`), strip item
 // (`barItem`) and popover (view.ts `render`), at the kit's clock.
-// `bun run extensions/media/fixture.ts`, then `make shots EXT=media`.
+// `bun run media/fixture.ts`, then `make shots EXT=media`.
 import type { MediaPlayer } from "@zcag/pal";
-import { NOW, pinClock, writeFixture } from "../../app/scripts/fixture-kit.ts";
+import { NOW, pinClock, writeFixture } from "../.pal/app/scripts/fixture-kit.ts";
 
 pinClock();
 const { barItem, fromPublished, item } = await import("./index.ts");

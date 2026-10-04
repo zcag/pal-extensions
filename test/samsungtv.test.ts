@@ -1,4 +1,4 @@
-// Samsung TV over the host against the stand-in TV (extensions/samsungtv/
+// Samsung TV over the host against the stand-in TV (samsungtv/
 // fake.ts: the TV's state is a JSON file this test writes, every command a
 // line in a log it reads back): the palettes and the bar item before
 // anything is paired, the guided setup (discovery, Allow, the check of what
@@ -11,13 +11,13 @@ import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import { mkdtempSync, readFileSync, renameSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { iconData, letterTile, sampleApp } from "../../../extensions/samsungtv/art.ts";
-import type { FakeTv } from "../../../extensions/samsungtv/fake.ts";
-import { dpad, positionAt, render as renderRemote, type RemoteState } from "../../../extensions/samsungtv/remote.ts";
-import { render as renderSetup } from "../../../extensions/samsungtv/setup.ts";
-import type { Served, View } from "../../../sdk/src/protocol.ts";
-import { checkView } from "../../../sdk/src/view.ts";
-import { Host, bundledIcon, logLines, stored } from "../harness.ts";
+import { iconData, letterTile, sampleApp } from "../samsungtv/art.ts";
+import type { FakeTv } from "../samsungtv/fake.ts";
+import { dpad, positionAt, render as renderRemote, type RemoteState } from "../samsungtv/remote.ts";
+import { render as renderSetup } from "../samsungtv/setup.ts";
+import type { Served, View } from "../.pal/sdk/src/protocol.ts";
+import { checkView } from "../.pal/sdk/src/view.ts";
+import { Host, bundledIcon, logLines, stored } from "../.pal/host/test/harness.ts";
 
 const E = "samsungtv";
 const LIVING = { id: "uuid:32ed4ce1-0d5b-41e6-a3c1-dc1a43af0e94", name: "75\" Neo QLED", address: "192.168.1.31", model: "QE75QN85DBTXTK", mac: "F4:DD:06:41:3A:4C", power: "on" as const, tokenAuth: true };

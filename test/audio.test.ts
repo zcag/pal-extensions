@@ -1,10 +1,10 @@
 // audio against canned core/audio.* replies.
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
-import { tile } from "../../../sdk/src/icon.ts";
-import type { AudioDevice } from "../../../sdk/src/index.ts";
-import type { View, ViewNode } from "../../../sdk/src/protocol.ts";
-import { FLASH_MS } from "../../../extensions/audio/index.ts";
-import { Host } from "../harness.ts";
+import { tile } from "../.pal/sdk/src/icon.ts";
+import type { AudioDevice } from "../.pal/sdk/src/index.ts";
+import type { View, ViewNode } from "../.pal/sdk/src/protocol.ts";
+import { FLASH_MS } from "../audio/index.ts";
+import { Host } from "../.pal/host/test/harness.ts";
 
 const walk = (n: ViewNode): ViewNode[] => [n, ...(n.type === "stack" ? n.children.flatMap(walk) : [])];
 const texts = (v: View) => walk(v.tree).flatMap((n) => (n.type === "text" ? [n.value] : n.type === "badge" ? [`[${n.text}]`] : []));

@@ -1,4 +1,4 @@
-// The clipboard's `rows` palette (extensions/clipboard/{rows,now}.ts):
+// The clipboard's `rows` palette (clipboard/{rows,now}.ts):
 // what a copied text is read as and the rows each reading gets, pure;
 // then the palette over a canned `core/clipboard.current`, the Hide
 // dismissal, and a few picks.
@@ -6,9 +6,9 @@ import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import { mkdtempSync, rmSync, writeFileSync, mkdirSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import type { ClipboardEntry, Item } from "../../../sdk/src/index.ts";
-import { analyzeText, decode, evaluate, git, json, parseDate, privateArgv, qrSvg, rows, stats, titleCase, titleOf, tracking, transform, HIDE, SECTION } from "../../../extensions/clipboard/rows.ts";
-import { Host, stored } from "../harness.ts";
+import type { ClipboardEntry, Item } from "../.pal/sdk/src/index.ts";
+import { analyzeText, decode, evaluate, git, json, parseDate, privateArgv, qrSvg, rows, stats, titleCase, titleOf, tracking, transform, HIDE, SECTION } from "../clipboard/rows.ts";
+import { Host, stored } from "../.pal/host/test/harness.ts";
 
 const entry = (text: string, id = 1): ClipboardEntry => ({ id, kind: "text", text, image: null, files: null, source_app: null, at: 1758000000000, bytes: text.length, pinned: false, width: null, height: null, name: null });
 const ids = (items: Item[]) => items.map((i) => i.id);

@@ -6,11 +6,11 @@
 // Firefox `recovery.jsonlz4` compressed here by hand (one match, so the
 // decoder's copy path runs). The real :9222 is never touched.
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
-import { tile } from "../../../sdk/src/icon.ts";
+import { tile } from "../.pal/sdk/src/icon.ts";
 import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { Host, writeTool } from "../harness.ts";
+import { Host, writeTool } from "../.pal/host/test/harness.ts";
 
 const MAC = process.platform === "darwin";
 const dir = mkdtempSync(join(tmpdir(), "pal-tabs-"));

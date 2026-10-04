@@ -121,9 +121,9 @@ a refused key.
 
 ## Tests and the fixture
 
-`host/test/extensions/theater.test.ts` runs the extension through the
+`test/theater.test.ts` runs the extension through the
 host harness against `theater-mock.ts`, one Bun server with every
 service under its own prefix; the writes are exercised there and never
-against a live stack. `bun run extensions/theater/fixture.ts` writes the
-gallery fixtures (`app/src/gallery/shots/theater.json`, `bar-theater.json`)
+against a live stack. `bun run theater/fixture.ts` writes the
+gallery fixtures (`test/shots/theater.json`, `bar-theater.json`)
 from the same mock.

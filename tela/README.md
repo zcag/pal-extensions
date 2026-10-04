@@ -157,5 +157,5 @@ The bar item is hidden at zero; `show = "always"` under
 with the same popover (docs/config.md).
 
 For the tests, `PAL_TELA_URL` and `PAL_TELA_TOKEN` replace the two
-settings; `host/test/extensions/tela-mock.ts` is a mock instance the tests
+settings; `test/tela-mock.ts` is a mock instance the tests
 and the screenshot fixture (`fixture.ts`) run against.

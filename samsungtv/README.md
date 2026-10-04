@@ -133,7 +133,7 @@ States: `samsungtv/power` (`on`, `standby`, `off`, `unknown`),
 
 ## Tests
 
-`host/test/extensions/samsungtv.test.ts` runs the extension over the host
+`test/samsungtv.test.ts` runs the extension over the host
 against a stand-in TV (`fake.ts`, `PAL_SAMSUNGTV_FAKE`: the TV's state a
 JSON file, every command a log line), groups and the controls through the
 harness. `samsungtv-protocol.test.ts` covers the wire against a local

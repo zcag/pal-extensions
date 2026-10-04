@@ -5,7 +5,7 @@ import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { Host } from "../harness.ts";
+import { Host } from "../.pal/host/test/harness.ts";
 
 const dir = mkdtempSync(join(tmpdir(), "pal-ssh-"));
 const config = join(dir, "config");

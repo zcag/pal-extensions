@@ -1,10 +1,10 @@
 // The media bar item's own poll: with a player playing at the last render
-// it looks again every `POLL_MS` (5 s, extensions/media/index.ts) and
+// it looks again every `POLL_MS` (5 s, media/index.ts) and
 // pushes `bar.update` on a change, and stops once nothing plays. Its own
 // host, since the poll interval is module state.
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
-import type { MediaPlayer, NowPlaying } from "../../../sdk/src/index.ts";
-import { Host } from "../harness.ts";
+import type { MediaPlayer, NowPlaying } from "../.pal/sdk/src/index.ts";
+import { Host } from "../.pal/host/test/harness.ts";
 
 /** The extension's POLL_MS. */
 const POLL_MS = 5000;

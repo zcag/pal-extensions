@@ -1,17 +1,17 @@
-// Writes app/src/gallery/shots/obsidian.json: the store screenshots'
+// Writes test/shots/obsidian.json: the store screenshots'
 // fixture. A temp vault shaped like a real one (the `_index.md` /
 // `_log.md` / `_rules.md` system files, infra, setup, personal/projects,
 // preferences, work, a daily folder with its plugin config and template)
 // is filled with invented notes, the extension runs over it through the
 // host harness, and the rows, the pane, the search hits, the daily
 // palette, the Append form and the page view come out of that run.
-// Nothing here is the owner's. `bun run extensions/obsidian/fixture.ts`,
+// Nothing here is the owner's. `bun run obsidian/fixture.ts`,
 // then `node app/scripts/shots.mjs obsidian`.
 import { mkdirSync, mkdtempSync, rmSync, utimesSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { NOW, pinClock, writeFixture } from "../../app/scripts/fixture-kit.ts";
-import { Host, stored } from "../../host/test/harness.ts";
+import { NOW, pinClock, writeFixture } from "../.pal/app/scripts/fixture-kit.ts";
+import { Host, stored } from "../.pal/host/test/harness.ts";
 import manifest from "./pal.json" with { type: "json" };
 
 pinClock();

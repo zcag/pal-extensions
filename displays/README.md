@@ -61,6 +61,6 @@ every minute, so a `brew install` lands without a restart.
 `model.ts` is pure: the parsers of every tool's output and the placement
 maths (a mode, the main display, a mirror set, a rotation as the next
 displayplacer command), fixture-tested in
-`host/test/extensions/displays.test.ts`. `tools.ts` runs the tools and
+`test/displays.test.ts`. `tools.ts` runs the tools and
 keeps the caches. `view.ts` draws the slider level and the bar popover.
 `index.ts` is the palette, the picks, the bar item and the routes.

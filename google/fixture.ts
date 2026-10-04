@@ -1,9 +1,9 @@
-// Writes app/src/gallery/shots/google.json, the store screenshots' fixture:
+// Writes test/shots/google.json, the store screenshots' fixture:
 // the palette listed through the host harness against a stand-in for
 // Google's suggest, Wikipedia and SerpApi, every answer made up here.
 // `make shots EXT=google`.
-import { pinClock, settle, writeFixture } from "../../app/scripts/fixture-kit.ts";
-import { Host } from "../../host/test/harness.ts";
+import { pinClock, settle, writeFixture } from "../.pal/app/scripts/fixture-kit.ts";
+import { Host } from "../.pal/host/test/harness.ts";
 
 const sugg = (q: string, rows: [string, { zh: string; zi: string }?][]) => `)]}'\n${JSON.stringify([rows.map(([t, e]) => [t.replace(q, `${q}<b>`) + (t === q ? "" : "</b>"), e ? 46 : 0, [512], ...(e ? [e] : [])]), {}])}`;
 const SUGGEST: Record<string, string> = {
@@ -60,7 +60,7 @@ try {
     },
   };
   writeFixture("google", await settle(fixture));
-  console.log("wrote app/src/gallery/shots/google.json");
+  console.log("wrote test/shots/google.json");
 } finally {
   host.kill();
   server.stop(true);

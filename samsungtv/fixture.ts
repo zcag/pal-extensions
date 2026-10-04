@@ -1,10 +1,10 @@
-// Writes app/src/gallery/shots/samsungtv.json and bar-samsungtv.json: the
+// Writes test/shots/samsungtv.json and bar-samsungtv.json: the
 // store screenshots' fixtures, an invented living room drawn through the
 // same trees and rows the extension draws (remote.ts, setup.ts, rows.ts),
 // so the shots show what the panel draws without a TV on the network. The
 // apps are invented (art.ts SAMPLE_MARKS): no real app's logo.
-// `bun run extensions/samsungtv/fixture.ts`, then `make shots EXT=samsungtv`.
-import { NOW, writeFixture } from "../../app/scripts/fixture-kit.ts";
+// `bun run samsungtv/fixture.ts`, then `make shots EXT=samsungtv`.
+import { NOW, writeFixture } from "../.pal/app/scripts/fixture-kit.ts";
 import type { Served } from "@zcag/pal";
 import { sampleApp } from "./art.ts";
 import { INPUTS } from "./device.ts";

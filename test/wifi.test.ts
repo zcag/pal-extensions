@@ -3,9 +3,9 @@
 // (macOS lists Available from the cache with a Scan row; Linux scans
 // through nmcli's own cache), and assert per platform where they differ.
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
-import type { PermissionStatus, WifiKnown, WifiScan, WifiStatus } from "../../../sdk/src/index.ts";
-import { Host } from "../harness.ts";
-import { bars, locationGate } from "../../../extensions/wifi/index.ts";
+import type { PermissionStatus, WifiKnown, WifiScan, WifiStatus } from "../.pal/sdk/src/index.ts";
+import { Host } from "../.pal/host/test/harness.ts";
+import { bars, locationGate } from "../wifi/index.ts";
 
 const MAC = process.platform === "darwin";
 let status: WifiStatus = { interface: "en0", powered: true, current: { ssid: "eldiven", signal: 92, channel: "44", security: "WPA2", ip: "192.168.1.131" } };

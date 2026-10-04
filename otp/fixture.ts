@@ -1,9 +1,9 @@
-// Writes app/src/gallery/shots/otp.json and bar-otp.json: the store
+// Writes test/shots/otp.json and bar-otp.json: the store
 // screenshots' fixtures, one day of made-up codes (the senders and texts are
 // this file's) through the extension's own row (index.ts `item`, the code
 // pulled out by `extract`) and popover (view.ts `render`), at the kit's clock.
-// `bun run extensions/otp/fixture.ts`, then `make shots EXT=otp`.
-import { NOW, pinClock, writeFixture } from "../../app/scripts/fixture-kit.ts";
+// `bun run otp/fixture.ts`, then `make shots EXT=otp`.
+import { NOW, pinClock, writeFixture } from "../.pal/app/scripts/fixture-kit.ts";
 
 // The sdk reads PAL_NOW once at load: pin it before the extension comes in.
 pinClock();

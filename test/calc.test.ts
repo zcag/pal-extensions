@@ -3,8 +3,8 @@
 // `rates` entry pre-seeded in the harness's storage; two more hosts at the
 // end exercise the fetch against a local server.
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
-import { tile } from "../../../sdk/src/icon.ts";
-import { Host, stored } from "../harness.ts";
+import { tile } from "../.pal/sdk/src/icon.ts";
+import { Host, stored } from "../.pal/host/test/harness.ts";
 
 const RATES = { EUR: 1, USD: 1.1539, TRY: 56.126, GBP: 0.85578, JPY: 178.85, CHF: 0.9441, INR: 110.73 };
 const VARS = ["salary_hour = 54 usd", "salary_day = salary_hour * 8", "salary_month = salary_hour * 2080 / 12", "lap_pool = 50 m", "lap_track = 400 m", "rent = 42000 try", "height = 183 cm", "try = 5", "loop = loop + 1", "not a var"];
@@ -45,7 +45,7 @@ describe("calc", () => {
   });
 
   test("at the root (inline): `match` takes sums, conversions and dates, never a bare number or a word; the inline list has no hints", async () => {
-    const { matches } = await import("../../../extensions/calc/index.ts");
+    const { matches } = await import("../calc/index.ts");
     for (const yes of ["2+2", "15% of 80", "12 usd to try", "5 km to miles", "3 days from now", "today + 3 days", "now in tokyo", "sqrt 2", "0xff"]) expect(matches(yes)).toBe(true);
     for (const no of ["", "42", "1,000", "chrome", "slack"]) expect(matches(no)).toBe(false);
     expect(matches("1password")).toBe(true); // a digit next to letters reads as a unit; the parse then finds nothing and the root shows no row
@@ -354,7 +354,7 @@ describe("dates and time (PAL_NOW: Wednesday 2026-09-16 10:30 in Europe/Istanbul
   });
 
   test("the root: date and time phrasings answer inline, words and app names do not", async () => {
-    const { matches } = await import("../../../extensions/calc/index.ts");
+    const { matches } = await import("../calc/index.ts");
     for (const yes of ["time in tokyo", "tokyo time", "3pm in tokyo", "next friday", "what week is it", "week number", "unix time", "unix", "1759000000", "@1759000000", "3h20m + 45m", "25 aralık", "gelecek cuma"]) expect([yes, matches(yes)]).toEqual([yes, true]);
     for (const no of ["friday", "mon", "week", "time machine", "slack time", "screen time", "5321234567", "what is this"]) expect([no, matches(no)]).toEqual([no, false]);
     const sections = await host.request<{ extension: string; items: { name: string }[] }[]>("inline", { query: "time in tokyo" });

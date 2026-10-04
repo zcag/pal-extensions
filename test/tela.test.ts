@@ -7,9 +7,9 @@
 // for a missing address, a missing or expired token, an instance without
 // an embedder, and one that does not answer.
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
-import { checkView, tinted } from "../../../sdk/src/index.ts";
-import type { Form, View, ViewNode } from "../../../sdk/src/protocol.ts";
-import { Host, marksOf, stored } from "../harness.ts";
+import { checkView, tinted } from "../.pal/sdk/src/index.ts";
+import type { Form, View, ViewNode } from "../.pal/sdk/src/protocol.ts";
+import { Host, marksOf, stored } from "../.pal/host/test/harness.ts";
 import { BASE, RESEARCH, SETTINGS, calls, seen, server, setRead, state } from "./tela-mock.ts";
 
 
@@ -22,7 +22,7 @@ beforeAll(async () => {
 });
 afterAll(() => { host.kill(); server.stop(true); });
 
-/** extensions/tela/index.ts SEARCH_WAIT_MS: a search waits it out on the host's clock. */
+/** tela/index.ts SEARCH_WAIT_MS: a search waits it out on the host's clock. */
 const SEARCH_WAIT_MS = 250;
 /** A listing; a search's with the wait advanced past. */
 const list = async (palette: string, query?: string, ctx?: Parameters<Host["list"]>[3]) => {

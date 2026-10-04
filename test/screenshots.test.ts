@@ -9,10 +9,10 @@ import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, utimesSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { basename, join } from "node:path";
-import { captureName, grimCommand, isScreenshot, kindOf, markdownImage, screencaptureArgv, HIDE_SETTLE_MS, SUGGEST_MS } from "../../../extensions/screenshots/shots.ts";
-import { tile } from "../../../sdk/src/icon.ts";
-import type { Item } from "../../../sdk/src/protocol.ts";
-import { Host, writeTool, logLines } from "../harness.ts";
+import { captureName, grimCommand, isScreenshot, kindOf, markdownImage, screencaptureArgv, HIDE_SETTLE_MS, SUGGEST_MS } from "../screenshots/shots.ts";
+import { tile } from "../.pal/sdk/src/icon.ts";
+import type { Item } from "../.pal/sdk/src/protocol.ts";
+import { Host, writeTool, logLines } from "../.pal/host/test/harness.ts";
 
 const MAC = process.platform === "darwin";
 

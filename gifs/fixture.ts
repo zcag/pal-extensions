@@ -1,15 +1,15 @@
-// Writes app/src/gallery/shots/gifs.json, the store screenshots' fixture:
+// Writes test/shots/gifs.json, the store screenshots' fixture:
 // the grid listed through the host harness against the Giphy mock
-// (host/test/extensions/gifs-mock.ts), whose "GIFs" are generated
+// (test/gifs-mock.ts), whose "GIFs" are generated
 // pictures, with a favourites list of two. Nothing is the owner's; the
 // detail pane's preview, which the mock serves, is inlined by `settle`.
-// `bun run extensions/gifs/fixture.ts`, then `node app/scripts/shots.mjs gifs`.
+// `bun run gifs/fixture.ts`, then `node app/scripts/shots.mjs gifs`.
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { pinClock, settle, writeFixture } from "../../app/scripts/fixture-kit.ts";
-import { Host, stored } from "../../host/test/harness.ts";
-import { startMock } from "../../host/test/extensions/gifs-mock.ts";
+import { pinClock, settle, writeFixture } from "../.pal/app/scripts/fixture-kit.ts";
+import { Host, stored } from "../.pal/host/test/harness.ts";
+import { startMock } from "../test/gifs-mock.ts";
 
 const { server, base } = startMock();
 const cache = mkdtempSync(join(tmpdir(), "pal-gifs-fixture-"));
@@ -45,7 +45,7 @@ try {
     },
   };
   writeFixture("gifs", await settle(fixture, { hosts: { [base]: "https://media.giphy.example" } }));
-  console.log("wrote app/src/gallery/shots/gifs.json");
+  console.log("wrote test/shots/gifs.json");
 } finally {
   host.kill();
   server.stop(true);

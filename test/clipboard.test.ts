@@ -3,10 +3,10 @@ import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { tile } from "../../../sdk/src/icon.ts";
-import type { ClipboardEntry } from "../../../sdk/src/index.ts";
-import { fileNameFor } from "../../../extensions/clipboard/rows.ts";
-import { Host, fixtures } from "../harness.ts";
+import { tile } from "../.pal/sdk/src/icon.ts";
+import type { ClipboardEntry } from "../.pal/sdk/src/index.ts";
+import { fileNameFor } from "../clipboard/rows.ts";
+import { Host, fixtures } from "../.pal/host/test/harness.ts";
 
 let host: Host;
 const calls = { pin: [] as unknown[], del: [] as unknown[], copy: [] as unknown[], rename: [] as unknown[], clear: 0 };

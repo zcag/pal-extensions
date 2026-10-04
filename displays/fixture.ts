@@ -1,17 +1,17 @@
-// Writes app/src/gallery/shots/displays.json and bar-displays.json, the
+// Writes test/shots/displays.json and bar-displays.json, the
 // store screenshots' fixtures: the palette, a display's level, its modes,
 // the brightness slider and the popover, drawn through the host harness
 // against stand-in tools on PATH (system_profiler, displayplacer, m1ddc,
 // the brightness CLI, nightlight) that print a made-up desk: a MacBook's
 // panel on the left of a 27-inch "Aurora 27Q" on DisplayPort, the monitor
 // main, two saved presets. Nothing is the owner's.
-// `bun run extensions/displays/fixture.ts`, then `make shots EXT=displays`.
+// `bun run displays/fixture.ts`, then `make shots EXT=displays`.
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
-import { Host, stored, writeTool } from "../../host/test/harness.ts";
-import type { View } from "../../sdk/src/protocol.ts";
-import { NOW, pinClock, writeFixture } from "../../app/scripts/fixture-kit.ts";
+import { Host, stored, writeTool } from "../.pal/host/test/harness.ts";
+import type { View } from "../.pal/sdk/src/protocol.ts";
+import { NOW, pinClock, writeFixture } from "../.pal/app/scripts/fixture-kit.ts";
 import { formatPlacements, parseDisplayplacer, withMirror } from "./model.ts";
 
 const PANEL = "4A1E2C90-7B3D-4F21-9E6A-1C0D52B8F3A7";
@@ -140,7 +140,7 @@ if (import.meta.main) {
         "sketchybar": { target: "sketchybar", caption: "On sketchybar: the sun and the level as its label" },
       },
     });
-    console.log("wrote app/src/gallery/shots/displays.json and bar-displays.json");
+    console.log("wrote test/shots/displays.json and bar-displays.json");
   } finally {
     host.kill();
     rmSync(dir, { recursive: true, force: true });

@@ -1,9 +1,9 @@
-// Writes app/src/gallery/shots/space.json: the store screenshots' fixture,
+// Writes test/shots/space.json: the store screenshots' fixture,
 // a made-up home folder (never the owner's) as a tree, rendered by
 // render.ts into the map, a zoomed map with two boxes marked, and the
-// lists. `bun run extensions/space/fixture.ts`, then
+// lists. `bun run space/fixture.ts`, then
 // `node app/scripts/shots.mjs space`.
-import { NOW, pinClock, writeFixture } from "../../app/scripts/fixture-kit.ts";
+import { NOW, pinClock, writeFixture } from "../.pal/app/scripts/fixture-kit.ts";
 import manifest from "./pal.json";
 import type { MapState } from "./render.ts";
 import type { Node } from "./scan.ts";

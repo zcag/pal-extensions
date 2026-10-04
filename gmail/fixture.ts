@@ -1,18 +1,18 @@
-// Writes app/src/gallery/shots/gmail.json and bar-gmail.json, the store
+// Writes test/shots/gmail.json and bar-gmail.json, the store
 // screenshots' fixtures: every palette's rows, the panes, the forms and
 // the bar item drawn through the host harness against the Gmail API
-// stand-in the tests use (host/test/extensions/gmail-mock.ts), serving a
+// stand-in the tests use (test/gmail-mock.ts), serving a
 // made-up mailbox of its own (`BOX` below: a colleague's deck, a review
 // request, a trip, an invoice, a few read ones, two drafts). One instance
 // titled Personal, send on so Compose is there; the Gravatar probe is off,
 // so every sender wears the initial's tile.
-// `bun run extensions/gmail/fixture.ts`, then `make shots EXT=gmail`.
+// `bun run gmail/fixture.ts`, then `make shots EXT=gmail`.
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { pinClock, settle, writeFixture } from "../../app/scripts/fixture-kit.ts";
-import { Host, writeTool } from "../../host/test/harness.ts";
-import { GmailMock, type Box, type Msg } from "../../host/test/extensions/gmail-mock.ts";
+import { pinClock, settle, writeFixture } from "../.pal/app/scripts/fixture-kit.ts";
+import { Host, writeTool } from "../.pal/host/test/harness.ts";
+import { GmailMock, type Box, type Msg } from "../test/gmail-mock.ts";
 
 const SYSTEM = ["INBOX", "UNREAD", "STARRED", "IMPORTANT", "SENT", "DRAFT", "SPAM", "TRASH", "CATEGORY_PERSONAL", "CATEGORY_UPDATES", "CATEGORY_PROMOTIONS"].map((id) => ({ id, name: id, type: "system" as const }));
 const ME = "sam@example.com";

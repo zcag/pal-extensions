@@ -1,13 +1,13 @@
-// Writes app/src/gallery/shots/youtube.json, the store screenshots'
+// Writes test/shots/youtube.json, the store screenshots'
 // fixture: the palettes listed through the host harness against the
-// Data API mock (host/test/extensions/youtube-mock.ts) serving made-up
+// Data API mock (test/youtube-mock.ts) serving made-up
 // channels and videos at the fixed clock. A real video's thumbnail and a
 // real channel's avatar are someone's artwork, so the ones the rows point
 // at (YouTube's image hosts) are swapped for SVGs drawn here.
-// `bun run extensions/youtube/fixture.ts`, then `node app/scripts/shots.mjs youtube`.
-import { NOW_S, pinClock, settle, writeFixture } from "../../app/scripts/fixture-kit.ts";
-import { Host, stored } from "../../host/test/harness.ts";
-import { startMock, type MockChannel, type MockVideo } from "../../host/test/extensions/youtube-mock.ts";
+// `bun run youtube/fixture.ts`, then `node app/scripts/shots.mjs youtube`.
+import { NOW_S, pinClock, settle, writeFixture } from "../.pal/app/scripts/fixture-kit.ts";
+import { Host, stored } from "../.pal/host/test/harness.ts";
+import { startMock, type MockChannel, type MockVideo } from "../test/youtube-mock.ts";
 
 const H = 3600, D = 86400;
 const CHANNELS: MockChannel[] = [
@@ -92,7 +92,7 @@ try {
     },
   });
   writeFixture("youtube", await settle(fixture, { hosts: { [base]: "https://www.googleapis.com/youtube/v3" } }));
-  console.log("wrote app/src/gallery/shots/youtube.json");
+  console.log("wrote test/shots/youtube.json");
 } finally {
   host.kill();
   server.stop(true);

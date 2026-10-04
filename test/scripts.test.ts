@@ -6,11 +6,11 @@ import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import { chmodSync, existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { parse, scan, seconds, tags } from "../../../extensions/scripts/commands.ts";
-import { tile } from "../../../sdk/src/icon.ts";
-import { xdg } from "../../../sdk/src/icons.ts";
-import type { Form } from "../../../sdk/src/protocol.ts";
-import { Host } from "../harness.ts";
+import { parse, scan, seconds, tags } from "../scripts/commands.ts";
+import { tile } from "../.pal/sdk/src/icon.ts";
+import { xdg } from "../.pal/sdk/src/icons.ts";
+import type { Form } from "../.pal/sdk/src/protocol.ts";
+import { Host } from "../.pal/host/test/harness.ts";
 
 const dir = mkdtempSync(join(tmpdir(), "pal-v1-"));
 const w = (rel: string, text: string, exec = false) => {

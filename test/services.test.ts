@@ -6,7 +6,7 @@ import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { Host, writeTool, logLines } from "../harness.ts";
+import { Host, writeTool, logLines } from "../.pal/host/test/harness.ts";
 
 const dir = mkdtempSync(join(tmpdir(), "pal-services-"));
 const calls = join(dir, "calls");

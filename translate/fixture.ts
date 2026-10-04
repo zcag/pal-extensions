@@ -1,12 +1,12 @@
-// Writes app/src/gallery/shots/translate.json, the store screenshots'
+// Writes test/shots/translate.json, the store screenshots'
 // fixture: the palette listed through the host harness against the
-// translate mock (host/test/extensions/translate-mock.ts, the real
+// translate mock (test/translate-mock.ts, the real
 // endpoint's answers of 2026-09-17), with `to = tr` so the shots show the
 // Turkish and English pair, and a history of what the shots picked.
 // Nothing is the owner's. `make shots EXT=translate`.
-import { Host, stored } from "../../host/test/harness.ts";
-import { startMock } from "../../host/test/extensions/translate-mock.ts";
-import { NOW, pinClock, settle, writeFixture } from "../../app/scripts/fixture-kit.ts";
+import { Host, stored } from "../.pal/host/test/harness.ts";
+import { startMock } from "../test/translate-mock.ts";
+import { NOW, pinClock, settle, writeFixture } from "../.pal/app/scripts/fixture-kit.ts";
 
 const QUERIES = ["hello world", "tr>en merhaba dünya. Nasılsın?", ">ja hello"];
 
@@ -47,7 +47,7 @@ try {
     },
   };
   writeFixture("translate", await settle(fixture, { hosts: { [base]: "https://translate.example.com" } }));
-  console.log("wrote app/src/gallery/shots/translate.json");
+  console.log("wrote test/shots/translate.json");
 } finally {
   host.kill();
   server.stop(true);

@@ -4,16 +4,16 @@
 // strip, the core's `media` trigger declared, no self-poll when the core
 // streams).
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
-import type { MediaPlayer, NowPlaying } from "../../../sdk/src/index.ts";
+import type { MediaPlayer, NowPlaying } from "../.pal/sdk/src/index.ts";
 import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { Host } from "../harness.ts";
-import { positionAt, progress, trackText } from "../../../extensions/media/index.ts";
-import { clock } from "../../../extensions/media/view.ts";
-import { render } from "../../../extensions/media/view.ts";
-import { checkView } from "../../../sdk/src/view.ts";
-import type { View, ViewNode } from "../../../sdk/src/protocol.ts";
+import { Host } from "../.pal/host/test/harness.ts";
+import { positionAt, progress, trackText } from "../media/index.ts";
+import { clock } from "../media/view.ts";
+import { render } from "../media/view.ts";
+import { checkView } from "../.pal/sdk/src/view.ts";
+import type { View, ViewNode } from "../.pal/sdk/src/protocol.ts";
 
 const MAC = process.platform === "darwin";
 // The artwork url is one the popover would fetch (a url it cannot draw as is): a closed port here, so the test stays off the network.

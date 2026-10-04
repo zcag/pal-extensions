@@ -6,8 +6,8 @@ import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import type { Form } from "../../../sdk/src/protocol.ts";
-import { Host, fixtures, writeTool, logLines } from "../harness.ts";
+import type { Form } from "../.pal/sdk/src/protocol.ts";
+import { Host, fixtures, writeTool, logLines } from "../.pal/host/test/harness.ts";
 
 const MAC = process.platform === "darwin";
 const dir = mkdtempSync(join(tmpdir(), "pal-shortcuts-"));

@@ -1,12 +1,12 @@
-// Writes app/src/gallery/shots/tela.json and bar-tela.json: the store
+// Writes test/shots/tela.json and bar-tela.json: the store
 // screenshots' fixture. The rows, the research view, the page view and the
 // New page form come out of the real extension run through the host
-// harness against the tests' mock instance (host/test/extensions/tela-mock.ts),
+// harness against the tests' mock instance (test/tela-mock.ts),
 // with a few more pages added so the listings look lived in; nothing here
 // is the owner's (the tests' "you" is renamed deniz). `make shots EXT=tela`.
-import { Host, stored } from "../../host/test/harness.ts";
-import { BASE, FAVORITES, NOTIFICATIONS, PAGES, RECENT, SETTINGS, SPACES, server, setRead } from "../../host/test/extensions/tela-mock.ts";
-import { pinClock, settle, writeFixture } from "../../app/scripts/fixture-kit.ts";
+import { Host, stored } from "../.pal/host/test/harness.ts";
+import { BASE, FAVORITES, NOTIFICATIONS, PAGES, RECENT, SETTINGS, SPACES, server, setRead } from "../test/tela-mock.ts";
+import { pinClock, settle, writeFixture } from "../.pal/app/scripts/fixture-kit.ts";
 import manifest from "./pal.json" with { type: "json" };
 
 pinClock();

@@ -1,17 +1,17 @@
-// Writes app/src/gallery/shots/shell.json, the store screenshots'
+// Writes test/shots/shell.json, the store screenshots'
 // fixture: the palette listed and picked through the host harness with
 // `/bin/sh -c` in a temp folder of made-up files, so the output views are
 // what the code draws for real commands and nothing is the owner's. The
 // files are dated at the fixed clock; how long a run took is the real
 // clock's, so the durations (the view's badge, the history's subtitles)
 // are set to plausible ones after, with the history's ages.
-// `bun run extensions/shell/fixture.ts`, then `node app/scripts/shots.mjs shell`.
+// `bun run shell/fixture.ts`, then `node app/scripts/shots.mjs shell`.
 import { mkdirSync, mkdtempSync, rmSync, utimesSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { ViewNode } from "@zcag/pal";
-import { NOW, pinClock, writeFixture } from "../../app/scripts/fixture-kit.ts";
-import { Host, stored } from "../../host/test/harness.ts";
+import { NOW, pinClock, writeFixture } from "../.pal/app/scripts/fixture-kit.ts";
+import { Host, stored } from "../.pal/host/test/harness.ts";
 import { duration } from "./run.ts";
 
 const dir = mkdtempSync(join(tmpdir(), "pal-shell-fixture-"));
@@ -79,7 +79,7 @@ try {
     },
   };
   writeFixture("shell", fixture);
-  console.log("wrote app/src/gallery/shots/shell.json");
+  console.log("wrote test/shots/shell.json");
 } finally {
   host.kill();
   rmSync(dir, { recursive: true, force: true });

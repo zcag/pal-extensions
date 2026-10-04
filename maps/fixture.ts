@@ -1,9 +1,9 @@
-// Writes app/src/gallery/shots/maps.json, the store screenshots' fixture:
+// Writes test/shots/maps.json, the store screenshots' fixture:
 // made-up home, work and saved places listed through the host harness,
 // the autocomplete rows from a stand-in Places API. Nothing is the
 // owner's. `make shots EXT=maps`.
-import { pinClock, settle, writeFixture } from "../../app/scripts/fixture-kit.ts";
-import { Host } from "../../host/test/harness.ts";
+import { pinClock, settle, writeFixture } from "../.pal/app/scripts/fixture-kit.ts";
+import { Host } from "../.pal/host/test/harness.ts";
 
 const places = Bun.serve({
   port: 0,
@@ -38,7 +38,7 @@ try {
     },
   };
   writeFixture("maps", await settle(fixture));
-  console.log("wrote app/src/gallery/shots/maps.json");
+  console.log("wrote test/shots/maps.json");
 } finally {
   host.kill();
   places.stop(true);

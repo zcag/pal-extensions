@@ -7,9 +7,9 @@
 // hint rows naming the fix for a missing address, a missing or refused
 // key and a server that does not answer.
 import { afterAll, beforeAll, beforeEach, describe, expect, test } from "bun:test";
-import { checkView } from "../../../sdk/src/index.ts";
-import type { Form, View, ViewNode } from "../../../sdk/src/protocol.ts";
-import { Host, marksOf, stored } from "../harness.ts";
+import { checkView } from "../.pal/sdk/src/index.ts";
+import type { Form, View, ViewNode } from "../.pal/sdk/src/protocol.ts";
+import { Host, marksOf, stored } from "../.pal/host/test/harness.ts";
 import { BASE, ITEMS, NOW, SETTINGS, calls, idOf, reset, seen, server, state } from "./odak-mock.ts";
 
 process.env.TZ = "Europe/Istanbul";

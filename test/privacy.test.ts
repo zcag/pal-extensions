@@ -1,8 +1,8 @@
 // privacy against canned core/privacy.in_use replies.
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
-import { checkBarItem, checkView, type PrivacyUse, type View, type ViewNode } from "../../../sdk/src/index.ts";
-import { Host } from "../harness.ts";
-import { duration } from "../../../extensions/privacy/view.ts";
+import { checkBarItem, checkView, type PrivacyUse, type View, type ViewNode } from "../.pal/sdk/src/index.ts";
+import { Host } from "../.pal/host/test/harness.ts";
+import { duration } from "../privacy/view.ts";
 
 const now = () => Math.floor(Date.now() / 1000);
 const camera = (): PrivacyUse => ({ sensor: "camera", app: "zoom.us", process: null, pid: 812, path: "/Applications/zoom.us.app", device: "MacBook Pro Camera", since: now() - 23 * 60 });

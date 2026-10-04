@@ -1,0 +1,8 @@
+{
+  "extends": "./.pal/host/tsconfig.json",
+  "compilerOptions": {
+    "typeRoots": ["./.pal/host/node_modules/@types"]
+  },
+  "include": ["*/**/*.ts", "test"],
+  "exclude": ["*/surface", "**/node_modules", ".pal"]
+}

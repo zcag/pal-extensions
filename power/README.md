@@ -41,5 +41,5 @@ Without the watcher only the level and time left are known, and both views
 say what installing it adds. A machine without a battery keeps the item
 hidden.
 
-`bun run extensions/power/fixture.ts` writes the gallery fixtures the store
+`bun run power/fixture.ts` writes the gallery fixtures the store
 screenshots are taken from (a made-up watcher, nothing of the owner's).

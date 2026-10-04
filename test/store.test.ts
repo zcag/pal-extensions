@@ -11,9 +11,9 @@
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
-import type { Item, StoreResult, StoreState } from "../../../sdk/src/index.ts";
-import { actionsFor, detail, featured, registryRows, select, shelves, staleNote, standings, targetOf } from "../../../extensions/store/store.ts";
-import { Host } from "../harness.ts";
+import type { Item, StoreResult, StoreState } from "../.pal/sdk/src/index.ts";
+import { actionsFor, detail, featured, registryRows, select, shelves, staleNote, standings, targetOf } from "../store/store.ts";
+import { Host } from "../.pal/host/test/harness.ts";
 
 const fixture: StoreState = JSON.parse(readFileSync(join(import.meta.dir, "store-fixture.json"), "utf8"));
 let state: StoreState = fixture;

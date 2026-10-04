@@ -8,15 +8,15 @@
 // awake.ts (the spellings, the countdown texts, the reconciliation) are
 // tested directly.
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
-import { tile } from "../../../sdk/src/icon.ts";
+import { tile } from "../.pal/sdk/src/icon.ts";
 import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import type { SystemCommand, View } from "../../../sdk/src/index.ts";
-import { checkView } from "../../../sdk/src/view.ts";
-import { argv, describe as describeRun, fmtClock, fmtLeft, fmtSpan, nextTick, parseTarget, reconcile, SETTLE_MS, summary, type Awake } from "../../../extensions/system/awake.ts";
-import { actions, render, type PopoverState } from "../../../extensions/system/view.ts";
-import { Host, stored, writeTool, logLines } from "../harness.ts";
+import type { SystemCommand, View } from "../.pal/sdk/src/index.ts";
+import { checkView } from "../.pal/sdk/src/view.ts";
+import { argv, describe as describeRun, fmtClock, fmtLeft, fmtSpan, nextTick, parseTarget, reconcile, SETTLE_MS, summary, type Awake } from "../system/awake.ts";
+import { actions, render, type PopoverState } from "../system/view.ts";
+import { Host, stored, writeTool, logLines } from "../.pal/host/test/harness.ts";
 
 const MAC = process.platform === "darwin";
 const COMMANDS: SystemCommand[] = [

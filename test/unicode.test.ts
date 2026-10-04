@@ -1,8 +1,8 @@
 // unicode: the generated character table as a grid, by block, with the
 // recently picked characters first.
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
-import { tile } from "../../../sdk/src/icon.ts";
-import { Host } from "../harness.ts";
+import { tile } from "../.pal/sdk/src/icon.ts";
+import { Host } from "../.pal/host/test/harness.ts";
 
 let host: Host;
 beforeAll(async () => { host = await Host.bundled(); });

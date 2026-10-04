@@ -5,11 +5,11 @@
 // decoded by Apple's Vision framework by hand (versions 1 to 39); the
 // golden matrix below is one of those.
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
-import { base64, base64Decode, base64url, entropy, hash, hexDecode, jwtDecode, loremParagraphs, loremWords, nanoid, passphrase, password, randInt, randomColor, randomNumber, strength, ulid, urlDecode, urlEncode, utf8Hex, uuid7, WORDS } from "../../../extensions/generate/gen.ts";
-import { capacity, encode, toDataUrl, toSvg, versionFor } from "../../../extensions/generate/qr.ts";
-import { tile } from "../../../sdk/src/icon.ts";
-import type { Item } from "../../../sdk/src/protocol.ts";
-import { Host } from "../harness.ts";
+import { base64, base64Decode, base64url, entropy, hash, hexDecode, jwtDecode, loremParagraphs, loremWords, nanoid, passphrase, password, randInt, randomColor, randomNumber, strength, ulid, urlDecode, urlEncode, utf8Hex, uuid7, WORDS } from "../generate/gen.ts";
+import { capacity, encode, toDataUrl, toSvg, versionFor } from "../generate/qr.ts";
+import { tile } from "../.pal/sdk/src/icon.ts";
+import type { Item } from "../.pal/sdk/src/protocol.ts";
+import { Host } from "../.pal/host/test/harness.ts";
 
 const JWT = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0NTY3ODkwIiwibmFtZSI6IkpvaG4gRG9lIiwiaWF0IjoxNTE2MjM5MDIyLCJleHAiOjE5MDAwMDAwMDB9.SflKxwRJSMeKKF2QT4fwpMeJf36POk6yJV_adQssw5c";
 

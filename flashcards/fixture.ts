@@ -1,4 +1,4 @@
-// Writes app/src/gallery/shots/flashcards.json: the store screenshots'
+// Writes test/shots/flashcards.json: the store screenshots'
 // fixture. The page keeps nothing: every screen is the extension's answer to
 // `pal.send`, so the fixture runs the extension in the host harness over a
 // data directory of its own (`PAL_FLASHCARDS_DIR`, a fixed one under /tmp) and
@@ -13,8 +13,8 @@
 // `make shots EXT=flashcards`.
 import { mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
-import { Host } from "../../host/test/harness.ts";
-import { NOW, pinClock, seeded, writeFixture } from "../../app/scripts/fixture-kit.ts";
+import { Host } from "../.pal/host/test/harness.ts";
+import { NOW, pinClock, seeded, writeFixture } from "../.pal/app/scripts/fixture-kit.ts";
 import { parsePack } from "./packs.ts";
 import { DAY, answer, items, queue, stats, type Item } from "./srs.ts";
 import type { Data } from "./store.ts";

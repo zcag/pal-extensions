@@ -3,11 +3,11 @@
 // for the public IP endpoint. `PAL_NETWORK_OS` picks the path, so the Linux
 // one runs on a Mac too.
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
-import { tile } from "../../../sdk/src/icon.ts";
+import { tile } from "../.pal/sdk/src/icon.ts";
 import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { hostname, tmpdir } from "node:os";
 import { dirname, join } from "node:path";
-import { Host, writeTool, type CoreTable } from "../harness.ts";
+import { Host, writeTool, type CoreTable } from "../.pal/host/test/harness.ts";
 
 const IFCONFIG = `lo0: flags=8049<UP,LOOPBACK,RUNNING,MULTICAST> mtu 16384
 \tinet 127.0.0.1 netmask 0xff000000

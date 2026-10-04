@@ -1,4 +1,4 @@
-// Writes app/src/gallery/shots/timer.json and bar-timer.json, the store
+// Writes test/shots/timer.json and bar-timer.json, the store
 // screenshots' fixtures: the palette's rows, the bar item and its popover
 // as the extension answers them through the host harness, at fixture-kit's
 // clock, over a made-up state directory (the KV files the CLI writes) and a
@@ -8,9 +8,9 @@
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import type { BarItem } from "../../sdk/src/index.ts";
-import { Host, stored, writeTool } from "../../host/test/harness.ts";
-import { NOW_S as NOW, pinClock, writeFixture } from "../../app/scripts/fixture-kit.ts";
+import type { BarItem } from "../.pal/sdk/src/index.ts";
+import { Host, stored, writeTool } from "../.pal/host/test/harness.ts";
+import { NOW_S as NOW, pinClock, writeFixture } from "../.pal/app/scripts/fixture-kit.ts";
 
 type Spec = { state: "running" | "paused" | "done"; total: number; left?: number; ago?: number; name?: string };
 /** A state file as the CLI's `printf %q` writes it: `left` seconds to go (running or paused), or landed `ago` seconds back. */

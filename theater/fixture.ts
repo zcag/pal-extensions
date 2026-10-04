@@ -1,13 +1,13 @@
-// Writes app/src/gallery/shots/theater.json and bar-theater.json: the
+// Writes test/shots/theater.json and bar-theater.json: the
 // store screenshots' fixture. The rows and the popovers come out of the
 // real extension run through the host harness against the tests' mock
-// stack (host/test/extensions/theater-mock.ts), its titles swapped for
+// stack (test/theater-mock.ts), its titles swapped for
 // invented ones first and every poster drawn here as an SVG (the mock's
 // are a few bytes, and a real film's art is someone's); nothing here is
 // the owner's. `make shots EXT=theater`.
-import { Host, stored } from "../../host/test/harness.ts";
-import * as M from "../../host/test/extensions/theater-mock.ts";
-import { pinClock, seeded, settle, writeFixture } from "../../app/scripts/fixture-kit.ts";
+import { Host, stored } from "../.pal/host/test/harness.ts";
+import * as M from "../test/theater-mock.ts";
+import { pinClock, seeded, settle, writeFixture } from "../.pal/app/scripts/fixture-kit.ts";
 import manifest from "./pal.json" with { type: "json" };
 
 // ---- invented titles over the mock's (the tests keep theirs) ----------------------------------

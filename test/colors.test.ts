@@ -1,15 +1,15 @@
 // colors: the maths (the SDK's color.ts, imported directly), then the swatch grid
 // and the converter through the host.
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
-import { BLACK, CSS_NAMES, WHITE, adjust, complementary, contrast, format, fromLab, harmony, inGamut, lighten, luminance, maxChroma, nameOf, nearestIn, nearestName, parse, shades, swatch, tints, toHex, toHslString, toHwb, toLab, toOklabString, toOklch, toOklchValues, toP3, toRgb, wcag } from "../../../sdk/src/color.ts";
-import { actions, hueStops, plane, readout, render, vivid } from "../../../extensions/colors/render.ts";
-import { conversions, detailOf, gridItem, historyRows } from "../../../extensions/colors/rows.ts";
-import { SETS, handKept, sectionOf, token, usage, type Row } from "../../../extensions/colors/sets.ts";
-import { DEFAULTS, apply, fresh, previous, remember, type State } from "../../../extensions/colors/state.ts";
-import data from "../../../extensions/colors/data.json";
-import type { View, ViewNode } from "../../../sdk/src/protocol.ts";
-import { checkView } from "../../../sdk/src/view.ts";
-import { Host, stored } from "../harness.ts";
+import { BLACK, CSS_NAMES, WHITE, adjust, complementary, contrast, format, fromLab, harmony, inGamut, lighten, luminance, maxChroma, nameOf, nearestIn, nearestName, parse, shades, swatch, tints, toHex, toHslString, toHwb, toLab, toOklabString, toOklch, toOklchValues, toP3, toRgb, wcag } from "../.pal/sdk/src/color.ts";
+import { actions, hueStops, plane, readout, render, vivid } from "../colors/render.ts";
+import { conversions, detailOf, gridItem, historyRows } from "../colors/rows.ts";
+import { SETS, handKept, sectionOf, token, usage, type Row } from "../colors/sets.ts";
+import { DEFAULTS, apply, fresh, previous, remember, type State } from "../colors/state.ts";
+import data from "../colors/data.json";
+import type { View, ViewNode } from "../.pal/sdk/src/protocol.ts";
+import { checkView } from "../.pal/sdk/src/view.ts";
+import { Host, stored } from "../.pal/host/test/harness.ts";
 
 const rows = data as Row[];
 const tokens = { tailwind: rows.filter((r) => r.s === "tailwind"), material: rows.filter((r) => r.s === "material") };

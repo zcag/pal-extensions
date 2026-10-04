@@ -1,14 +1,14 @@
-// Writes app/src/gallery/shots/audio.json and bar-audio.json, the store
+// Writes test/shots/audio.json and bar-audio.json, the store
 // screenshots' fixtures: the palette's rows and the volume item drawn
 // through the host harness against canned `core/audio.*` replies (the
 // devices below, made up: a MacBook's speakers, AirPods, a display's
 // speakers muted, an HDMI sink with no volume control). The item's level
 // is its `always` setting for the strips that show it, which is what a
 // flash draws for its three seconds.
-// `bun run extensions/audio/fixture.ts`, then `make shots EXT=audio`.
+// `bun run audio/fixture.ts`, then `make shots EXT=audio`.
 import type { AudioDevice } from "@zcag/pal";
-import { pinClock, writeFixture } from "../../app/scripts/fixture-kit.ts";
-import { Host } from "../../host/test/harness.ts";
+import { pinClock, writeFixture } from "../.pal/app/scripts/fixture-kit.ts";
+import { Host } from "../.pal/host/test/harness.ts";
 
 pinClock();
 const out = (id: string, name: string, volume: number | null, transport: string | null, o: Partial<AudioDevice> = {}): AudioDevice => ({ id, name, kind: "output", default: false, volume, muted: volume === null ? null : false, transport, ...o });

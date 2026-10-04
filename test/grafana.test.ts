@@ -8,12 +8,12 @@
 // the links; and the hint rows for an unset URL, a bad token, a Viewer
 // token asked to write, a dead host and a slow one.
 import { afterAll, beforeAll, beforeEach, describe, expect, test } from "bun:test";
-import { checkView } from "../../../sdk/src/index.ts";
-import type { Form, View, ViewNode } from "../../../sdk/src/protocol.ts";
-import { QueryError, dashboardUrl, exploreUrl, flatPanels, fmt, instances, labelsKey, matchersLine, savedQueries, seriesOf, silenceMatchers, spanMs, standalone, timeParam, unconfigured, withUnit, type AmAlert, type RuleGroup, type Settings } from "../../../extensions/grafana/api.ts";
-import { sparkline } from "../../../extensions/grafana/spark.ts";
-import { render as renderBar } from "../../../extensions/grafana/view.ts";
-import { Host, marksOf } from "../harness.ts";
+import { checkView } from "../.pal/sdk/src/index.ts";
+import type { Form, View, ViewNode } from "../.pal/sdk/src/protocol.ts";
+import { QueryError, dashboardUrl, exploreUrl, flatPanels, fmt, instances, labelsKey, matchersLine, savedQueries, seriesOf, silenceMatchers, spanMs, standalone, timeParam, unconfigured, withUnit, type AmAlert, type RuleGroup, type Settings } from "../grafana/api.ts";
+import { sparkline } from "../grafana/spark.ts";
+import { render as renderBar } from "../grafana/view.ts";
+import { Host, marksOf } from "../.pal/host/test/harness.ts";
 import { BASE, SETTINGS, VIEWER, calls, reset, seen, server, state } from "./grafana-mock.ts";
 
 const E = "grafana";

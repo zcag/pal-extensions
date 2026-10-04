@@ -1,15 +1,15 @@
-// Writes app/src/gallery/shots/generate.json, the store screenshots'
+// Writes test/shots/generate.json, the store screenshots'
 // fixture: the palette listed through the host harness for the four
 // queries the shots type, so the rows are what the code draws today. The
 // empty query's values are the platform's CSPRNG by design, so after
 // listing each one is swapped for the same generator's answer over a seeded
 // `crypto` here (gen.ts, the same length, charset and settings), and its
 // derived fields (the name, the pane, the length, the word count, the rgb) rebuilt: the rows are
-// the code's, only the dice are fixed. `bun run extensions/generate/fixture.ts`,
+// the code's, only the dice are fixed. `bun run generate/fixture.ts`,
 // then `node app/scripts/shots.mjs generate`.
 import { truncate, type Item } from "@zcag/pal";
-import { NOW, pinClock, seeded, writeFixture } from "../../app/scripts/fixture-kit.ts";
-import { Host } from "../../host/test/harness.ts";
+import { NOW, pinClock, seeded, writeFixture } from "../.pal/app/scripts/fixture-kit.ts";
+import { Host } from "../.pal/host/test/harness.ts";
 import { CHARSET_TITLES, loremParagraphs, nanoid, passphrase, password, randomBase64, randomColor, randomHex, randomNumber, rgbOf, ulid, uuid4, uuid7, type Charset } from "./gen.ts";
 import manifest from "./pal.json";
 
@@ -73,7 +73,7 @@ try {
       "5-password": { palette: "generate", keys: ["type:password 24", "cmd+i"], caption: "password 24: the password as the answer; the pane has its strength, length and entropy" },
     },
   });
-  console.log("wrote app/src/gallery/shots/generate.json");
+  console.log("wrote test/shots/generate.json");
 } finally {
   host.kill();
 }

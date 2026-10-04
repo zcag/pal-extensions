@@ -10,10 +10,10 @@
 // the extension's waits (the search debounce, a skip's settle, the 1 Hz
 // tick, the popover's 5 min window) pass with `advance`.
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
-import { encode } from "../../../extensions/spotify/node_modules/jpeg-js/index.js";
-import { challenge } from "../../../extensions/spotify/auth.ts";
+import { encode } from "../spotify/node_modules/jpeg-js/index.js";
+import { challenge } from "../spotify/auth.ts";
 import { hostname } from "node:os";
-import { Host, stored } from "../harness.ts";
+import { Host, stored } from "../.pal/host/test/harness.ts";
 
 // ---- fixtures -----------------------------------------------------------------
 
@@ -153,7 +153,7 @@ let host: Host;
 
 // ---- the clock --------------------------------------------------------------------
 
-/** The extension's constants (extensions/spotify/index.ts, auth.ts) the tests move the clock past. */
+/** The extension's constants (spotify/index.ts, auth.ts) the tests move the clock past. */
 const SEARCH_WAIT_MS = 300, SKIP_SETTLE_MS = 350, HOLD_MS = 1200, TICK_MS = 1000, SYNC_MS = 5000, TICK_WINDOW_MS = 5 * 60_000, LINGER_MS = 250;
 /** `p`'s answer waits on a timer the extension arms after real I/O (a skip's `next` calls, then the settle): once `armed` holds, the clock moves `ms` at a time until `p` answers. */
 async function settle<T>(p: Promise<T>, ms: number, armed: () => boolean): Promise<T> {

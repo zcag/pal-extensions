@@ -1,10 +1,10 @@
-// Writes app/src/gallery/shots/turkish.json, the store screenshots' fixture:
+// Writes test/shots/turkish.json, the store screenshots' fixture:
 // the rows index.ts lists through the host harness, for a sentence selected
 // in the app in front (what the palette opens on) and for one typed into
-// it (Turkish already, for the cases). The texts are made up. `bun run extensions/turkish/fixture.ts`, then
+// it (Turkish already, for the cases). The texts are made up. `bun run turkish/fixture.ts`, then
 // `make shots EXT=turkish`.
-import { Host } from "../../host/test/harness.ts";
-import { pinClock, writeFixture } from "../../app/scripts/fixture-kit.ts";
+import { Host } from "../.pal/host/test/harness.ts";
+import { pinClock, writeFixture } from "../.pal/app/scripts/fixture-kit.ts";
 
 pinClock();
 const SELECTED = "Bugun hava cok guzel, aksam Kadikoy'de bulusalim mi?";
@@ -25,7 +25,7 @@ try {
       "4-actions": { palette: "turkish", keys: [`type:${TYPED}`, "down*2", "cmd+k"], caption: "Paste, copy, hand the row to Translate, or copy the source text" },
     },
   });
-  console.log("wrote app/src/gallery/shots/turkish.json");
+  console.log("wrote test/shots/turkish.json");
 } finally {
   host.kill();
 }

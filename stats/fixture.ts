@@ -1,13 +1,13 @@
-// Writes app/src/gallery/shots/stats.json and bar-stats.json, the store
+// Writes test/shots/stats.json and bar-stats.json, the store
 // screenshots' fixtures: the palette's rows, their detail panes and the CPU
 // popover built by index.ts's own builders (`rows`, `itemOf`, `popoverOf`)
 // over a made-up machine at the fixed clock: 12 cores and 36 GB mid-build
 // (two rustc at the top), three volumes, Wi-Fi and a VPN, three minutes of
 // seeded history. Nothing is read from this machine.
-// `bun run extensions/stats/fixture.ts`, then `make shots EXT=stats`.
+// `bun run stats/fixture.ts`, then `make shots EXT=stats`.
 import { readFileSync } from "node:fs";
 import type { Proc } from "@zcag/pal";
-import { pinClock, seeded, writeFixture } from "../../app/scripts/fixture-kit.ts";
+import { pinClock, seeded, writeFixture } from "../.pal/app/scripts/fixture-kit.ts";
 import type { Sample } from "./sample.ts";
 
 pinClock();

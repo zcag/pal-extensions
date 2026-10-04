@@ -1,16 +1,16 @@
-// Writes app/src/gallery/shots/power.json and bar-power.json, the store
+// Writes test/shots/power.json and bar-power.json, the store
 // screenshots' fixtures: the palette and the popover drawn through the host
 // harness against a made-up watcher (six hours of samples with a stretch
 // on the charger, a background burn, a `power` CLI that answers canned
 // watt-hours) and a stand-in pmset, at fixture-kit's clock. Nothing is the
-// owner's. `make shots EXT=power`; host/test/extensions/power.test.ts stages
+// owner's. `make shots EXT=power`; test/power.test.ts stages
 // the same watcher.
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
-import { Host, writeTool } from "../../host/test/harness.ts";
-import type { View } from "../../sdk/src/protocol.ts";
-import { NOW_S, pinClock, writeFixture } from "../../app/scripts/fixture-kit.ts";
+import { Host, writeTool } from "../.pal/host/test/harness.ts";
+import type { View } from "../.pal/sdk/src/protocol.ts";
+import { NOW_S, pinClock, writeFixture } from "../.pal/app/scripts/fixture-kit.ts";
 
 /** The watcher's clock, Unix seconds: the kit's, which the host reads too once pinned (`PAL_NOW`). */
 export const NOW = NOW_S;
@@ -87,7 +87,7 @@ if (import.meta.main) {
         "sketchybar": { target: "sketchybar", caption: "On sketchybar: the level, draw and warning as one strip" },
       },
     });
-    console.log("wrote app/src/gallery/shots/power.json and bar-power.json");
+    console.log("wrote test/shots/power.json and bar-power.json");
   } finally {
     host.kill();
     rmSync(dir, { recursive: true, force: true });

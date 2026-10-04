@@ -8,16 +8,16 @@
 // elsewhere without a request, the bar item and its pushes, the links,
 // and a bridge that rejects the key.
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
-import { GAMUTS, clampToGamut, hsvToRgb, inGamut, kelvin, kelvinToXy, lux, mirekOf, mirekToRgb, rgbToHsv, rgbToXy, temperatureStops, toHex, xyToRgb } from "../../../extensions/hue/color.ts";
-import { GROUP_GAP_MS, LIGHT_GAP_MS, devicetype, hostPort, parseMdns, parseMdnsLookup, parseSse } from "../../../extensions/hue/api.ts";
-import { ROOT_BRIDGE_PEM, ROOT_BRIDGE_SHA256 } from "../../../extensions/hue/cert.ts";
-import { Home, aggregate, automationsOf, deepMerge, entertainmentOf, lightsOf, roomsOf, scenesOf, sensorsOf, slug, swatchesOf } from "../../../extensions/hue/model.ts";
-import { PRESETS, fresh, render, renderSetup, shown } from "../../../extensions/hue/render.ts";
-import { lightRow, roomRow, sceneRow } from "../../../extensions/hue/rows.ts";
-import { SAMPLE_BRIDGE_ID, SAMPLE_KEY, SAMPLE_RESOURCES } from "../../../extensions/hue/sample.ts";
-import { checkView } from "../../../sdk/src/view.ts";
-import type { Effect, View } from "../../../sdk/src/protocol.ts";
-import { Host, stored, bundledIcon } from "../harness.ts";
+import { GAMUTS, clampToGamut, hsvToRgb, inGamut, kelvin, kelvinToXy, lux, mirekOf, mirekToRgb, rgbToHsv, rgbToXy, temperatureStops, toHex, xyToRgb } from "../hue/color.ts";
+import { GROUP_GAP_MS, LIGHT_GAP_MS, devicetype, hostPort, parseMdns, parseMdnsLookup, parseSse } from "../hue/api.ts";
+import { ROOT_BRIDGE_PEM, ROOT_BRIDGE_SHA256 } from "../hue/cert.ts";
+import { Home, aggregate, automationsOf, deepMerge, entertainmentOf, lightsOf, roomsOf, scenesOf, sensorsOf, slug, swatchesOf } from "../hue/model.ts";
+import { PRESETS, fresh, render, renderSetup, shown } from "../hue/render.ts";
+import { lightRow, roomRow, sceneRow } from "../hue/rows.ts";
+import { SAMPLE_BRIDGE_ID, SAMPLE_KEY, SAMPLE_RESOURCES } from "../hue/sample.ts";
+import { checkView } from "../.pal/sdk/src/view.ts";
+import type { Effect, View } from "../.pal/sdk/src/protocol.ts";
+import { Host, stored, bundledIcon } from "../.pal/host/test/harness.ts";
 import { MockBridge, discoveryServer } from "./hue-mock.ts";
 
 const E = "hue";

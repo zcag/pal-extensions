@@ -6,13 +6,13 @@
 // shapes are what is checked).
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import { cpus } from "node:os";
-import { tile } from "../../../sdk/src/icon.ts";
-import { parsePs } from "../../../sdk/src/procs.ts";
-import { checkView } from "../../../sdk/src/view.ts";
-import { counted, cpuDelta, DISK, diskLevel, History, levelOf, macMemory, parseDf, parseIpAddr, parseMacMount, parseMeminfo, parseNetstat, parseProcMounts, parseProcNetDev, parsePsi, parseVmStat, rates, shownIface, volumes, type Sample, type Volume } from "../../../extensions/stats/sample.ts";
-import { colorOf, gb, ink, INNER_W, load, memorySegments, pct, rate, rateShort, renderCpu, renderDisk, renderLoad, renderMemory, renderNetwork, sparkGlyphs, sparkline, uptimeText } from "../../../extensions/stats/view.ts";
-import { FIRST_GAP_MS } from "../../../extensions/stats/index.ts";
-import { Host, marksOf } from "../harness.ts";
+import { tile } from "../.pal/sdk/src/icon.ts";
+import { parsePs } from "../.pal/sdk/src/procs.ts";
+import { checkView } from "../.pal/sdk/src/view.ts";
+import { counted, cpuDelta, DISK, diskLevel, History, levelOf, macMemory, parseDf, parseIpAddr, parseMacMount, parseMeminfo, parseNetstat, parseProcMounts, parseProcNetDev, parsePsi, parseVmStat, rates, shownIface, volumes, type Sample, type Volume } from "../stats/sample.ts";
+import { colorOf, gb, ink, INNER_W, load, memorySegments, pct, rate, rateShort, renderCpu, renderDisk, renderLoad, renderMemory, renderNetwork, sparkGlyphs, sparkline, uptimeText } from "../stats/view.ts";
+import { FIRST_GAP_MS } from "../stats/index.ts";
+import { Host, marksOf } from "../.pal/host/test/harness.ts";
 
 const VM_STAT = `Mach Virtual Memory Statistics: (page size of 16384 bytes)
 Pages free:                              274962.

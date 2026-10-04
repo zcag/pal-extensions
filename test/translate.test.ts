@@ -9,12 +9,12 @@ import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import { existsSync, mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { googleAlternatives, parseGoogle, parseVoices, voiceFor } from "../../../extensions/translate/backends.ts";
-import { deeplSource, deeplTarget, fromDeepl, langOf, matches, nameOf, otherEnd, parse, systemLanguage } from "../../../extensions/translate/lang.ts";
-import { TEXT_AT_HAND_TTL_MS } from "../../../sdk/src/api.ts";
-import { tile } from "../../../sdk/src/icon.ts";
-import type { Item } from "../../../sdk/src/protocol.ts";
-import { Host, stored, writeTool } from "../harness.ts";
+import { googleAlternatives, parseGoogle, parseVoices, voiceFor } from "../translate/backends.ts";
+import { deeplSource, deeplTarget, fromDeepl, langOf, matches, nameOf, otherEnd, parse, systemLanguage } from "../translate/lang.ts";
+import { TEXT_AT_HAND_TTL_MS } from "../.pal/sdk/src/api.ts";
+import { tile } from "../.pal/sdk/src/icon.ts";
+import type { Item } from "../.pal/sdk/src/protocol.ts";
+import { Host, stored, writeTool } from "../.pal/host/test/harness.ts";
 import { HELLO_JA, HELLO_TR, MERHABA_EN, startMock } from "./translate-mock.ts";
 
 describe("lang", () => {
@@ -138,7 +138,7 @@ afterAll(() => {
   delete process.env.PAL_TRANSLATE_GOOGLE; delete process.env.PAL_TRANSLATE_DEEPL; delete process.env.PAL_TRANSLATE_SAY;
 });
 
-/** The palette waits this long after the last key before it translates (DEBOUNCE_MS, extensions/translate/index.ts); the inline ask does not. */
+/** The palette waits this long after the last key before it translates (DEBOUNCE_MS, translate/index.ts); the inline ask does not. */
 const DEBOUNCE_MS = 350;
 const list = async (q?: string, ctx?: Parameters<Host["list"]>[3]) => {
   const r = host.list("translate", "translate", q, ctx);

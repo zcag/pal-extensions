@@ -116,7 +116,7 @@ time, EXIF and ICC chunks), and the parsers for `sips -g all`, `identify
 whole), keeps the thumbnails, reads the Finder selection, writes the
 clipboard, talks to TinyPNG and keeps the originals. `index.ts` is the
 rows, the levels, the view and the picks. The tests draw their own PNGs
-(`host/test/extensions/images-png.ts`) and turn one into a JPEG through
+(`test/images-png.ts`) and turn one into a JPEG through
 sips or ImageMagick.
 
 ## What it does not do

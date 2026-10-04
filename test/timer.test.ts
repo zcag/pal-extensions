@@ -8,12 +8,12 @@ import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import { existsSync, mkdtempSync, readFileSync, rmSync, unlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import type { BarItem, View, ViewNode } from "../../../sdk/src/index.ts";
-import { checkView } from "../../../sdk/src/view.ts";
-import { fmt, parseNew, readTimers, unquote } from "../../../extensions/timer/index.ts";
-import { asSession, next, tally, type Session } from "../../../extensions/timer/pomodoro.ts";
-import { DEFAULT_RECENT, actions, render as renderPopover, type PopoverState, type Timer } from "../../../extensions/timer/view.ts";
-import { Host, logLines, marksOf, writeTool } from "../harness.ts";
+import type { BarItem, View, ViewNode } from "../.pal/sdk/src/index.ts";
+import { checkView } from "../.pal/sdk/src/view.ts";
+import { fmt, parseNew, readTimers, unquote } from "../timer/index.ts";
+import { asSession, next, tally, type Session } from "../timer/pomodoro.ts";
+import { DEFAULT_RECENT, actions, render as renderPopover, type PopoverState, type Timer } from "../timer/view.ts";
+import { Host, logLines, marksOf, writeTool } from "../.pal/host/test/harness.ts";
 
 const base = mkdtempSync(join(tmpdir(), "pal-timer-"));
 const dir = join(base, "state");

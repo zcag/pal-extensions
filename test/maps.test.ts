@@ -4,11 +4,11 @@
 // copies, the other app), and the Places API (New) autocomplete against a
 // Bun mock (`PAL_MAPS_PLACES`).
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
-import { DEBOUNCE_MS, parsePredictions } from "../../../extensions/maps/index.ts";
-import { directionsUrl, matches, parse, parsePlaces, resolveEnd, searchUrl, webUrl } from "../../../extensions/maps/maps.ts";
-import { tile } from "../../../sdk/src/icon.ts";
-import type { Item } from "../../../sdk/src/protocol.ts";
-import { Host } from "../harness.ts";
+import { DEBOUNCE_MS, parsePredictions } from "../maps/index.ts";
+import { directionsUrl, matches, parse, parsePlaces, resolveEnd, searchUrl, webUrl } from "../maps/maps.ts";
+import { tile } from "../.pal/sdk/src/icon.ts";
+import type { Item } from "../.pal/sdk/src/protocol.ts";
+import { Host } from "../.pal/host/test/harness.ts";
 
 describe("maps.ts", () => {
   test("parse: the prefix stripped, a route split on > or ->, on `to` only with a known end; a lone end or a bare `to` is text", () => {

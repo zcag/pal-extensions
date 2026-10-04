@@ -1,10 +1,10 @@
-// Writes app/src/gallery/shots/colors.json: the store screenshots' fixture.
+// Writes test/shots/colors.json: the store screenshots' fixture.
 // The picker's trees come from render.ts over rigged states (a colour with
 // a history behind it, the shades row focused, the text field open), the
 // grid and the history rows from the same functions the palettes use, so
 // the shots show what the panel draws without a screen to pick from.
-// `bun run extensions/colors/fixture.ts`, or `make shots EXT=colors`.
-import { NOW, pinClock, writeFixture } from "../../app/scripts/fixture-kit.ts";
+// `bun run colors/fixture.ts`, or `make shots EXT=colors`.
+import { NOW, pinClock, writeFixture } from "../.pal/app/scripts/fixture-kit.ts";
 import { colors } from "@zcag/pal";
 import { GRID_ACTIONS, HISTORY_ACTIONS, conversions, gridItem, historyRows } from "./rows.ts";
 import { render } from "./render.ts";

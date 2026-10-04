@@ -4,13 +4,13 @@
 // the fields are the ones agents.ts reads, taken from real files on a
 // machine with all three CLIs and trimmed to those.
 //
-// Run, it writes the store screenshots' fixtures, app/src/gallery/shots/
+// Run, it writes the store screenshots' fixtures, test/shots/
 // sessions.json and bar-sessions.json: six made-up sessions at the fixed
 // clock (a release push a hook said is waiting on you, a Copilot review
 // that is your turn, two agents working, a parent with three subagents
 // out, one that ended) under a temporary home, with stand-in `ps`, `lsof`
 // and `tmux`, listed and rendered through the host harness.
-// `bun run extensions/sessions/fixture.ts`, then `make shots EXT=sessions`.
+// `bun run sessions/fixture.ts`, then `make shots EXT=sessions`.
 const iso = (t: number) => new Date(t).toISOString();
 
 /** Claude Code, `~/.claude/projects/<slug>/<id>.jsonl`. */
@@ -80,8 +80,8 @@ if (import.meta.main) {
   const { mkdirSync, mkdtempSync, rmSync, symlinkSync, utimesSync, writeFileSync } = await import("node:fs");
   const { tmpdir } = await import("node:os");
   const { join } = await import("node:path");
-  const { pinClock } = await import("../../app/scripts/fixture-kit.ts");
-  const { Host, stored, writeTool } = await import("../../host/test/harness.ts");
+  const { pinClock } = await import("../.pal/app/scripts/fixture-kit.ts");
+  const { Host, stored, writeTool } = await import("../.pal/host/test/harness.ts");
   pinClock();
   const at = (h: number, m: number, s = 0) => new Date(2026, 8, 16, h, m, s).getTime();
   const base = mkdtempSync(join(tmpdir(), "pal-sessions-fixture-"));
@@ -231,7 +231,7 @@ if (import.meta.main) {
         "4-actions": { palette: "sessions", keys: ["cmd+k", "wait:300"], caption: "⌘K on a session: focus its terminal, send a line to its tmux pane, read or reveal the transcript, copy the resume command" },
       },
     };
-    writeFileSync(new URL("../../app/src/gallery/shots/sessions.json", import.meta.url), JSON.stringify(panel) + "\n");
+    writeFileSync(new URL("../test/shots/sessions.json", import.meta.url), JSON.stringify(panel) + "\n");
     const bar = {
       key: "sessions/sessions", title: manifest.bar!.sessions.title, item,
       states: [{ id: "transcript", item: { menu: { view: barTranscript } } }],
@@ -242,7 +242,7 @@ if (import.meta.main) {
         "sketchybar": { target: "sketchybar", caption: "On sketchybar: the three counts in red, amber and blue" },
       },
     };
-    writeFileSync(new URL("../../app/src/gallery/shots/bar-sessions.json", import.meta.url), JSON.stringify(bar) + "\n");
+    writeFileSync(new URL("../test/shots/bar-sessions.json", import.meta.url), JSON.stringify(bar) + "\n");
     console.log(`sessions.json, bar-sessions.json: ${items.map((i) => `${i.name} (${i.section})`).join(", ")}`);
   } finally {
     host.kill();
