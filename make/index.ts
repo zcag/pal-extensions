@@ -162,7 +162,8 @@ function detail(id: string): Detail | undefined {
 
 /** `make <targets> <extra>` in the project folder, awaited up to `WAIT_MS`; the toast carries the exit status, a failure its output too. */
 async function background(dir: string, targets: string[], extra: string[]) {
-  const proc = Bun.spawn(["make", ...targets, ...extra], { cwd: dir, stdin: "ignore", stdout: "pipe", stderr: "pipe" });
+  // --no-print-directory: a pal started under a make (MAKELEVEL in its environment) would otherwise end every output on GNU make's "Leaving directory" line.
+  const proc = Bun.spawn(["make", "--no-print-directory", ...targets, ...extra], { cwd: dir, stdin: "ignore", stdout: "pipe", stderr: "pipe" });
   const cmd = ["make", ...targets, ...extra].join(" ");
   const outP = new Response(proc.stdout).text(), errP = new Response(proc.stderr).text();
   const code = await Promise.race([proc.exited, Bun.sleep(WAIT_MS).then(() => undefined)]);
