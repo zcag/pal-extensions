@@ -6,6 +6,9 @@ export PAL_EXTENSION_REPOS ?= $(CURDIR)
 JOBS := $(shell n=$$(getconf _NPROCESSORS_ONLN); echo $$(( n < 8 ? n : 8 )))
 REPORT := $(or $(TMPDIR),/tmp)/pal-extensions-tests.xml
 TSC := .pal/host/node_modules/.bin/tsc
+# pal's app tests read every extension pal has (its gallery's Browse is the
+# whole registry): this repo and pal-games, beside it or in .ext/ (CI).
+OTHER := $(firstword $(wildcard .ext/pal-games ../pal-games))
 
 # .pal, its dependencies, `@zcag/pal` linked to its SDK (what the host links
 # into every root too), and each extension's own dependencies.
@@ -29,7 +32,7 @@ TESTS = $(if $(NAMES),$(foreach n,$(NAMES),$(wildcard $(CURDIR)/test/$(n).test.t
 test: setup
 	$(TSC) --noEmit -p tsconfig.json
 	$(TSC) --noEmit -p tsconfig.surface.json
-	$(if $(APP),npm --prefix .pal/sdk run build && cd .pal/app && npx tsc --noEmit && npx vitest run)
+	$(if $(APP),npm --prefix .pal/sdk run build && cd .pal/app && npx tsc --noEmit && PAL_EXTENSION_REPOS="$(CURDIR)$(if $(OTHER),:$(abspath $(OTHER)))" npx vitest run)
 	cd .pal/host && bun test --parallel=$(JOBS) --reporter=junit --reporter-outfile=$(REPORT) test/*.test.ts $(TESTS) && bun test/budget.ts $(REPORT)
 
 # The store screenshots (.pal/docs/design/screenshots.md), both themes:

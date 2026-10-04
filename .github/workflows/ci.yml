@@ -69,6 +69,14 @@ jobs:
           else
             echo "app=1" >> "$GITHUB_OUTPUT"
           fi
+      # The app's tests read every extension pal has: the other repo too.
+      - uses: actions/checkout@v4
+        if: steps.scope.outputs.app == '1'
+        with:
+          repository: zcag/pal-games
+          ref: main
+          path: .ext/pal-games
+          persist-credentials: false
       - uses: actions/setup-node@v4
         if: steps.scope.outputs.app == '1'
         with:
