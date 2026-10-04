@@ -1,7 +1,8 @@
 # Every push and pull request: `make test` against zcag/pal at main, checked
-# out into .pal/ (the SDK, the host and its test harness, the gallery). A
-# green push to main then hands the extensions it changed to pal's registry
-# signer (`publish`).
+# out into .pal/ (the SDK, the host and its test harness, the gallery). This
+# is all it does and it holds no secret: pal's registry (its
+# extensions.yml) polls this repo's main, and takes a commit whose run here
+# is green, within about 15 minutes.
 name: ci
 
 on:
@@ -17,7 +18,7 @@ permissions:
   contents: read
 
 jobs:
-  # pal's main, once: both platforms test against it and the builds are made with it.
+  # pal's main, once: both platforms test against the same commit.
   pal:
     runs-on: ubuntu-24.04
     outputs:
@@ -92,47 +93,3 @@ jobs:
             if [ -f "$d/package.json" ]; then (cd "$d" && bun install --frozen-lockfile); fi
           done
       - run: make test APP=${{ steps.scope.outputs.app }}
-
-  # The builds whose hash is not edge's newest: uploaded and handed to pal's
-  # extensions.yml, which builds them again from this commit, signs and
-  # publishes to edge (pal's docs/registry.md, "Our registry"). The tokens
-  # live in the `publish` environment, which only main can use.
-  publish:
-    needs: [pal, test]
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main' && github.repository_owner == 'zcag'
-    runs-on: ubuntu-24.04
-    environment: publish
-    concurrency:
-      group: publish
-      cancel-in-progress: false
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          persist-credentials: false
-      # The pal the tests ran against, so its pal-pack and SDK stamp the builds.
-      - uses: actions/checkout@v4
-        with:
-          repository: zcag/pal
-          ref: ${{ needs.pal.outputs.sha }}
-          path: .pal
-          persist-credentials: false
-      - name: Bun version
-        id: bun
-        run: echo "version=$(sed -n 's/^BUN_VERSION=//p' .pal/app/scripts/fetch-bun.sh)" >> "$GITHUB_OUTPUT"
-      - uses: oven-sh/setup-bun@v2
-        with:
-          bun-version: ${{ steps.bun.outputs.version }}
-      - uses: actions/cache@v4
-        with:
-          path: ~/.bun/install/cache
-          key: bun-${{ runner.os }}-${{ hashFiles('**/bun.lock') }}
-          restore-keys: bun-${{ runner.os }}-
-      - name: Install
-        run: |
-          for d in */; do
-            if [ -f "$d/package.json" ]; then (cd "$d" && bun install --frozen-lockfile); fi
-          done
-      - uses: ./.pal/.github/actions/publish-extensions
-        with:
-          upload-token: ${{ secrets.PAL_UPLOAD_TOKEN }}
-          dispatch-token: ${{ secrets.PAL_DISPATCH_TOKEN }}

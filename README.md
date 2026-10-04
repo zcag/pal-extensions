@@ -164,27 +164,29 @@ dependencies there and each extension's own. The tests run through pal's
 host on a fake clock and in parallel, under a time budget; pal's
 [host/test/README.md](https://github.com/zcag/pal/blob/main/host/test/README.md)
 has the rules a test keeps. CI runs `make test` on macOS and Linux against
-pal's main on every push, and pal's own CI runs the bundled extensions'
-tests from this repo's main, so a change in pal that breaks one is caught
-there.
+pal's main on every push (a green main is what pal's registry
+publishes), and pal's own CI runs the bundled extensions' tests from this
+repo's main, so a change in pal that breaks one is caught there.
 
 ## How a change ships
 
-1. A push to main whose tests pass builds every extension whose package
-   changed (`pal-pack`, from the pal checkout the tests ran against),
-   uploads it to pal.cagdas.io and hands it to pal's registry signer
-   (`.github/workflows/ci.yml`, `publish`).
-2. pal's `extensions.yml` builds it again from this commit, checks it is
-   the same package, signs it and adds it to the **edge** index.
+1. Push to main. CI runs `make test` against pal's main; that is all this
+   repo's CI does, and nothing here holds a secret.
+2. Within about 15 minutes pal's registry (its `extensions.yml`) sees the
+   new main, checks that its CI run here is green, builds every extension at
+   that commit itself and signs and publishes the ones whose package
+   changed to the **edge** index (at once when it is run with `publish` in
+   pal's Actions). A main whose CI is pending or red waits; nothing but a
+   green main is ever published.
 3. `make ext-release NAMES="timer"` in pal promotes it to **stable**, the
-   index every pal follows; every app release promotes everything on edge
-   and bundles stable's builds. Installed extensions update themselves
-   within hours, bundled ones included.
+   index every pal follows, and every app release promotes everything on
+   edge and bundles stable's builds. Installed extensions, bundled ones
+   included, update themselves within hours.
 
 A build is identified by its tree hash; the manifest's `version` is for
-people. It is stamped with the SDK protocol of the pal it was built
-with, so an extension that needs something new in the SDK waits for that
-pal on main, and is never offered to an app too old to run it.
+people. It is built with pal's main and stamped with its SDK protocol, so
+an extension that needs something new in the SDK waits for that pal on
+main, and is never offered to an app too old to run it.
 
 Send changes here as pull requests; a commit subject is
 `<extension>: what changed`, which is what the store's notes on each
