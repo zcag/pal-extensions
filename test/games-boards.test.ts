@@ -90,12 +90,12 @@ describe("pure", () => {
 });
 
 describe("over the wire", () => {
-  test("an installed game with boards has Leaderboards on its row, which opens them", async () => {
-    const rows = await host.list("games", "games");
-    expect(rows.find((r) => r.id === "2048/2048")!.actions).toEqual([{ id: "play", title: "Play" }, { id: "boards", title: "Leaderboards", shortcut: "cmd+l" }]);
-    expect(rows.find((r) => r.id === "snake/snake")!.actions).toEqual([{ id: "play", title: "Play" }, { id: "boards", title: "Leaderboards", shortcut: "cmd+l" }]);
-    expect(rows.map((r) => r.id)).not.toContain("games/leaderboards");
-    expect(await host.pick("games", "games", "2048/2048", "boards")).toEqual({ push: { extension: "games", palette: "leaderboards", args: { game: "2048" } } });
+  test("an installed game with boards has Leaderboards on the showcase, which opens them", async () => {
+    const shown = async (action: string) => (await host.pick("games", "games", "games", action)) as { view: View };
+    await host.request<View>("view", { extension: "games", palette: "games" });
+    expect((await shown("go:2048/2048")).view.actions.slice(0, 2)).toEqual([{ id: "play", title: "Play", shortcut: "enter" }, { id: "boards", title: "Leaderboards", shortcut: "cmd+l" }]);
+    expect(JSON.stringify((await shown("jump:s")).view.actions)).toContain('"boards"');
+    expect(await host.pick("games", "games", "games", "go:2048/2048").then(() => host.pick("games", "games", "games", "boards"))).toEqual({ push: { extension: "games", palette: "leaderboards", args: { game: "2048" } } });
   });
 
   test("the first tree comes at once; the board is pushed when it lands: ranks, names, values, your row ringed, anonymous marked", async () => {

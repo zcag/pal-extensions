@@ -1,20 +1,23 @@
-// Games: one row that opens every game pal has, and every game a registry
-// offers for this machine. A game is an extension the store shelves under
-// Fun with a view palette: the installed ones read from their manifests on
-// every open (so a new game is listed without a change here), the others
-// from the registries' listings (`extensions.available()`), under Not
-// installed after the installed ones. Enter opens an installed game; on
-// one not installed it installs it, waits for it to load, then opens it.
-// An install that fails stays as a row saying why. An installed game that
-// declares leaderboards has a second action on its row, Leaderboards
-// (cmd+L), the view in boards.ts; the root's Leaderboards row opens it too.
+// Games: every game pal has, and every game a registry offers for this
+// machine, as a showcase (showcase.ts): the game the cursor is on large,
+// with its screenshot, and a strip of covers to walk. A game is an
+// extension the store shelves under Fun with a view palette: the installed
+// ones read from their manifests on every open (so a new game is listed
+// without a change here), the others from the registries' listings
+// (`extensions.available()`), after the installed ones. Enter opens an
+// installed game; on one not installed it installs it, waits for it to
+// load, then opens it. An install that fails says why on that game. An
+// installed game that declares leaderboards has a second action,
+// Leaderboards (cmd+L), the view in boards.ts; the root's Leaderboards row
+// opens it too.
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";
-import { errorMessage, extensions, hint, type AvailableExtension, type Effect, type Extension, type InstalledExtension, type Item, type OwnIcon } from "@zcag/pal";
+import { column, errorMessage, extensions, text, view, type AvailableExtension, type Effect, type Extension, type InstalledExtension, type OwnIcon, type View } from "@zcag/pal";
 import { PALETTE as BOARDS, boardsPick, boardsView } from "./boards.ts";
+import { PALETTE, showcase, type Shown } from "./showcase.ts";
 
-type Manifest = { title?: string; icon?: OwnIcon; store?: { category?: string; tagline?: string }; palettes?: Record<string, { kind?: string; title?: string; icon?: OwnIcon }>; leaderboards?: unknown[] };
-export type Game = { extension: string; palette: string; title: string; tagline: string; icon?: OwnIcon; installed: boolean; registry?: string; boards?: boolean };
+type Manifest = { title?: string; description?: string; icon?: OwnIcon; store?: { category?: string; tagline?: string }; palettes?: Record<string, { kind?: string; title?: string; icon?: OwnIcon }>; leaderboards?: unknown[] };
+export type Game = { extension: string; palette: string; title: string; tagline: string; description: string; icon?: OwnIcon; installed: boolean; registry?: string; boards?: boolean; /** The store's first screenshot. */ shot?: string };
 
 /** This machine as a listing's `platforms` names it. */
 const PLATFORM = process.platform === "darwin" ? "macos" : process.platform;
@@ -29,7 +32,7 @@ async function installed(): Promise<Game[]> {
     const m = await manifest(e);
     if (m.store?.category !== "fun") return [];
     return Object.entries(m.palettes ?? {}).filter(([, p]) => p.kind === "view").map(([palette, p]) => ({
-      extension: e.name, palette, title: p.title ?? m.title ?? e.name, tagline: m.store?.tagline ?? "", icon: p.icon ?? m.icon, installed: true,
+      extension: e.name, palette, title: p.title ?? m.title ?? e.name, tagline: m.store?.tagline ?? "", description: m.description ?? "", icon: p.icon ?? m.icon, installed: true,
       ...(Array.isArray(m.leaderboards) && m.leaderboards.length && { boards: true }),
     }));
   }));
@@ -39,60 +42,89 @@ async function installed(): Promise<Game[]> {
 /** Games a registry lists that are not installed: `fun`, a view palette, for this platform, a build that runs here. */
 export function offered(available: AvailableExtension[], have: Set<string>): Game[] {
   return available.filter((a) => !a.installed && !have.has(a.name) && a.installable && a.listing.category === "fun" && (!a.listing.platforms?.length || a.listing.platforms.includes(PLATFORM)))
-    .flatMap((a) => a.listing.palettes.filter((p) => p.kind === "view").map((p) => ({ extension: a.name, palette: p.id, title: p.title || a.listing.title || a.name, tagline: a.listing.tagline, icon: a.listing.icon as OwnIcon | undefined, installed: false, registry: a.registry })));
+    .flatMap((a) => a.listing.palettes.filter((p) => p.kind === "view").map((p) => ({ extension: a.name, palette: p.id, title: p.title || a.listing.title || a.name, tagline: a.listing.tagline, description: a.listing.description, icon: a.listing.icon as OwnIcon | undefined, installed: false, registry: a.registry })));
 }
 
 /** Every game, by title: the installed ones and the ones on offer. A registry that cannot be asked leaves only the installed ones. */
 export async function games(): Promise<Game[]> {
-  const mine = await installed();
-  const more = await extensions.available().then((a) => offered(a, new Set(mine.map((g) => g.extension))), () => []);
+  const [mine, available] = await Promise.all([installed(), extensions.available().catch(() => [] as AvailableExtension[])]);
+  const more = offered(available, new Set(mine.map((g) => g.extension)));
+  // The pictures come from the listings, the installed games' too.
+  const shotOf = (name: string) => { const s = available.find((a) => a.name === name)?.listing.screenshots[0]; return typeof s === "string" ? s : s?.url; };
   // A name two registries list shows once, pal's first as the core orders them.
   const seen = new Set<string>();
-  return [...mine, ...more].filter((g) => { const k = `${g.extension}/${g.palette}`; if (seen.has(k)) return false; seen.add(k); return true; }).sort((a, b) => a.title.localeCompare(b.title));
+  const all = [...mine, ...more].filter((g) => { const k = `${g.extension}/${g.palette}`; if (seen.has(k)) return false; seen.add(k); return true; }).sort((a, b) => a.title.localeCompare(b.title));
+  return all.map((g) => { const shot = shotOf(g.extension); return shot ? { ...g, shot } : g; });
 }
 
-/** Installs running from here, and the last failure per extension (shown as a row until the next try). */
+/** Installs running from here, and the last failure per extension (shown on the game until the next try). */
 const installing = new Set<string>();
 const failed = new Map<string, string>();
 
+/** The game the cursor is on (`extension/palette`), kept across opens. */
+let cursor: string | undefined;
+
+/** The order the showcase walks: the installed games, then the ones on offer. */
+async function shelf(): Promise<Shown[]> {
+  const all = await games();
+  return [...all.filter((g) => g.installed), ...all.filter((g) => !g.installed)].map((g) => ({
+    id: `${g.extension}/${g.palette}`, title: g.title, tagline: g.tagline, description: g.description, icon: g.icon, shot: g.shot, installed: g.installed,
+    ...(g.boards && { boards: true }), ...(installing.has(g.extension) && { installing: true }), ...(failed.has(g.extension) && { failed: failed.get(g.extension) }),
+  }));
+}
+
+const redraw = () => void draw().then((v) => view.update(v, { palette: PALETTE })).catch(() => {});
+
+async function draw(): Promise<View> {
+  const all = await shelf();
+  if (!all.length) return { id: PALETTE, title: "Games", tree: column([text("No games yet", { style: "title" }), text("The store's Fun shelf has them", { style: "muted" })], { padding: 4, grow: true, align: "center", justify: "center" }), actions: [] };
+  const at = Math.max(0, all.findIndex((g) => g.id === cursor));
+  cursor = all[at]!.id;
+  return showcase(all, at, redraw);
+}
+
+async function pick(action: string | undefined): Promise<Effect | void> {
+  const all = await shelf();
+  const at = Math.max(0, all.findIndex((g) => g.id === cursor));
+  const step = (by: number) => { cursor = all[(at + by + all.length) % all.length]?.id; };
+  if (action === "next") step(1);
+  else if (action === "prev") step(-1);
+  else if (action?.startsWith("go:")) cursor = action.slice(3);
+  else if (action?.startsWith("jump:")) {
+    const c = action.slice(5);
+    // The next game after the cursor starting with it, round the end.
+    for (let k = 1; k <= all.length; k++) { const g = all[(at + k) % all.length]!; if (g.title.toLowerCase().startsWith(c)) { cursor = g.id; break; } }
+  } else if (cursor && (action === "play" || action === "install" || action === "boards")) return start(cursor, action);
+  return { view: await draw() };
+}
+
+async function start(id: string, action: string): Promise<Effect> {
+  const [extension, palette] = id.split("/") as [string, string];
+  if (action === "boards") return { push: { extension: "games", palette: BOARDS, args: { game: extension } } };
+  if (action === "play") return { push: { extension, palette } };
+  const g = (await games()).find((x) => x.extension === extension && x.palette === palette);
+  installing.add(extension);
+  failed.delete(extension);
+  redraw();
+  try {
+    const r = await extensions.install(extension, { from: "games", ...(g?.registry && { registry: g.registry }) });
+    if (!r.ok || r.loaded === false) throw new Error(r.error || (r.loaded === false ? "it installed but failed to load" : "the install did not go through"));
+    return { push: { extension, palette } };
+  } catch (e) {
+    failed.set(extension, errorMessage(e));
+    installing.delete(extension);
+    return { view: await draw() };
+  } finally {
+    installing.delete(extension);
+  }
+}
+
 export default {
   palettes: {
-    games: {
+    [PALETTE]: {
       title: "Games",
-      live: true,
-      list: async (): Promise<Item[]> => {
-        const all = await games();
-        if (!all.length) return [hint("none", "No games installed", "The store's Fun shelf has them")];
-        const rows: Item[] = [...failed].map(([name, error]) => hint(`failed:${name}`, `Could not install ${all.find((g) => g.extension === name)?.title ?? name}`, error));
-        // The ones on offer under their own heading, after the installed ones (headed too when both are there); the heading says it, so a row's tag only says an install is running.
-        const offer = all.some((g) => !g.installed);
-        for (const g of [...all.filter((x) => x.installed), ...all.filter((x) => !x.installed)]) rows.push({
-          id: `${g.extension}/${g.palette}`, name: g.title, subtitle: g.tagline, icon: g.icon,
-          ...(offer && { section: g.installed ? "Installed" : "Not installed" }),
-          ...(installing.has(g.extension) && { accessories: [{ tag: "Installing…", color: "blue" }] }),
-          actions: [g.installed ? { id: "play", title: "Play" } : { id: "install", title: "Install and play" }, ...(g.boards ? [{ id: "boards", title: "Leaderboards", shortcut: "cmd+l" }] : [])],
-        });
-        return rows;
-      },
-      pick: async (id, action): Promise<Effect | void> => {
-        const [extension, palette] = id.split("/");
-        if (!extension || !palette) return;
-        if (action === "boards") return { push: { extension: "games", palette: BOARDS, args: { game: extension } } };
-        if (action !== "install") return { push: { extension, palette } };
-        const g = (await games()).find((x) => x.extension === extension && x.palette === palette);
-        installing.add(extension);
-        failed.delete(extension);
-        try {
-          const r = await extensions.install(extension, { from: "games", ...(g?.registry && { registry: g.registry }) });
-          if (!r.ok || r.loaded === false) throw new Error(r.error || (r.loaded === false ? "it installed but failed to load" : "the install did not go through"));
-          return { push: { extension, palette } };
-        } catch (e) {
-          failed.set(extension, errorMessage(e));
-          return { keep: true };
-        } finally {
-          installing.delete(extension);
-        }
-      },
+      view: () => draw(),
+      pick: (_id, action) => pick(action),
     },
     [BOARDS]: {
       title: "Leaderboards",

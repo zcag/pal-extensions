@@ -5,13 +5,16 @@
 // (pong, one for this platform; one for another; one with no build that
 // runs here; one already installed; a fun one with no view palette). The
 // rows (every game by title, the ones on offer under Not installed), the
-// pick (a push of an installed game; an install, then the push, for one on
-// offer), the row while it installs, and an install that fails.
+// showcase (every game by title, the ones on offer after; the strip, the
+// keys that walk it), the pick (a push of an installed game; an install,
+// then the push, for one on offer), the game while it installs, an install
+// that fails, and the pictures: fetched once from the listing's url (its
+// dark twin first) into the cache, and the tree pushed again when they land.
 import { afterAll, beforeAll, expect, test } from "bun:test";
-import { existsSync } from "node:fs";
+import { existsSync, mkdtempSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
 import { join } from "node:path";
-import type { AvailableExtension, StoreResult } from "../.pal/sdk/src/index.ts";
-import { offered } from "../games/index.ts";
+import type { AvailableExtension, StoreResult, View, ViewNode } from "../.pal/sdk/src/index.ts";
 import { Host } from "../.pal/host/test/harness.ts";
 
 const REPO = join(import.meta.dir, "..");
@@ -31,6 +34,34 @@ const AVAILABLE = [
   offer("weather", {}, { category: "reference" }),
 ];
 
+const cache = mkdtempSync(join(tmpdir(), "pal-games-test-"));
+process.env.PAL_GAMES_CACHE = cache;
+const { offered } = await import("../games/index.ts");
+const { windowOf } = await import("../games/showcase.ts");
+
+/** pal's site for the pictures: a PNG at every `-dark.png`, nothing at the light ones, counting the asks. */
+const PNG = Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==", "base64");
+const asked: string[] = [];
+const site = Bun.serve({ port: 0, fetch: (r) => { asked.push(new URL(r.url).pathname); return r.url.endsWith("-dark.png") ? new Response(PNG, { headers: { "content-type": "image/png" } }) : new Response("no", { status: 404 }); } });
+
+const find = (n: ViewNode, pred: (n: ViewNode) => boolean, out: ViewNode[] = []): ViewNode[] => {
+  if (pred(n)) out.push(n);
+  if (n.type === "stack") for (const c of n.children) find(c, pred, out);
+  return out;
+};
+const texts = (v: View) => find(v.tree, (n) => n.type === "text").map((n) => (n as { value: string }).value);
+/** The strip's covers, by the game each opens on a click. */
+const strip = (v: View) => find(v.tree, (n) => typeof n.action === "string" && n.action.startsWith("go:")).map((n) => n.action!.slice(3));
+const hero = (v: View) => find(v.tree, (n) => typeof n.key === "string" && n.key.startsWith("info-"))[0]!.key!.slice(5);
+/** The first push since `from` the predicate takes (a push may land before the test looks). */
+const pushed = async (pred: (spec: string) => boolean, from = 0) => {
+  const hit = () => host.viewUpdates("games", { palette: "games" }).slice(from).find((u) => pred(JSON.stringify(u.spec)));
+  await host.until(() => !!hit(), 3000, "the push");
+  return JSON.stringify(hit()!.spec);
+};
+const open = () => host.request<View>("view", { extension: "games", palette: "games" });
+const pick = async (action: string) => (await host.pick("games", "games", "games", action)) as { view?: View; push?: unknown; keep?: true };
+
 let host: Host;
 let installed = INSTALLED;
 let avail = AVAILABLE;
@@ -38,6 +69,7 @@ let answer: (name: string) => StoreResult | Promise<StoreResult> = (name) => ({ 
 const installs: unknown[] = [];
 beforeAll(async () => {
   host = await Host.bundled({
+    only: ["games"],
     core: {
       "extensions.list": () => installed,
       "store.state": () => ({ available: avail }),
@@ -45,41 +77,61 @@ beforeAll(async () => {
     },
   });
 });
-afterAll(() => host?.kill());
+afterAll(() => { host?.kill(); site.stop(true); rmSync(cache, { recursive: true, force: true }); });
 
 test("offered: fun, a view palette, this platform, a build that runs here, not installed", () => {
   expect(offered(AVAILABLE, new Set()).map((g) => g.extension)).toEqual(["pong"]);
   expect(offered(AVAILABLE, new Set(["pong"]))).toEqual([]);
 });
 
-test("one row per game, by title, with tile and tagline: the installed ones, then the ones on offer under Not installed", async () => {
-  const rows = await host.list("games", "games");
-  expect(rows.map((r) => r.id)).toEqual(["2048/2048", "blackjack/blackjack", "crossword/crossword", "minesweeper/minesweeper", "snake/snake", "solitaire/solitaire", "sudoku/sudoku", "yahtzee/yahtzee", "pong/pong"]);
-  expect(rows.map((r) => r.section)).toEqual([...Array(8).fill("Installed"), "Not installed"]);
-  const snake = rows.find((r) => r.id === "snake/snake")!;
-  expect(snake.name).toBe("Snake II");
-  expect(snake.subtitle).toContain("3310");
-  expect(snake.icon).toMatchObject({ tile: { bg: "green" } });
-  expect(snake.accessories ?? []).toEqual([]);
-  const pong = rows.find((r) => r.id === "pong/pong")!;
-  expect(pong.accessories).toBeUndefined();
-  expect(pong.actions).toEqual([{ id: "install", title: "Install and play" }]);
-  expect(pong.subtitle).toBe("Pong, the game");
+test("the strip: every game by title, the installed ones first, then the ones on offer; the first opens", async () => {
+  const v = await open();
+  expect(strip(v)).toEqual(["2048/2048", "blackjack/blackjack", "crossword/crossword", "minesweeper/minesweeper", "snake/snake", "solitaire/solitaire", "sudoku/sudoku"]);
+  expect(hero(v)).toBe("2048/2048");
+  expect(v.title).toBe("1 of 9");
+  expect(v.actions.map((a) => a.id)).toContain("boards");
 });
 
-test("Enter pushes an installed game's palette", async () => {
-  expect(await host.pick("games", "games", "snake/snake", "play")).toEqual({ push: { extension: "snake", palette: "snake" } });
-  expect(await host.pick("games", "games", "solitaire/solitaire")).toEqual({ push: { extension: "solitaire", palette: "solitaire" } });
+test("the window holds seven covers round the cursor, held at the ends", () => {
+  expect(windowOf(9, 0)).toEqual([0, 7]);
+  expect(windowOf(9, 5)).toEqual([2, 9]);
+  expect(windowOf(9, 8)).toEqual([2, 9]);
+  expect(windowOf(3, 2)).toEqual([0, 3]);
 });
 
-test("Enter on one on offer installs it from its registry, the row says so meanwhile, then pushes it", async () => {
+test("the keys walk the strip: next and previous round the ends, a letter to the next game starting with it, a click to the cover", async () => {
+  await open();
+  expect(hero((await pick("prev")).view!)).toBe("pong/pong");
+  expect(hero((await pick("next")).view!)).toBe("2048/2048");
+  expect(hero((await pick("next")).view!)).toBe("blackjack/blackjack");
+  expect(hero((await pick("jump:s")).view!)).toBe("snake/snake");
+  const solitaire = (await pick("jump:s")).view!;
+  expect(hero(solitaire)).toBe("solitaire/solitaire");
+  expect(texts(solitaire)).toContain("Solitaire");
+  expect(hero((await pick("go:2048/2048")).view!)).toBe("2048/2048");
+  // The cursor is kept: the next open lands where the last one left.
+  expect(hero(await open())).toBe("2048/2048");
+});
+
+test("Enter pushes an installed game's palette; cmd+L its leaderboards", async () => {
+  await open();
+  await pick("jump:s");
+  expect(await pick("play")).toEqual({ push: { extension: "snake", palette: "snake" } });
+  expect(await pick("boards")).toEqual({ push: { extension: "games", palette: "leaderboards", args: { game: "snake" } } });
+});
+
+test("a game on offer says so; Enter installs it from its registry, the game says Installing meanwhile, then pushes it", async () => {
+  await open();
+  const v = (await pick("jump:p")).view!;
+  expect(texts(v)).toEqual(expect.arrayContaining(["Pong", "Pong, the game"]));
+  expect(find(v.tree, (n) => n.type === "badge").map((n) => (n as { text: string }).text)).toEqual(["Not installed"]);
+  expect(v.actions[0]).toMatchObject({ id: "install", title: "Install and play", shortcut: "enter" });
   let release!: () => void;
   answer = (name) => new Promise((r) => { release = () => r({ name, ok: true, loaded: true }); });
   try {
-    const picked = host.pick("games", "games", "pong/pong", "install");
+    const picked = pick("install");
     await host.until(() => installs.length === 1);
-    const meanwhile = await host.list("games", "games");
-    expect(meanwhile.find((r) => r.id === "pong/pong")!.accessories).toEqual([{ tag: "Installing…", color: "blue" }]);
+    await pushed((spec) => spec.includes("Installing…"));
     release();
     expect(await picked).toEqual({ push: { extension: "pong", palette: "pong" } });
     expect(installs[0]).toEqual({ name: "pong", registry: "pal", from: "games" });
@@ -88,31 +140,50 @@ test("Enter on one on offer installs it from its registry, the row says so meanw
   }
 });
 
-test("an install that fails stays on the list as a row saying why, until the next try", async () => {
+test("an install that fails says why on the game, until the next try", async () => {
+  await open();
+  await pick("jump:p");
   answer = (name) => ({ name, ok: false, error: "offline: pal.cagdas.io is not reachable" });
   try {
-    expect(await host.pick("games", "games", "pong/pong", "install")).toEqual({ keep: true });
-    const rows = await host.list("games", "games");
-    expect(rows[0]).toMatchObject({ id: "hint:failed:pong", name: "Could not install Pong", subtitle: "offline: pal.cagdas.io is not reachable", actions: [] });
+    const v = (await pick("install")).view!;
+    expect(texts(v)).toContain("Could not install: offline: pal.cagdas.io is not reachable");
+    expect(v.actions[0]).toMatchObject({ id: "install", title: "Try the install again" });
     answer = (name) => ({ name, ok: true, loaded: false, error: "SyntaxError" });
-    expect(await host.pick("games", "games", "pong/pong", "install")).toEqual({ keep: true });
-    expect((await host.list("games", "games"))[0].subtitle).toBe("SyntaxError");
+    expect(texts((await pick("install")).view!)).toContain("Could not install: SyntaxError");
     answer = (name) => ({ name, ok: true, loaded: true });
-    await host.pick("games", "games", "pong/pong", "install");
-    expect((await host.list("games", "games"))[0].id).toBe("2048/2048");
+    await pick("install");
+    expect(texts(await open()).some((t) => t.startsWith("Could not install"))).toBe(false);
   } finally {
     answer = (name) => ({ name, ok: true, loaded: true });
   }
 });
 
-test("no games: one hint row", async () => {
+test("pictures: the listing's first screenshot, its dark twin, fetched once into the cache; the tree is pushed when it lands", async () => {
+  const url = `http://127.0.0.1:${site.port}/extensions/pong/screenshots/1-play.png`;
+  avail = AVAILABLE.map((a) => (a.name === "pong" ? { ...a, listing: { ...a.listing, screenshots: [{ url, caption: "" }] } } : a));
+  try {
+    const from = host.viewUpdates("games", { palette: "games" }).length;
+    // Not here yet: Pong's cover is its glyph on a well, and the fetch started.
+    expect(JSON.stringify((await open()).tree)).not.toContain("icon://");
+    expect(await pushed((spec) => spec.includes("icon://localhost/file"), from)).toContain(encodeURIComponent(cache));
+    expect(asked).toEqual(["/extensions/pong/screenshots/1-play-dark.png"]);
+    // Drawn from the cache from now on, without asking again.
+    expect(JSON.stringify((await pick("jump:p")).view!.tree)).toContain("icon://localhost/file");
+    expect(asked).toHaveLength(1);
+  } finally {
+    avail = AVAILABLE;
+  }
+});
+
+test("no games: says where to get them", async () => {
   installed = [ext("calc")];
-  const rows = await host.list("games", "games").finally(() => { installed = INSTALLED; });
-  // Pong is still on offer: a row, not the hint.
-  expect(rows.map((r) => [r.id, r.section])).toEqual([["pong/pong", "Not installed"]]);
-  installed = [ext("calc")];
-  avail = [];
-  const none = await host.list("games", "games").finally(() => { installed = INSTALLED; avail = AVAILABLE; });
-  expect(none).toHaveLength(1);
-  expect(none[0].id).toBe("hint:none");
+  try {
+    // Pong is still on offer: it shows, not the message.
+    expect(hero(await open())).toBe("pong/pong");
+    avail = [];
+    expect(texts(await open())).toEqual(["No games yet", "The store's Fun shelf has them"]);
+  } finally {
+    installed = INSTALLED;
+    avail = AVAILABLE;
+  }
 });
