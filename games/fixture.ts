@@ -3,7 +3,9 @@
 // own manifests. The machine it shows is a 0.9 one: the games come from
 // pal's registry (docs/design/distribution.md, "What is bundled"),
 // Solitaire, Wordle and Snake are installed, and every other game the
-// registry lists is on offer after them. The pictures are the games' own
+// registry lists is on offer after them; each listing's `released` is the
+// game's first commit, as pal-pack reads it, so what came out in the week
+// before the fixtures' clock leads, marked New. The pictures are the games' own
 // store screenshots (pal-games, beside this repo), put in the showcase's
 // cache as if downloaded and inlined here as small JPEGs (the gallery has
 // no `icon://` scheme; `sips`, so this runs on a Mac). The last shot is
@@ -17,6 +19,7 @@ import { dirname, join } from "node:path";
 import { Host, extensionsByName } from "../.pal/host/test/harness.ts";
 import { pinClock, writeFixture } from "../.pal/app/scripts/fixture-kit.ts";
 import type { AvailableExtension, Effect, LeaderboardRow, View } from "../.pal/sdk/src/index.ts";
+import { releasedAt } from "../.pal/sdk/pack/pack.ts";
 import manifest from "./pal.json" with { type: "json" };
 
 const INSTALLED = new Set(["games", "solitaire", "wordle", "snake"]);
@@ -39,7 +42,7 @@ const available: AvailableExtension[] = names.map((name) => {
     listing: {
       title: m.title ?? name, description: m.description ?? "", tagline: s.tagline ?? "", features: s.features ?? [], category: s.category ?? "", keywords: m.keywords ?? [], icon: m.icon ?? null, author: m.author ?? "",
       platforms: s.platforms ?? null, play: !!s.play, palettes: Object.entries(m.palettes ?? {}).map(([id, p]: [string, any]) => ({ id, title: p.title ?? m.title ?? id, kind: p.kind ?? "list" })),
-      screenshots: shots.map(({ local: _, ...x }) => x), requires: m.requires ?? [], suggests: m.suggests ?? [],
+      screenshots: shots.map(({ local: _, ...x }) => x), ...(releasedAt(dirs.get(name)!) && { released: releasedAt(dirs.get(name)!) }), requires: m.requires ?? [], suggests: m.suggests ?? [],
     },
   };
 });
@@ -67,9 +70,8 @@ process.env.PAL_ACCOUNT_API = `http://127.0.0.1:${server.port}`;
 const host = await Host.bundled({ only: ["games"], core: { "extensions.list": () => installed, "store.state": () => ({ available }), "leaderboard.get": () => board, "account.get": () => ({ signedIn: true, handle: "kemal" }) } });
 try {
   const pick = async (action: string) => ((await host.pick("games", "games", "games", action)) as Effect & { view: View }).view;
-  // Opens on Snake II (the first installed); right walks the strip; v jumps to Vortex, on offer.
+  // Opens on Blackjack, the newest; v jumps to Vortex, on offer.
   const open = await host.request<View>("view", { extension: "games", palette: "games" });
-  const next = await pick("next");
   const vortex = await pick("jump:v");
   await host.request<View>("view", { extension: "games", palette: "leaderboards", args: { game: "wordle" } });
   const has = (v: View) => JSON.stringify(v.tree).includes("quillon") && JSON.stringify(v.tree).includes("Wordle #301");
@@ -81,9 +83,8 @@ try {
       offer: { title: manifest.title, icon: manifest.icon, view: "view", tree: inline(vortex) },
       leaderboards: { title: "Leaderboards", icon: manifest.icon, view: "view", tree: boards },
     },
-    effects: { "games/games:next": { view: inline(next) } },
     shots: {
-      "1-showcase": { palette: "games", keys: ["wait:300", "right", "wait:900"], caption: "The game you are on at the top, its screenshot and what it is; the covers under it walk every game, yours first" },
+      "1-showcase": { palette: "games", keys: ["wait:600"], caption: "What came out in the last week leads, marked New, then your games and the rest, each as a close-up of the game" },
       "2-not-installed": { palette: "offer", keys: ["wait:600"], caption: "A game you do not have yet, marked Not installed: Enter installs it and starts it" },
       "3-leaderboards": { palette: "leaderboards", keys: ["wait:1000"], caption: "A game's leaderboards: today's Wordle, fewest guesses first, anonymous players marked and your own row ringed" },
     },

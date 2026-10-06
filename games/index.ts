@@ -1,6 +1,8 @@
 // Games: every game pal has, and every game a registry offers for this
 // machine, as a showcase (showcase.ts): the game the cursor is on large,
-// with its screenshot, and a grid of covers to walk. A game is an
+// with its screenshot, and a grid of covers to walk: what came out in the
+// last week first (the listing's `released`), then the installed games,
+// then the rest. A game is an
 // extension the store shelves under Fun with a view palette: the installed
 // ones read from their manifests on every open (so a new game is listed
 // without a change here), the others from the registries' listings
@@ -12,12 +14,12 @@
 // opens it too.
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";
-import { column, errorMessage, extensions, text, view, type AvailableExtension, type Effect, type Extension, type InstalledExtension, type OwnIcon, type View } from "@zcag/pal";
+import { column, errorMessage, extensions, now, text, view, type AvailableExtension, type Effect, type Extension, type InstalledExtension, type OwnIcon, type View } from "@zcag/pal";
 import { PALETTE as BOARDS, boardsPick, boardsView } from "./boards.ts";
 import { PALETTE, showcase, vertical, type Rect, type Shown } from "./showcase.ts";
 
 type Manifest = { title?: string; icon?: OwnIcon; store?: { category?: string; tagline?: string }; palettes?: Record<string, { kind?: string; title?: string; icon?: OwnIcon }>; leaderboards?: unknown[] };
-export type Game = { extension: string; palette: string; title: string; tagline: string; icon?: OwnIcon; installed: boolean; registry?: string; boards?: boolean; /** The store's cover shot (else its first) and the crop its fixture picked. */ shot?: string; crop?: Rect };
+export type Game = { extension: string; palette: string; title: string; tagline: string; icon?: OwnIcon; installed: boolean; registry?: string; boards?: boolean; /** The store's cover shot (else its first) and the crop its fixture picked. */ shot?: string; crop?: Rect; /** When it first came out, Unix seconds (the listing's `released`). */ released?: number };
 
 /** This machine as a listing's `platforms` names it. */
 const PLATFORM = process.platform === "darwin" ? "macos" : process.platform;
@@ -50,10 +52,11 @@ export async function games(): Promise<Game[]> {
   const [mine, available] = await Promise.all([installed(), extensions.available().catch(() => [] as AvailableExtension[])]);
   const more = offered(available, new Set(mine.map((g) => g.extension)));
   // The pictures come from the listings, the installed games' too: the shot with a cover, else the first.
-  const shotOf = (name: string): Pick<Game, "shot" | "crop"> => {
-    const shots = (available.find((a) => a.name === name)?.listing.screenshots ?? []).map((s) => (typeof s === "string" ? { url: s } : s));
+  const shotOf = (name: string): Pick<Game, "shot" | "crop" | "released"> => {
+    const listing = available.find((a) => a.name === name)?.listing;
+    const shots = (listing?.screenshots ?? []).map((s) => (typeof s === "string" ? { url: s } : s));
     const s = shots.find((x) => x.cover) ?? shots[0];
-    return s ? { shot: s.url, ...(s.cover && { crop: s.cover }) } : {};
+    return { ...(s && { shot: s.url, ...(s.cover && { crop: s.cover }) }), ...(listing?.released && { released: listing.released }) };
   };
   // A name two registries list shows once, pal's first as the core orders them.
   const seen = new Set<string>();
@@ -68,11 +71,17 @@ const failed = new Map<string, string>();
 /** The game the cursor is on (`extension/palette`), kept across opens. */
 let cursor: string | undefined;
 
-/** The order the showcase walks: the installed games, then the ones on offer. */
+/** A game out within this long is New: first on the shelf, with a badge. */
+const NEW_MS = 7 * 86_400_000;
+
+/** The order the showcase walks: what came out lately, newest first, then the installed games, then the ones on offer, each by title. */
 async function shelf(): Promise<Shown[]> {
   const all = await games();
-  return [...all.filter((g) => g.installed), ...all.filter((g) => !g.installed)].map((g) => ({
-    id: `${g.extension}/${g.palette}`, title: g.title, tagline: g.tagline, icon: g.icon, shot: g.shot, crop: g.crop, installed: g.installed,
+  const isNew = (g: Game) => !!g.released && g.released * 1000 <= now() && now() - g.released * 1000 < NEW_MS;
+  const recent = all.filter(isNew).sort((a, b) => b.released! - a.released! || a.title.localeCompare(b.title));
+  const rest = all.filter((g) => !isNew(g));
+  return [...recent, ...rest.filter((g) => g.installed), ...rest.filter((g) => !g.installed)].map((g) => ({
+    id: `${g.extension}/${g.palette}`, title: g.title, tagline: g.tagline, icon: g.icon, shot: g.shot, crop: g.crop, installed: g.installed, ...(isNew(g) && { recent: true }),
     ...(g.boards && { boards: true }), ...(installing.has(g.extension) && { installing: true }), ...(failed.has(g.extension) && { failed: failed.get(g.extension) }),
   }));
 }

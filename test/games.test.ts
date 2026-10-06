@@ -224,6 +224,23 @@ test("past two rows, every cover is drawn in a window that slides; the cursor's 
   }
 });
 
+test("what came out in the last week comes first, newest first, marked New; then the installed games, then the rest", async () => {
+  const day = 86_400, t = Math.floor(Date.now() / 1000);
+  const out = (name: string, ago: number) => (a: AvailableExtension) => (a.name === name ? { ...a, listing: { ...a.listing, released: t - ago * day } } : a);
+  avail = [...AVAILABLE, offer("qix")].map(out("pong", 2)).map(out("qix", 30)).map(out("snake", 1));
+  try {
+    await open();
+    const v = (await pick("go:snake/snake")).view!;
+    expect(strip(v).slice(0, 3)).toEqual(["snake/snake", "pong/pong", "2048/2048"]);
+    // Qix came out a month ago: with the others on offer, by title.
+    expect(strip(v).at(-1)).toBe("qix/qix");
+    expect(find(v.tree, (n) => n.type === "badge").map((n) => (n as { text: string }).text)).toContain("New");
+    expect(find((await pick("go:2048/2048")).view!.tree, (n) => n.type === "badge").map((n) => (n as { text: string }).text)).not.toContain("New");
+  } finally {
+    avail = AVAILABLE;
+  }
+});
+
 test("no games: says where to get them", async () => {
   installed = [ext("calc")];
   try {

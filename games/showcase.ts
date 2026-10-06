@@ -28,7 +28,7 @@ import { column, row, text, thumbnailUrl, type Action, type OwnIcon, type View, 
 export const PALETTE = "games";
 
 /** What the showcase draws of a game; `index.ts` gathers them. */
-export type Shown = { id: string; title: string; tagline: string; icon?: OwnIcon; shot?: string; crop?: Rect; installed: boolean; boards?: boolean; installing?: boolean; failed?: string };
+export type Shown = { id: string; title: string; tagline: string; icon?: OwnIcon; shot?: string; crop?: Rect; installed: boolean; /** Out within the last week. */ recent?: boolean; boards?: boolean; installing?: boolean; failed?: string };
 /** `[x, y, w, h]` in a screenshot's pixels. */
 export type Rect = [number, number, number, number];
 
@@ -119,6 +119,7 @@ function cover(g: Shown, w: number, path: string | undefined, crop: Rect, extra:
 
 function info(g: Shown): ViewNode {
   const badges: ViewNode[] = [
+    ...(g.recent ? [{ type: "badge", text: "New", color: "green" } as ViewNode] : []),
     ...(g.installing ? [{ type: "badge", text: "Installing…", color: "blue" } as ViewNode] : !g.installed ? [{ type: "badge", text: "Not installed", color: "grey" } as ViewNode] : []),
     ...(g.boards ? [{ type: "badge", text: "Leaderboards", color: "violet" } as ViewNode] : []),
   ];

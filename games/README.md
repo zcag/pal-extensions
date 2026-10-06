@@ -10,10 +10,14 @@ opens that game (Escape comes back to the showcase, on the same game).
 
 The list is not kept here: every open reads the installed extensions'
 manifests and takes each view palette of an extension the store shelves
-under Fun, sorted by name, then adds every game the registries list for
-this machine (`extensions.available()`: Fun, a view palette, this
-platform, a build that runs here) that is not installed, marked **Not
-installed**, after them.
+under Fun, then adds every game the registries list for this machine
+(`extensions.available()`: Fun, a view palette, this platform, a build
+that runs here) that is not installed, marked **Not installed**.
+
+The order: what came out in the last week first, newest first, marked
+**New** (a listing's `released`, the game's first commit, which pal-pack
+reads from git; an app that does not pass it on shows no New); then the
+installed games; then the rest; each of those by name.
 
 Enter on a game not installed installs it from its registry, waits for it
 to load, and opens it; it says **Installing…** meanwhile. An install that

@@ -26,7 +26,7 @@
     "features": [
       "The game you are on at the top: its own screenshot, its tagline and what it is",
       "Every game's cover under it in a grid of five, two rows at a time; the arrows walk it, a letter jumps to the next game starting with it",
-      "Games you have not installed yet are there too, after yours, marked Not installed",
+      "What came out in the last week comes first, marked New; then your games, then the ones you have not installed, each by name",
       "`enter` opens a game, or installs it, waits for it to load and opens it",
       "`cmd+l` on a game shows its leaderboards: a tab per board, all time, this week or today, your own row marked, anonymous players hidden with `a`",
       "A failed install says why on the game; `enter` tries again"
@@ -41,7 +41,7 @@
     "screenshots": [
       {
         "file": "1-showcase.png",
-        "caption": "The game you are on at the top, its screenshot and what it is; the covers under it walk every game, yours first"
+        "caption": "What came out in the last week leads, marked New, then your games and the rest, each as a close-up of the game"
       },
       {
         "file": "2-not-installed.png",
