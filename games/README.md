@@ -1,9 +1,10 @@
 # Games
 
 Every game as a showcase. Enter on the Games row opens it: the game the
-cursor is on large, with its own screenshot cut to the game itself, its
-title, tagline and description beside it, and a strip of every game's
-cover under it. The arrows (or `tab`) walk the strip, a letter jumps to
+cursor is on at the top, with its own screenshot cut to the game itself,
+its title, tagline and description beside it, and every game's cover under
+it in a grid of five, two rows at a time, scrolling with the cursor. The
+arrows (or `tab`) walk the grid, `up` and `down` a row, a letter jumps to
 the next game starting with it, a click on a cover goes to it, and Enter
 opens that game (Escape comes back to the showcase, on the same game).
 
@@ -21,7 +22,7 @@ fails says why on the game, until the next try.
 The covers are the store screenshots: each listing's first one, its
 `-dark` twin, downloaded once into `~/Library/Caches/pal/games`
 (`~/.cache/pal/games` on Linux, `PAL_GAMES_CACHE` in the tests) and drawn
-through the app's `icon://` file scheme; a screenshot is the panel on a
+through the app's `icon://` file scheme (a cover at its 256 px thumbnail, the top one as the file itself); a screenshot is the panel on a
 wallpaper, so a cover clips it to the panel's body. A game whose picture
 is not there yet shows its glyph until it lands.
 
@@ -52,7 +53,8 @@ view on the game looked at last, and `g` walks the others.
 | keys | action |
 | --- | --- |
 | `enter` | Play the game (installing it first when it is not installed) |
-| `right` `down` `tab` | The next game (`left` `up` `shift+tab` the previous) |
+| `right` `tab` | The next game (`left` `shift+tab` the previous) |
+| `down` `up` | The game a row below or above |
 | a letter or digit | The next game starting with it |
 | `cmd+l` | The game's leaderboards |
 | `escape` | Back to the root |

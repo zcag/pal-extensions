@@ -50,6 +50,8 @@ const available: AvailableExtension[] = names.map((name) => {
 const inlined = new Map<string, string>();
 function inline<T>(x: T): T {
   return JSON.parse(JSON.stringify(x).replace(/icon:\/\/localhost\/file\?path=([^&"]+)&size=(\d+)/g, (url, path, size) => {
+    // The app's route refuses a thumbnail over 256 px (a 404, a broken picture): fail here, since the gallery would draw it anyway.
+    if (Number(size) > 256) throw new Error(`fixture: ${url} asks for a ${size} px thumbnail; the app fits at most 256`);
     if (!inlined.has(url)) {
       const out = join(cache, `inline-${inlined.size}.jpg`);
       Bun.spawnSync(["sips", "-s", "format", "jpeg", "-s", "formatOptions", "80", "-Z", String(Number(size) || 900), decodeURIComponent(path), "--out", out]);
@@ -83,7 +85,7 @@ try {
     },
     effects: { "games/games:next": { view: inline(next) } },
     shots: {
-      "1-showcase": { palette: "games", keys: ["wait:300", "right", "wait:900"], caption: "The game you are on shown large, its screenshot and what it is; the strip under it walks every game, yours first" },
+      "1-showcase": { palette: "games", keys: ["wait:300", "right", "wait:900"], caption: "The game you are on at the top, its screenshot and what it is; the covers under it walk every game, yours first" },
       "2-not-installed": { palette: "offer", keys: ["wait:600"], caption: "A game you do not have yet, marked Not installed: Enter installs it and starts it" },
       "3-leaderboards": { palette: "leaderboards", keys: ["wait:1000"], caption: "A game's leaderboards: today's Wordle, fewest guesses first, anonymous players marked and your own row ringed" },
     },

@@ -1,6 +1,6 @@
 // Games: every game pal has, and every game a registry offers for this
 // machine, as a showcase (showcase.ts): the game the cursor is on large,
-// with its screenshot, and a strip of covers to walk. A game is an
+// with its screenshot, and a grid of covers to walk. A game is an
 // extension the store shelves under Fun with a view palette: the installed
 // ones read from their manifests on every open (so a new game is listed
 // without a change here), the others from the registries' listings
@@ -14,7 +14,7 @@ import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { column, errorMessage, extensions, text, view, type AvailableExtension, type Effect, type Extension, type InstalledExtension, type OwnIcon, type View } from "@zcag/pal";
 import { PALETTE as BOARDS, boardsPick, boardsView } from "./boards.ts";
-import { PALETTE, showcase, type Shown } from "./showcase.ts";
+import { PALETTE, showcase, vertical, type Shown } from "./showcase.ts";
 
 type Manifest = { title?: string; description?: string; icon?: OwnIcon; store?: { category?: string; tagline?: string }; palettes?: Record<string, { kind?: string; title?: string; icon?: OwnIcon }>; leaderboards?: unknown[] };
 export type Game = { extension: string; palette: string; title: string; tagline: string; description: string; icon?: OwnIcon; installed: boolean; registry?: string; boards?: boolean; /** The store's first screenshot. */ shot?: string };
@@ -89,6 +89,7 @@ async function pick(action: string | undefined): Promise<Effect | void> {
   const step = (by: number) => { cursor = all[(at + by + all.length) % all.length]?.id; };
   if (action === "next") step(1);
   else if (action === "prev") step(-1);
+  else if (action === "down" || action === "up") cursor = all[vertical(all.length, at, action === "down" ? 1 : -1)]?.id;
   else if (action?.startsWith("go:")) cursor = action.slice(3);
   else if (action?.startsWith("jump:")) {
     const c = action.slice(5);

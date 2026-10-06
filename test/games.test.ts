@@ -37,7 +37,7 @@ const AVAILABLE = [
 const cache = mkdtempSync(join(tmpdir(), "pal-games-test-"));
 process.env.PAL_GAMES_CACHE = cache;
 const { offered } = await import("../games/index.ts");
-const { windowOf } = await import("../games/showcase.ts");
+const { rowsShown, vertical } = await import("../games/showcase.ts");
 
 /** pal's site for the pictures: a PNG at every `-dark.png`, nothing at the light ones, counting the asks. */
 const PNG = Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==", "base64");
@@ -50,7 +50,7 @@ const find = (n: ViewNode, pred: (n: ViewNode) => boolean, out: ViewNode[] = [])
   return out;
 };
 const texts = (v: View) => find(v.tree, (n) => n.type === "text").map((n) => (n as { value: string }).value);
-/** The strip's covers, by the game each opens on a click. */
+/** The grid's covers, by the game each opens on a click. */
 const strip = (v: View) => find(v.tree, (n) => typeof n.action === "string" && n.action.startsWith("go:")).map((n) => n.action!.slice(3));
 const hero = (v: View) => find(v.tree, (n) => typeof n.key === "string" && n.key.startsWith("info-"))[0]!.key!.slice(5);
 /** The first push since `from` the predicate takes (a push may land before the test looks). */
@@ -84,26 +84,39 @@ test("offered: fun, a view palette, this platform, a build that runs here, not i
   expect(offered(AVAILABLE, new Set(["pong"]))).toEqual([]);
 });
 
-test("the strip: every game by title, the installed ones first, then the ones on offer; the first opens", async () => {
+test("the grid: every game by title, the installed ones first, then the ones on offer; the first opens", async () => {
   const v = await open();
-  expect(strip(v)).toEqual(["2048/2048", "blackjack/blackjack", "crossword/crossword", "minesweeper/minesweeper", "snake/snake", "solitaire/solitaire", "sudoku/sudoku"]);
+  expect(strip(v)).toEqual(["2048/2048", "blackjack/blackjack", "crossword/crossword", "minesweeper/minesweeper", "snake/snake", "solitaire/solitaire", "sudoku/sudoku", "yahtzee/yahtzee", "pong/pong"]);
+  // Covers ask the app for a thumbnail it serves (256 px at most), never more.
+  expect(JSON.stringify(v.tree)).not.toMatch(/size=(?:2[6-9]\d|[3-9]\d\d)/);
   expect(hero(v)).toBe("2048/2048");
   expect(v.title).toBe("1 of 9");
   expect(v.actions.map((a) => a.id)).toContain("boards");
 });
 
-test("the window holds seven covers round the cursor, held at the ends", () => {
-  expect(windowOf(9, 0)).toEqual([0, 7]);
-  expect(windowOf(9, 5)).toEqual([2, 9]);
-  expect(windowOf(9, 8)).toEqual([2, 9]);
-  expect(windowOf(3, 2)).toEqual([0, 3]);
+test("the grid shows two rows of five, scrolling only when the cursor leaves them; up and down keep the column", () => {
+  expect(rowsShown(17, 0)).toEqual([0, 2]);
+  expect(rowsShown(17, 9)).toEqual([0, 2]);
+  expect(rowsShown(17, 10)).toEqual([1, 3]);
+  expect(rowsShown(17, 16)).toEqual([2, 4]);
+  expect(rowsShown(17, 12)).toEqual([2, 4]);
+  expect(rowsShown(17, 6)).toEqual([1, 3]);
+  expect(rowsShown(3, 2)).toEqual([0, 1]);
+  expect(vertical(17, 2, 1)).toBe(7);
+  expect(vertical(17, 2, -1)).toBe(2);
+  // Below a short last row: its last game; from the last row, nowhere.
+  expect(vertical(17, 13, 1)).toBe(16);
+  expect(vertical(17, 16, 1)).toBe(16);
+  rowsShown(17, 0);
 });
 
-test("the keys walk the strip: next and previous round the ends, a letter to the next game starting with it, a click to the cover", async () => {
+test("the keys walk the grid: next and previous round the ends, up and down a row, a letter to the next game starting with it, a click to the cover", async () => {
   await open();
   expect(hero((await pick("prev")).view!)).toBe("pong/pong");
   expect(hero((await pick("next")).view!)).toBe("2048/2048");
   expect(hero((await pick("next")).view!)).toBe("blackjack/blackjack");
+  expect(hero((await pick("down")).view!)).toBe("sudoku/sudoku");
+  expect(hero((await pick("up")).view!)).toBe("blackjack/blackjack");
   expect(hero((await pick("jump:s")).view!)).toBe("snake/snake");
   const solitaire = (await pick("jump:s")).view!;
   expect(hero(solitaire)).toBe("solitaire/solitaire");

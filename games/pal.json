@@ -24,8 +24,8 @@
     "tagline": "Every game in one showcase, one Enter away",
     "category": "fun",
     "features": [
-      "The game you are on shown large: its own screenshot, its tagline and what it is",
-      "A strip of every game's cover under it; the arrows walk it, a letter jumps to the next game starting with it",
+      "The game you are on at the top: its own screenshot, its tagline and what it is",
+      "Every game's cover under it in a grid of five, two rows at a time; the arrows walk it, a letter jumps to the next game starting with it",
       "Games you have not installed yet are there too, after yours, marked Not installed",
       "`enter` opens a game, or installs it, waits for it to load and opens it",
       "`cmd+l` on a game shows its leaderboards: a tab per board, all time, this week or today, your own row marked, anonymous players hidden with `a`",
@@ -41,7 +41,7 @@
     "screenshots": [
       {
         "file": "1-showcase.png",
-        "caption": "The game you are on shown large, its screenshot and what it is; the strip under it walks every game, yours first"
+        "caption": "The game you are on at the top, its screenshot and what it is; the covers under it walk every game, yours first"
       },
       {
         "file": "2-not-installed.png",
@@ -65,7 +65,7 @@
       },
       {
         "title": "Next game",
-        "description": "Moves along the strip (`left`, `up` or `shift+tab` go back); a letter jumps to the next game starting with it.",
+        "description": "Moves along the grid (`left` or `shift+tab` go back, `up` and `down` a row); a letter jumps to the next game starting with it.",
         "keys": "right"
       },
       {
@@ -87,7 +87,7 @@
         },
         {
           "keys": "right",
-          "title": "Next game (left for the previous)"
+          "title": "Next game (left for the previous, up and down a row)"
         },
         {
           "keys": "cmd+l",

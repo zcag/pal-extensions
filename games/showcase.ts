@@ -1,6 +1,7 @@
-// The Games showcase: the game the cursor is on large, its own screenshot
-// cut to the game itself, its title, tagline and what it is beside it, and
-// a strip of every game's cover under it that slides with the cursor.
+// The Games showcase: the game the cursor is on at the top, its own
+// screenshot cut to the game itself beside its title, tagline and what it
+// is, and every game's cover under it in a grid of `COLS`, `ROWS` rows at
+// a time, scrolling with the cursor.
 //
 // The pictures are the store's screenshots (the listing's first one, its
 // `-dark` twin), downloaded once into a cache folder and drawn through the
@@ -32,8 +33,10 @@ const MAX_AGE_MS = 7 * 86_400_000;
 const SHOT = { w: 1440, h: 900 };
 const BODY = { x: 150, y: 194, w: 1140, h: 558 };
 
-/** The hero's width, the strip's covers' width, how many covers the strip shows. */
-const HERO_W = 470, THUMB_W = 96, STRIP = 7;
+/** The hero's width; the grid's covers' width, its columns and the rows it shows. */
+const HERO_W = 264, THUMB_W = 136, COLS = 5, ROWS = 2;
+/** The app fits a thumbnail into at most this many px (`icon://` file route): a cover asks for that, the hero for the file itself. */
+const THUMB_PX = 256;
 
 // ---- the pictures ------------------------------------------------------------------------------
 
@@ -91,7 +94,7 @@ function cover(g: Shown, w: number, path: string | undefined, extra: Record<stri
   const iw = Math.round((w * SHOT.w) / BODY.w), ih = Math.round((iw * SHOT.h) / SHOT.w);
   const lift = Math.round((2 * (BODY.y + BODY.h / 2 - SHOT.h / 2) * iw) / SHOT.w);
   return column([
-    { type: "image", src: thumbnailUrl(path, w > 200 ? 0 : 480), width: iw, height: ih, alt: g.title },
+    { type: "image", src: thumbnailUrl(path, w > THUMB_W ? 0 : THUMB_PX), width: iw, height: ih, alt: g.title },
     { type: "spacer", size: lift },
   ], { ...box, gap: 0 });
 }
@@ -102,36 +105,47 @@ function info(g: Shown): ViewNode {
     ...(g.boards ? [{ type: "badge", text: "Leaderboards", color: "violet" } as ViewNode] : []),
   ];
   return column([
-    ...(badges.length ? [row(badges, { gap: 1 })] : []),
-    text(g.title, { style: "headline" }),
+    row([text(g.title, { style: "headline" }), ...badges], { gap: 2 }),
     text(g.tagline, { style: "body" }),
-    ...(g.description && g.description !== g.tagline ? [text(g.description, { style: "muted", size: "sm" })] : []),
-    ...(g.failed ? [text(`Could not install: ${g.failed}`, { size: "sm", color: "destructive" })] : []),
-  ], { key: `info-${g.id}`, flex: 1, gap: 2, height: Math.round((HERO_W * BODY.h) / BODY.w), transition: { enter: "fade", exit: "none" } });
+    ...(g.failed ? [text(`Could not install: ${g.failed}`, { size: "sm", color: "destructive" })] : g.description && g.description !== g.tagline ? [text(g.description, { style: "muted", size: "sm" })] : []),
+  ], { key: `info-${g.id}`, flex: 1, gap: 1, height: Math.round((HERO_W * BODY.h) / BODY.w), transition: { enter: "fade", exit: "none" } });
 }
 
-/** The strip's window: `STRIP` covers around the cursor, held at the ends. */
-export function windowOf(n: number, at: number): [number, number] {
-  const start = Math.max(0, Math.min(at - Math.floor(STRIP / 2), n - STRIP));
-  return [start, Math.min(n, start + STRIP)];
+/** The grid's first row shown, kept so the view scrolls only when the cursor leaves it. */
+let top = 0;
+
+/** The rows shown: `top` moved the least that puts the cursor's row in view. */
+export function rowsShown(n: number, at: number): [number, number] {
+  const rows = Math.ceil(n / COLS), r = Math.floor(at / COLS);
+  if (r < top) top = r;
+  else if (r >= top + ROWS) top = r - ROWS + 1;
+  top = Math.max(0, Math.min(top, rows - ROWS));
+  return [top, Math.min(rows, top + ROWS)];
 }
 
-function strip(all: Shown[], at: number, paths: (string | undefined)[]): ViewNode {
-  const [from, to] = windowOf(all.length, at);
-  const cells: ViewNode[] = [];
-  for (let i = from; i < to; i++) {
-    const g = all[i]!;
-    if (i > from && all[i - 1]!.installed && !g.installed) cells.push({ type: "divider", key: "split", transition: { move: true } } as ViewNode);
-    cells.push(column([
-      cover(g, THUMB_W, paths[i], { ...(i === at && { selected: true }) }),
-      text(g.title, { size: "xs", align: "center", width: THUMB_W, ...(i === at ? { weight: "semibold" } : { color: "muted" }) }),
-    ], { key: `g-${g.id}`, transition: { move: true, enter: "fade" }, gap: 1, align: "center", action: `go:${g.id}` }));
+/** The covers in view, by index. */
+const shownRange = (n: number, at: number): [number, number] => { const [a, b] = rowsShown(n, at); return [a * COLS, Math.min(n, b * COLS)]; };
+
+function grid(all: Shown[], at: number, paths: (string | undefined)[]): ViewNode {
+  const [from, to] = shownRange(all.length, at);
+  const rows: ViewNode[] = [];
+  for (let r = from; r < to; r += COLS) {
+    rows.push(row(all.slice(r, Math.min(to, r + COLS)).map((g, k) => {
+      const i = r + k;
+      return column([
+        cover(g, THUMB_W, paths[i], { ...(i === at && { selected: true }) }),
+        text(g.title, { size: "sm", align: "center", width: THUMB_W, ...(i === at ? { weight: "semibold" } : { color: "muted" }) }),
+      ], { key: `g-${g.id}`, transition: { move: true, enter: "fade" }, gap: 1, align: "center", action: `go:${g.id}` });
+    }), { gap: 2, align: "start" }));
   }
-  return row(cells, { key: "strip", gap: 2, justify: "center", align: "start" });
+  return column(rows, { key: "grid", gap: 2 });
 }
 
 /** Every key a title starts with, once: a letter or a digit jumps to the next game starting with it. */
 const initials = (all: Shown[]) => [...new Set(all.map((g) => g.title[0]?.toLowerCase()).filter((c): c is string => !!c && /[a-z0-9]/.test(c)))];
+
+/** Where `up`/`down` land: a row up or down, the same column, held at the ends (the last row may be short). */
+export const vertical = (n: number, at: number, by: 1 | -1) => { const to = at + by * COLS; return to < 0 ? at : to >= n ? (Math.floor(at / COLS) < Math.floor((n - 1) / COLS) ? n - 1 : at) : to; };
 
 export function actionsOf(all: Shown[], at: number): Action[] {
   const g = all[at];
@@ -139,11 +153,13 @@ export function actionsOf(all: Shown[], at: number): Action[] {
   return [
     g.installed ? { id: "play", title: "Play", shortcut: "enter" } : { id: "install", title: g.failed ? "Try the install again" : "Install and play", shortcut: "enter" },
     ...(g.boards ? [{ id: "boards", title: "Leaderboards", shortcut: "cmd+l" }] : []),
-    { id: "next", title: "Next game", shortcut: ["right", "down", "tab"] },
-    { id: "prev", title: "Previous game", shortcut: ["left", "up", "shift+tab"] },
+    { id: "next", title: "Next game", shortcut: ["right", "tab"] },
+    { id: "prev", title: "Previous game", shortcut: ["left", "shift+tab"] },
+    { id: "down", title: "The game below", shortcut: "down", hidden: true as const },
+    { id: "up", title: "The game above", shortcut: "up", hidden: true as const },
     ...initials(all).map((c) => ({ id: `jump:${c}`, title: `Next game starting with ${c.toUpperCase()}`, shortcut: c, hidden: true as const })),
-    // A click on a cover in the strip goes to it: the covers in the window.
-    ...all.slice(...windowOf(all.length, at)).map((x) => ({ id: `go:${x.id}`, title: x.title, hidden: true as const })),
+    // A click on a cover goes to it: the covers in view.
+    ...all.slice(...shownRange(all.length, at)).map((x) => ({ id: `go:${x.id}`, title: x.title, hidden: true as const })),
   ];
 }
 
@@ -153,7 +169,7 @@ export function showcase(all: Shown[], at: number, redraw: () => void): View {
   const paths = all.map((x) => picture(x.shot, redraw));
   return {
     id: PALETTE,
-    // The crumb says Games; the title line says where in the strip the cursor is.
+    // The crumb says Games; the title line says where the cursor is.
     title: `${at + 1} of ${all.length}`,
     keys: "actions",
     tree: column([
@@ -161,8 +177,8 @@ export function showcase(all: Shown[], at: number, redraw: () => void): View {
         column([cover(g, HERO_W, paths[at], {})], { key: `hero-${g.id}`, transition: { enter: "fade", exit: "none" } }),
         info(g),
       ], { key: "top", gap: 4, align: "start" }),
-      strip(all, at, paths),
-    ], { key: "games", padding: 4, gap: 4 }),
+      grid(all, at, paths),
+    ], { key: "games", padding: 4, gap: 3 }),
     actions: actionsOf(all, at),
   };
 }
