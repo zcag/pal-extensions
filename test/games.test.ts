@@ -188,6 +188,42 @@ test("pictures: the listing's first screenshot, its dark twin, fetched once into
   }
 });
 
+test("the cover: the shot with a crop, not the first; the grid tile shows that crop, the top the whole game", async () => {
+  const base = `http://127.0.0.1:${site.port}/extensions/pong/screenshots`;
+  avail = AVAILABLE.map((a) => (a.name === "pong" ? { ...a, listing: { ...a.listing, screenshots: [{ url: `${base}/1-menu.png` }, { url: `${base}/2-rally.png`, cover: [600, 300, 400, 200] as [number, number, number, number] }] } } : a));
+  try {
+    await open();
+    await pick("jump:p");
+    await host.until(() => asked.includes("/extensions/pong/screenshots/2-rally-dark.png"), 3000, "the cover shot");
+    expect(asked).not.toContain("/extensions/pong/screenshots/1-menu-dark.png");
+  } finally {
+    avail = AVAILABLE;
+  }
+});
+
+test("past two rows, every cover is drawn in a window that slides; the cursor's row is in it", async () => {
+  avail = [...AVAILABLE, ...["qix", "rogue", "tron"].map((n) => offer(n))];
+  try {
+    await open();
+    const v = (await pick("go:2048/2048")).view!;
+    // Twelve games: three rows, all of them drawn, a window two rows and a bit tall with the spacer that places them.
+    expect(strip(v)).toHaveLength(12);
+    const scroll = () => find(v.tree, (n) => n.key === "scroll");
+    expect(scroll()).toHaveLength(1);
+    const last = (await pick("prev")).view!;
+    expect(hero(last)).toBe("tron/tron");
+    // Centred in the window: at the top a spacer over the grid holds it down to its first row; at the bottom one under it lifts it.
+    const above = (t: View) => (find(t.tree, (n) => n.key === "grid")[0] as { children: ViewNode[] }).children[0]!.key === "scroll";
+    expect(above(v)).toBe(true);
+    expect(above(last)).toBe(false);
+    expect(strip(last)).toHaveLength(12);
+    expect(rowsShown(12, 11)).toEqual([1, 3]);
+  } finally {
+    avail = AVAILABLE;
+    await open();
+  }
+});
+
 test("no games: says where to get them", async () => {
   installed = [ext("calc")];
   try {

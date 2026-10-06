@@ -2,7 +2,7 @@
 
 Every game as a showcase. Enter on the Games row opens it: the game the
 cursor is on at the top, with its own screenshot cut to the game itself,
-its title, tagline and description beside it, and every game's cover under
+its title and tagline beside it, and every game's cover under
 it in a grid of five, two rows at a time, scrolling with the cursor. The
 arrows (or `tab`) walk the grid, `up` and `down` a row, a letter jumps to
 the next game starting with it, a click on a cover goes to it, and Enter
@@ -19,12 +19,19 @@ Enter on a game not installed installs it from its registry, waits for it
 to load, and opens it; it says **Installing…** meanwhile. An install that
 fails says why on the game, until the next try.
 
-The covers are the store screenshots: each listing's first one, its
-`-dark` twin, downloaded once into `~/Library/Caches/pal/games`
+The pictures are the store screenshots: each game's cover shot (the one
+its `store.screenshots` gives a `cover`, else its first), its `-dark`
+twin, downloaded once into `~/Library/Caches/pal/games`
 (`~/.cache/pal/games` on Linux, `PAL_GAMES_CACHE` in the tests) and drawn
-through the app's `icon://` file scheme (a cover at its 256 px thumbnail, the top one as the file itself); a screenshot is the panel on a
-wallpaper, so a cover clips it to the panel's body. A game whose picture
-is not there yet shows its glyph until it lands.
+through the app's `icon://` file scheme. A screenshot is the panel on a
+wallpaper, so every picture is a crop of it: the one at the top the
+panel's body, the whole game; a grid tile the `cover`, the part of the
+shot the game picked to show itself up close. A game whose picture is not
+there yet shows its glyph until it lands.
+
+The grid draws every cover at all times, two rows and the top of the next
+in view: moving down a row slides the whole grid up, and the covers
+peeking in at the bottom say there are more.
 
 ## Leaderboards
 

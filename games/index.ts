@@ -14,10 +14,10 @@ import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { column, errorMessage, extensions, text, view, type AvailableExtension, type Effect, type Extension, type InstalledExtension, type OwnIcon, type View } from "@zcag/pal";
 import { PALETTE as BOARDS, boardsPick, boardsView } from "./boards.ts";
-import { PALETTE, showcase, vertical, type Shown } from "./showcase.ts";
+import { PALETTE, showcase, vertical, type Rect, type Shown } from "./showcase.ts";
 
-type Manifest = { title?: string; description?: string; icon?: OwnIcon; store?: { category?: string; tagline?: string }; palettes?: Record<string, { kind?: string; title?: string; icon?: OwnIcon }>; leaderboards?: unknown[] };
-export type Game = { extension: string; palette: string; title: string; tagline: string; description: string; icon?: OwnIcon; installed: boolean; registry?: string; boards?: boolean; /** The store's first screenshot. */ shot?: string };
+type Manifest = { title?: string; icon?: OwnIcon; store?: { category?: string; tagline?: string }; palettes?: Record<string, { kind?: string; title?: string; icon?: OwnIcon }>; leaderboards?: unknown[] };
+export type Game = { extension: string; palette: string; title: string; tagline: string; icon?: OwnIcon; installed: boolean; registry?: string; boards?: boolean; /** The store's cover shot (else its first) and the crop its fixture picked. */ shot?: string; crop?: Rect };
 
 /** This machine as a listing's `platforms` names it. */
 const PLATFORM = process.platform === "darwin" ? "macos" : process.platform;
@@ -32,7 +32,7 @@ async function installed(): Promise<Game[]> {
     const m = await manifest(e);
     if (m.store?.category !== "fun") return [];
     return Object.entries(m.palettes ?? {}).filter(([, p]) => p.kind === "view").map(([palette, p]) => ({
-      extension: e.name, palette, title: p.title ?? m.title ?? e.name, tagline: m.store?.tagline ?? "", description: m.description ?? "", icon: p.icon ?? m.icon, installed: true,
+      extension: e.name, palette, title: p.title ?? m.title ?? e.name, tagline: m.store?.tagline ?? "", icon: p.icon ?? m.icon, installed: true,
       ...(Array.isArray(m.leaderboards) && m.leaderboards.length && { boards: true }),
     }));
   }));
@@ -42,19 +42,23 @@ async function installed(): Promise<Game[]> {
 /** Games a registry lists that are not installed: `fun`, a view palette, for this platform, a build that runs here. */
 export function offered(available: AvailableExtension[], have: Set<string>): Game[] {
   return available.filter((a) => !a.installed && !have.has(a.name) && a.installable && a.listing.category === "fun" && (!a.listing.platforms?.length || a.listing.platforms.includes(PLATFORM)))
-    .flatMap((a) => a.listing.palettes.filter((p) => p.kind === "view").map((p) => ({ extension: a.name, palette: p.id, title: p.title || a.listing.title || a.name, tagline: a.listing.tagline, description: a.listing.description, icon: a.listing.icon as OwnIcon | undefined, installed: false, registry: a.registry })));
+    .flatMap((a) => a.listing.palettes.filter((p) => p.kind === "view").map((p) => ({ extension: a.name, palette: p.id, title: p.title || a.listing.title || a.name, tagline: a.listing.tagline, icon: a.listing.icon as OwnIcon | undefined, installed: false, registry: a.registry })));
 }
 
 /** Every game, by title: the installed ones and the ones on offer. A registry that cannot be asked leaves only the installed ones. */
 export async function games(): Promise<Game[]> {
   const [mine, available] = await Promise.all([installed(), extensions.available().catch(() => [] as AvailableExtension[])]);
   const more = offered(available, new Set(mine.map((g) => g.extension)));
-  // The pictures come from the listings, the installed games' too.
-  const shotOf = (name: string) => { const s = available.find((a) => a.name === name)?.listing.screenshots[0]; return typeof s === "string" ? s : s?.url; };
+  // The pictures come from the listings, the installed games' too: the shot with a cover, else the first.
+  const shotOf = (name: string): Pick<Game, "shot" | "crop"> => {
+    const shots = (available.find((a) => a.name === name)?.listing.screenshots ?? []).map((s) => (typeof s === "string" ? { url: s } : s));
+    const s = shots.find((x) => x.cover) ?? shots[0];
+    return s ? { shot: s.url, ...(s.cover && { crop: s.cover }) } : {};
+  };
   // A name two registries list shows once, pal's first as the core orders them.
   const seen = new Set<string>();
   const all = [...mine, ...more].filter((g) => { const k = `${g.extension}/${g.palette}`; if (seen.has(k)) return false; seen.add(k); return true; }).sort((a, b) => a.title.localeCompare(b.title));
-  return all.map((g) => { const shot = shotOf(g.extension); return shot ? { ...g, shot } : g; });
+  return all.map((g) => ({ ...g, ...shotOf(g.extension) }));
 }
 
 /** Installs running from here, and the last failure per extension (shown on the game until the next try). */
@@ -68,7 +72,7 @@ let cursor: string | undefined;
 async function shelf(): Promise<Shown[]> {
   const all = await games();
   return [...all.filter((g) => g.installed), ...all.filter((g) => !g.installed)].map((g) => ({
-    id: `${g.extension}/${g.palette}`, title: g.title, tagline: g.tagline, description: g.description, icon: g.icon, shot: g.shot, installed: g.installed,
+    id: `${g.extension}/${g.palette}`, title: g.title, tagline: g.tagline, icon: g.icon, shot: g.shot, crop: g.crop, installed: g.installed,
     ...(g.boards && { boards: true }), ...(installing.has(g.extension) && { installing: true }), ...(failed.has(g.extension) && { failed: failed.get(g.extension) }),
   }));
 }

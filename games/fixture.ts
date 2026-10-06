@@ -31,22 +31,20 @@ const installed = names.filter((n) => INSTALLED.has(n)).map((name) => ({ name, v
 const available: AvailableExtension[] = names.map((name) => {
   const m = JSON.parse(readFileSync(join(dirs.get(name)!, "pal.json"), "utf8"));
   const s = m.store ?? {};
-  // The listing's url for the first screenshot, its picture in the cache as the showcase would have fetched it.
-  const first = s.screenshots?.[0]?.file as string | undefined;
-  const url = first && `https://pal.cagdas.io/extensions/${name}/screenshots/${first}`;
-  const local = first && join(dirs.get(name)!, "screenshots", first.replace(/\.png$/, "-dark.png"));
-  if (s.category === "fun" && url && local && existsSync(local)) copyFileSync(local, fileOf(url));
+  // The listing's screenshots as pal-pack writes them (a cover keeps its crop), each picture in the cache as the showcase would have fetched it.
+  const shots = ((s.screenshots ?? []) as { file: string; caption?: string; cover?: [number, number, number, number] }[]).filter((x) => !x.file.startsWith("bar-")).map((x) => ({ url: `https://pal.cagdas.io/extensions/${name}/screenshots/${x.file}`, caption: x.caption ?? "", ...(x.cover && { cover: x.cover }), local: join(dirs.get(name)!, "screenshots", x.file.replace(/\.png$/, "-dark.png")) }));
+  if (s.category === "fun") for (const x of shots) if (existsSync(x.local)) copyFileSync(x.local, fileOf(x.url));
   return {
     name, registry: "pal", installed: INSTALLED.has(name), bundled: name === "games", installable: true,
     listing: {
       title: m.title ?? name, description: m.description ?? "", tagline: s.tagline ?? "", features: s.features ?? [], category: s.category ?? "", keywords: m.keywords ?? [], icon: m.icon ?? null, author: m.author ?? "",
       platforms: s.platforms ?? null, play: !!s.play, palettes: Object.entries(m.palettes ?? {}).map(([id, p]: [string, any]) => ({ id, title: p.title ?? m.title ?? id, kind: p.kind ?? "list" })),
-      screenshots: url ? [{ url, caption: "" }] : [], requires: m.requires ?? [], suggests: m.suggests ?? [],
+      screenshots: shots.map(({ local: _, ...x }) => x), requires: m.requires ?? [], suggests: m.suggests ?? [],
     },
   };
 });
 
-/** Every `icon://` file picture in the trees as a JPEG data url, fitted to the size it asks for (0: the hero's, 900). */
+/** Every `icon://` file picture in the trees as a JPEG data url, fitted to the size it asks for (0, the file itself: 1000, as much as a zoomed cover shows). */
 const inlined = new Map<string, string>();
 function inline<T>(x: T): T {
   return JSON.parse(JSON.stringify(x).replace(/icon:\/\/localhost\/file\?path=([^&"]+)&size=(\d+)/g, (url, path, size) => {
@@ -54,7 +52,7 @@ function inline<T>(x: T): T {
     if (Number(size) > 256) throw new Error(`fixture: ${url} asks for a ${size} px thumbnail; the app fits at most 256`);
     if (!inlined.has(url)) {
       const out = join(cache, `inline-${inlined.size}.jpg`);
-      Bun.spawnSync(["sips", "-s", "format", "jpeg", "-s", "formatOptions", "80", "-Z", String(Number(size) || 900), decodeURIComponent(path), "--out", out]);
+      Bun.spawnSync(["sips", "-s", "format", "jpeg", "-s", "formatOptions", "80", "-Z", String(Number(size) || 1000), decodeURIComponent(path), "--out", out]);
       inlined.set(url, `data:image/jpeg;base64,${readFileSync(out).toString("base64")}`);
     }
     return inlined.get(url)!;
