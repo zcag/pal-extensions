@@ -4,7 +4,7 @@
 // it, three lines either side of the one playing) and `compact` for the
 // bar popover (420 wide, `ctx.compact`: the cover top-left with the
 // titles beside it, a slim progress bar, the line playing large with one
-// before and two after, then the transport as keycap hints and a row for
+// before and two after, in a block of fixed height, then the transport as keycap hints and a row for
 // like, device and queue). The lyrics are a window of lines around the
 // one playing, each keyed by its index and carrying `move`, so when the
 // song advances the lines slide up, the top one fades out and a new one
@@ -54,6 +54,8 @@ export const COVER = 200, COVER_SM = 64;
 export const AROUND_WIDE = 3, BEFORE_COMPACT = 1, AFTER_COMPACT = 2;
 /** A line's least height, so the column holds still while lines come and go; the current line is taller. */
 const LINE_H = 30, LINE_H_SM = 24, LINE_H_SM_CUR = 32;
+/** The compact lyrics' fixed height: its lines plus room for the line playing to wrap once, so the popover keeps its size as lines come and go. */
+const LYRICS_H_SM = LINE_H_SM_CUR + (BEFORE_COMPACT + AFTER_COMPACT) * LINE_H_SM + 16;
 const TIMES_W = 36;
 
 
@@ -111,7 +113,7 @@ function lyricsColumn(st: NowState): ViewNode {
   const compact = st.layout === "compact";
   const [before, after] = compact ? [BEFORE_COMPACT, AFTER_COMPACT] : [AROUND_WIDE, AROUND_WIDE];
   const l = st.lyrics;
-  const wrap = (children: ViewNode[], key: string) => column(children, { key: `lyrics-${key}`, gap: compact ? 0 : 2, grow: true, justify: "center", align: "start", transition: { enter: "fade" } });
+  const wrap = (children: ViewNode[], key: string) => column(children, { key: `lyrics-${key}`, gap: compact ? 0 : 2, grow: true, justify: "center", align: "start", ...(compact && { height: LYRICS_H_SM }), transition: { enter: "fade" } });
   if (!st.track) return wrap([], "none");
   if (l === undefined) return wrap([text("Looking for lyrics", { style: "muted", size: "sm" })], "loading");
   if (l === null) return wrap([text("No lyrics on lrclib", { size: "lg", color: "muted" }), row(keyHint("f", "search lrclib for this track"), { gap: 1 })], "missing");
