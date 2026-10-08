@@ -1,0 +1,159 @@
+{
+  "name": "clock",
+  "title": "Clock",
+  "description": "The date and time on the bar, and a popover with the time to the second, the month with the week numbers, and world clocks for the cities you work with. A day opens in Calendar.",
+  "keywords": ["time", "date", "world clock", "timezone"],
+  "version": "0.1.0",
+  "icon": { "tile": { "glyph": "󰅐", "bg": "indigo" } },
+  "author": "pal",
+  "repo": "bundled",
+  "license": "MIT",
+  "suggests": ["calendar"],
+  "settings": [
+    {
+      "kind": "list",
+      "id": "zones",
+      "label": "World clocks",
+      "placeholder": "Tokyo",
+      "description": "One per line: a city (Tokyo, New York), a zone (Europe/Berlin), or a label of your own (Office = Europe/London). `z` in the popover adds one.",
+      "default": []
+    },
+    {
+      "kind": "boolean",
+      "id": "hour12",
+      "label": "12-hour clock",
+      "text": "2:05 PM rather than 14:05",
+      "default": false
+    },
+    {
+      "kind": "select",
+      "id": "week_start",
+      "label": "Week starts on",
+      "options": [{ "id": "monday", "title": "Monday" }, { "id": "sunday", "title": "Sunday" }],
+      "default": "monday"
+    }
+  ],
+  "store": {
+    "tagline": "The time on the bar, the month and world clocks a click away",
+    "category": "productivity",
+    "features": [
+      "The date and time on the menu bar or sketchybar, on the minute, with seconds if you like",
+      "A click opens the time to the second, the date, the week number and the day of the year",
+      "The month with today filled; arrows walk the days, `[` and `]` the months, `t` comes back",
+      "World clocks: the time in each city, how far ahead or behind, a moon at night and `tomorrow` when the date has turned",
+      "`z` adds a city by name (Tokyo, New York) or zone; Enter opens the day in Calendar"
+    ],
+    "permissions": [],
+    "platforms": ["macos", "linux"],
+    "screenshots": [
+      {
+        "file": "1-clock.png",
+        "caption": "Clock in the panel, from root search: the time and the world clocks beside the month"
+      },
+      {
+        "file": "2-later.png",
+        "caption": "A 12-hour clock and weeks from Sunday, two settings; the ring walked into October, the header saying how far"
+      },
+      {
+        "file": "bar-menubar.png",
+        "caption": "On the menu bar: the day and the time, turning on the minute",
+        "kind": "bar"
+      },
+      {
+        "file": "bar-menubar-seconds.png",
+        "caption": "The weekday alone and the seconds, two settings of the item",
+        "kind": "bar"
+      },
+      {
+        "file": "bar-popover.png",
+        "caption": "A click opens the time to the second with the date and the week, the month with today filled, and the world clocks with a moon where it is night",
+        "kind": "bar",
+        "box": [
+          360,
+          64,
+          840,
+          960
+        ]
+      },
+      {
+        "file": "bar-popover-day.png",
+        "caption": "The arrows walk the days and the month's header says how far; Enter opens the day in Calendar",
+        "kind": "bar",
+        "box": [
+          360,
+          64,
+          840,
+          960
+        ]
+      },
+      {
+        "file": "bar-popover-field.png",
+        "caption": "z adds a world clock: a city, a zone, or a name of your own",
+        "kind": "bar",
+        "box": [
+          360,
+          64,
+          840,
+          960
+        ]
+      },
+      {
+        "file": "bar-sketchybar.png",
+        "caption": "On sketchybar: the same label, in place of the stock clock",
+        "kind": "bar"
+      }
+    ]
+  },
+  "palettes": {
+    "clock": {
+      "title": "Clock",
+      "kind": "view",
+      "description": "The time, the month and your world clocks; a day opens in Calendar.",
+      "keywords": ["calendar month", "week number", "what day"],
+      "keys": [
+        { "keys": "enter", "title": "Open the ringed day in Calendar" },
+        { "keys": "left", "title": "Walk the days (up and down by weeks)" },
+        { "keys": "[", "title": "The month before (`]` after)" },
+        { "keys": "t", "title": "Back to today" },
+        { "keys": "c", "title": "Copy the ringed day's date" },
+        { "keys": "z", "title": "Add a world clock" }
+      ]
+    }
+  },
+  "bar": {
+    "time": {
+      "title": "Date and Time",
+      "description": "`Thu 8 Oct 14:32`, turning on the minute (or the second). A click opens the time to the second with the date and week, the month to walk with the arrows, and your world clocks; Enter opens the ringed day in Calendar.",
+      "refresh": { "every": 300, "on": ["wake"] },
+      "settings": [
+        {
+          "kind": "select",
+          "id": "date",
+          "label": "Date",
+          "options": [{ "id": "day", "title": "Thu 8 Oct" }, { "id": "weekday", "title": "Thu" }, { "id": "none", "title": "None" }],
+          "default": "day"
+        },
+        {
+          "kind": "boolean",
+          "id": "seconds",
+          "label": "Seconds",
+          "text": "Show the seconds on the bar",
+          "default": false
+        }
+      ],
+      "mocks": {
+        "day": { "title": "Date and time", "item": { "title": "Thu 8 Oct 14:32", "tooltip": "Thursday 8 October 2026, week 41" } },
+        "weekday": { "title": "Weekday only", "item": { "title": "Thu 14:32", "tooltip": "Thursday 8 October 2026, week 41" } },
+        "seconds": { "title": "With seconds", "item": { "title": "Thu 8 Oct 14:32:07", "tooltip": "Thursday 8 October 2026, week 41" } }
+      },
+      "keys": [
+        { "keys": "enter", "title": "Open the ringed day in Calendar" },
+        { "keys": "left", "title": "Walk the days (up and down by weeks)" },
+        { "keys": "[", "title": "The month before (`]` after)" },
+        { "keys": "t", "title": "Back to today" },
+        { "keys": "c", "title": "Copy the ringed day's date" },
+        { "keys": "z", "title": "Add a world clock" }
+      ]
+    }
+  }
+}
