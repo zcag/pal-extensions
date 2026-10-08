@@ -200,8 +200,15 @@ async function variables(q: string, s: Settings, locale: string): Promise<Row[] 
   const per = await measured(q, vars, s, locale);
   if (per) return per;
   const x = expand(q, vars);
-  if (!x) return;
-  const subtitle = await described(q, vars, s, locale);
+  if (x) return sum(x, await described(q, vars, s, locale), s, locale);
+}
+
+/**
+ * An expression `x` (a query, its variables expanded) worked
+ * out, currencies mixed (`50 usd + 20 try`) carried in the first one's
+ * terms; `subtitle` is how the query reads back.
+ */
+async function sum(x: string, subtitle: string, s: Settings, locale: string): Promise<Row[] | undefined> {
   const target = x.match(/^(.*\S)\s+(?:to|in|as)\s+(\S+)$/i);
   const to = target && isCurrency(target[2]) ? target[2] : undefined;
   const v = await resolve(to ? target![1] : x);
@@ -248,7 +255,7 @@ export default {
         const s = settings.get<Settings>();
         const locale = s.locale || "en";
         const qn = normalizeNumbers(q, locale);
-        const rows = (await variables(qn, s, locale)) ?? dates(qn, locale, now()) ?? (await currency(qn, s, locale)) ?? (await arithmetic(qn, s, locale)) ?? [];
+        const rows = (await variables(qn, s, locale)) ?? dates(qn, locale, now()) ?? (await currency(qn, s, locale)) ?? (hasCurrency(qn) ? await sum(qn, squeeze(qn), s, locale) : undefined) ?? (await arithmetic(qn, s, locale)) ?? [];
         last.clear();
         for (const r of rows) if (!r.inert) last.set(r.id, { name: r.name, raw: r.raw ?? r.name, expr: r.subtitle });
         return rows.map(item);

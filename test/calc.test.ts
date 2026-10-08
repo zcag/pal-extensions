@@ -208,6 +208,15 @@ describe("currency", () => {
     expect(await first("12 usd to try")).toBe("583.68 TRY");
   });
 
+  test("mixed currencies: worked out in the first one's terms, shown at home and in it", async () => {
+    const rows = async (q: string) => (await calc(q)).map((r) => [r.name, r.subtitle]);
+    expect(await rows("50 usd + 20 try")).toEqual([["2,452.01 TRY", "50 usd + 20 try"], ["50.41 USD", "in US Dollar"]]);
+    expect(await rows("$1.5k - 200 eur to eur")).toEqual([["1,099.94 EUR", "$1.5k - 200 eur to eur"], ["1,269.22 USD", "in US Dollar"]]);
+    expect(await rows("20 try + 50 usd")).toEqual([["2,452.01 TRY", "20 try + 50 usd"]]);
+    expect(await first("1000 try / 50 usd")).toBe("0.4111819834"); // currencies cancel: a ratio
+    expect(await calc("50 usd + 20")).toEqual([]); // money plus a bare number is no sum
+  });
+
   test("a currency the rate set lacks is an inert row, not a number", async () => {
     const rows = await calc("12 usd to sek");
     expect(rows).toHaveLength(1);
