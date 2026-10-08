@@ -306,12 +306,12 @@ function window(s: Settings, now: number): { from: number; to: number } {
 }
 
 /** The events for a palette: the permission rows, a hint row on a failure, else the rows; `stale` rides along. */
-async function events(ctx: Ctx | undefined, maxAge: number, withNew = false): Promise<{ events: CalendarEvent[]; stale: boolean; error?: string } | { rows: Item[] }> {
+async function events(ctx: Ctx | undefined, maxAge: number, withNew = false, span?: { from: number; to: number }): Promise<{ events: CalendarEvent[]; stale: boolean; error?: string } | { rows: Item[] }> {
   const status = await permission();
   if (status !== "granted") return { rows: statusRows(status) };
   const s = conf();
   const now = clock();
-  const { from, to } = window(s, now);
+  const { from, to } = span ?? window(s, now);
   try {
     const chosen = ctx?.filter && ctx.filter !== "all" ? [ctx.filter] : await chosenIds(s, !!ctx?.refresh);
     const l = await load(from, to, chosen, ctx?.refresh ? 0 : maxAge);
@@ -336,15 +336,39 @@ async function scheduleRows(_query: string | undefined, ctx?: Ctx): Promise<Item
   return active() === "system" ? [...rows, newRow] : rows;
 }
 
+/** `args.day` (`2026-10-10`, or any spelling `parseDay` reads): the day another extension opens Today on (the clock's month). */
+function argDay(ctx?: Ctx): number | undefined {
+  const day = ctx?.args && typeof ctx.args === "object" ? (ctx.args as { day?: unknown }).day : undefined;
+  return typeof day === "string" ? parseDay(day, clock()) : undefined;
+}
+
+/** Another day's rows, under its name; "Nothing on Sat 10 Oct" when it is free. Inside the palettes' window the cache answers, any other day is a read of its own. */
+async function dayRows(day: number, ctx?: Ctx): Promise<Item[]> {
+  const s = conf();
+  const now = clock();
+  const w = window(s, now);
+  const r = await events(ctx, PALETTE_AGE, false, day >= w.from && addDays(day, 1) <= w.to ? undefined : { from: day, to: addDays(day, 1) });
+  if ("rows" in r) return r.rows;
+  const sec = dayName(day);
+  table.clear();
+  const rows = onDay(r.events, day).filter((e) => !(s.hide_declined !== false && e.my_status === "declined")).map((e) => todayRow(e, now, sec));
+  if (!rows.length) rows.push({ id: NOTHING, name: `Nothing on ${sec}`, icon: CLEAR, section: sec, keywords: ["free", "clear"], actions: [] });
+  if (r.stale) rows.unshift({ ...hintRow("Showing the last events read", r.error ?? "The source did not answer"), section: sec });
+  return rows;
+}
+
 /**
  * Today's rows in time order, every state (`over`, `now`, `in 12 min`),
  * then tomorrow's under their own section once no timed event is left
  * today (from the bar, `args.rest`: the over ones dropped and tomorrow
  * always there, the strip's popover being about what is still to come).
  * A "Nothing else today" row names the next timed event's day when the
- * day is done, "Nothing today" when it never had one.
+ * day is done, "Nothing today" when it never had one. `args.day` lists
+ * that day instead (`dayRows`).
  */
 async function todayRows(_query: string | undefined, ctx?: Ctx): Promise<Item[]> {
+  const day = argDay(ctx);
+  if (day !== undefined && day !== startOfDay(clock())) return dayRows(day, ctx);
   const r = await events(ctx, PALETTE_AGE);
   if ("rows" in r) return r.rows;
   const s = conf();

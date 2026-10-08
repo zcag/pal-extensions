@@ -14,7 +14,7 @@
 // fixed instants around Wed 16 Sep 2026 10:30 UTC and every `over`, `now`,
 // `in 42 min`, tomorrow and horizon reads the same at any hour of any day.
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
-import { addDays, DAY, dayName, details, parseDay, parseTime, plusMinutes, section, soonTag, startOfDay, timeRange, upcoming } from "../calendar/schedule.ts";
+import { addDays, DAY, dayName, details, isoDay, parseDay, parseTime, plusMinutes, section, soonTag, startOfDay, timeRange, upcoming } from "../calendar/schedule.ts";
 import type { Settings } from "../calendar/source.ts";
 import { barName, barWhen, callsNow, callWhen, eligible, escalation, nextEvent, nextWords, onDay, phaseOf, service, shortSpan, span, state, upcomingItem, type ItemSettings } from "../calendar/today.ts";
 import { parseLength, parseQuick, type Quick } from "../calendar/quick.ts";
@@ -674,6 +674,17 @@ describe("today palette and the upcoming bar item", () => {
     const rest = await host.list(E, T, "", { args: { rest: true } });
     expect(rest.map((i) => [i.name, i.section])).toEqual([["Standup", "Today"], ["Dentist", "Today"], ["Concert", "Tomorrow"]]);
     expect(rest[2]).toMatchObject({ subtitle: "19:00 – 21:00 · 2 h", accessories: [{ tag: "in 32 h", color: "blue" }] });
+  });
+
+  test("args.day (the clock's month): that day's rows under its name, from the cache inside the window, a read of its own outside; a free day says so", async () => {
+    const tmr = await host.list(E, T, "", { args: { day: isoDay(addDays(now, 1)) } });
+    expect(tmr.map((i) => [i.name, i.section])).toEqual([["Concert", dayName(addDays(now, 1))]]);
+    expect((await host.list(E, T, "", { args: { day: isoDay(now) } })).map((i) => i.section)).toEqual(["Today", "Today", "Today"]);
+    const before = calls.filter((c) => c.method === "events").length;
+    const far = addDays(now, 40);
+    const free = await host.list(E, T, "", { args: { day: isoDay(far) } });
+    expect(free).toMatchObject([{ id: "nothing", name: `Nothing on ${dayName(far)}`, section: dayName(far), actions: [] }]);
+    expect(calls.filter((c) => c.method === "events").slice(before).at(-1)!.params).toMatchObject({ from: far, to: addDays(far, 1) });
   });
 
   test("the day done: Nothing else today names the next event's day, tomorrow's rows follow; a clear day says so", async () => {
