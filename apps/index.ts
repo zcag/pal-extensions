@@ -81,9 +81,14 @@ async function scanMac(extra: string[]): Promise<Item[]> {
   for (const [root, source] of [...MAC_ROOTS, ...extra.map((f): [string, string] => [f, tilde(f)])]) {
     for (const path of await bundles(root)) {
       const name = path.slice(path.lastIndexOf("/") + 1, -4);
-      if (seen.has(name.toLowerCase())) continue; // the first root wins a name (Set.add answers the set, so the old `!seen.add` never skipped)
-      seen.add(name.toLowerCase());
       const { bundleId, names } = await plistInfo(path);
+      // The same app in two roots is one row, the first root's; two apps that only share a name (Steam and a Wine wrapper's Steam) are two.
+      const key = bundleId ?? name.toLowerCase();
+      if (seen.has(key)) continue;
+      seen.add(key);
+      // A bundle in a subfolder of a root that names itself says the subfolder, so two same-named rows tell apart.
+      const dir = path.slice(0, path.lastIndexOf("/"));
+      const subtitle = source && (dir === root ? source : tilde(dir));
       macApps.set(path, { name, bundleId });
       const keywords = [...new Set([bundleId, ...names].filter((k): k is string => !!k && k.toLowerCase() !== name.toLowerCase()))];
       const isRunning = running.has(path);
@@ -91,7 +96,7 @@ async function scanMac(extra: string[]): Promise<Item[]> {
       items.push({
         id: path,
         name,
-        ...(source && { subtitle: source }),
+        ...(subtitle && { subtitle }),
         icon: { app: path },
         keywords,
         ...(isRunning && { accessories: [{ tag: "running", color: "green" }] }),

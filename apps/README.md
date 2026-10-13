@@ -17,7 +17,8 @@ rather than launching it.
 
 - **macOS**: `.app` bundles in `/Applications`, `/System/Applications` and
   `~/Applications`, one level deep so the Utilities folders come along.
-  The first root wins a name. `CFBundleIdentifier`, `CFBundleDisplayName`
+  The same app (bundle id) in two roots is one row, the first root's; apps that
+  only share a name stay apart, a subfolder one subtitled with its folder. `CFBundleIdentifier`, `CFBundleDisplayName`
   and `CFBundleName` are read from the XML `Info.plist`; localised names
   are not. Enter opens the bundle path with the system opener.
 - **macOS, System Settings panes**: 35 common panes (Keyboard, Displays,

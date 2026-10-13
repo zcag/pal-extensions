@@ -69,6 +69,10 @@ beforeAll(async () => {
   <key>CFBundleName</key><string>Pal Fake</string>
 </dict></plist>`);
   // A symlink, not a copy: a copied system binary is refused by the signing policy, and a script's comm is /bin/sh.
+  // Same name, another bundle id, a subfolder down: an app of its own (a Wine wrapper's Steam beside Steam).
+  mkdirSync(join(dir, "Wrapper", "Pal Fake.app", "Contents"), { recursive: true });
+  writeFileSync(join(dir, "Wrapper", "Pal Fake.app", "Contents", "Info.plist"), `<?xml version="1.0" encoding="UTF-8"?>
+<plist version="1.0"><dict><key>CFBundleIdentifier</key><string>io.pal.test.wrapper</string></dict></plist>`);
   const bin = join(fakeApp, "Contents", "MacOS", "Pal Fake");
   symlinkSync("/bin/sleep", bin);
   child = Bun.spawn([bin, "60"], { stdout: "ignore", stderr: "ignore" });
@@ -124,6 +128,11 @@ describe.skipIf(!mac)("apps", () => {
     expect(fake.actions!.map((a) => a.id)).toEqual(["open", "quit", "hide", "reveal", "copy-path", "copy-id"]);
     const chrome = (await list()).find((i) => i.name === "Google Chrome")!;
     if (!chrome.accessories) expect(chrome.actions).toBeUndefined();
+  });
+
+  test("two apps that share a name are two rows, the one in a subfolder says the subfolder", async () => {
+    const twins = (await list()).filter((i) => i.name === "Pal Fake");
+    expect(twins.map((i) => [i.id, i.subtitle]).sort()).toEqual([[fakeApp, dir], [join(dir, "Wrapper", "Pal Fake.app"), join(dir, "Wrapper")]]);
   });
 
   test("the scan is cached: a second list is the same and asks nothing of the core", async () => {
