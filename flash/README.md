@@ -20,6 +20,15 @@ under its own CSP.
 
 `test/flash-game/` is one, on Ruffle's own SharedObject test SWF.
 
+`swf` may carry a query (`hw_preloader.swf?file=game.swf`), which the SWF
+reads as its parameters. `content` (`"content/"`) names the folder that keeps
+the game's other files under the URLs they had on the web
+(`content/<host>/<path>`): a request for `http://<host>/<path>` is answered
+from there, so a game that loads its levels or sounds by their old address
+finds them. Relative URLs resolve against the SWF's own folder.
+`renderer` (`canvas`, `webgl`, `wgpu-webgl`) picks Ruffle's renderer for a
+game that needs one.
+
 `score.from` is `so:<name>/<path>`, a number in one of the game's
 SharedObjects (`TopScore`, `stats.best`), or `ei:<function>`, a function the
 game calls through `ExternalInterface` (a patched SWF). A better value than

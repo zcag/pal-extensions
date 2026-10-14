@@ -10,8 +10,8 @@ import { absolute, better, relative, scoreSource } from "./saves.ts";
 
 declare const pal: SurfaceKit;
 
-type Game = { swf: string; score?: { from: string; board: string; order?: "asc" | "desc" } };
-type RufflePlayer = HTMLElement & { ruffle(): { load(o: { url: string }): Promise<void>; suspend(): void; resume(): void; isPlaying: boolean; volume: number } };
+type Game = { swf: string; content?: string; renderer?: string; score?: { from: string; board: string; order?: "asc" | "desc" } };
+type RufflePlayer = HTMLElement & { ruffle(): { load(o: { url: string; base?: string }): Promise<void>; suspend(): void; resume(): void; isPlaying: boolean; volume: number } };
 
 const HOST = location.hostname;
 const ROOT = new URL("../", location.href).pathname;
@@ -102,6 +102,10 @@ function scores(game: Game) {
   listeners.push(() => read(true));
 }
 
+// A game asks for its other files by the URLs they had on the web
+// (`http://host/path?x`); the package keeps them under `content/host/path`.
+const contentRule = (base: string): [RegExp, string] => [new RegExp(`^https?://(?!${location.host.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}/)([^?#]+).*$`), `${base}$1`];
+
 const loadScript = (src: string) => new Promise<void>((ok, fail) => {
   const s = document.createElement("script");
   s.src = src;
@@ -130,6 +134,8 @@ async function main() {
       letterbox: "on", scale: "showAll", forceScale: true, forceAlign: true, backgroundColor: "#000000",
       contextMenu: "off", showSwfDownload: false, warnOnUnsupportedContent: false,
       allowScriptAccess: true, allowNetworking: "all", openUrlMode: "deny", logLevel: "warn",
+      ...(game.renderer && { preferredRenderer: game.renderer }),
+      urlRewriteRules: game.content ? [contentRule(new URL(game.content, location.href).href)] : [],
     },
   };
   await loadScript(`${RUFFLE}ruffle.js`);
@@ -141,7 +147,8 @@ async function main() {
     player = (window as any).RufflePlayer.newest().createPlayer() as RufflePlayer;
     player.style.cssText = "width:100%;height:100%;display:block";
     document.body.append(player);
-    await player.ruffle().load({ url: new URL(game.swf, location.href).href });
+    const url = new URL(game.swf, location.href).href;
+    await player.ruffle().load({ url, base: new URL(".", url).href });
     player.ruffle().volume = volume;
     player.focus();
   };
