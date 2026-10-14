@@ -50,3 +50,9 @@ shots: setup
 .PHONY: icons
 icons: setup
 	bun .pal/app/scripts/brand-icons.ts $(if $(CHECK),--check)
+
+# Ruffle, vendored into flash/surface/ruffle/ from npm at the pinned version,
+# checked against its integrity (flash/ruffle.sh).
+.PHONY: ruffle
+ruffle:
+	flash/ruffle.sh

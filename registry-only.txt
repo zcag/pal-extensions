@@ -11,6 +11,7 @@ calendar
 diff
 docker
 dpi
+flash
 flashcards
 gifs
 github

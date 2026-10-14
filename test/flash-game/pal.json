@@ -1,0 +1,12 @@
+{
+  "name": "flash-game",
+  "title": "Flash test game",
+  "description": "Ruffle's own SharedObject test (ruffle-rs/ruffle, tests/swfs/avm1/shared_object, MIT or Apache-2.0) as a Flash game package: what the collection's build makes of a game, for the flash runtime's checks. Not published.",
+  "version": "0.0.0",
+  "author": "pal",
+  "license": "MIT",
+  "requires": ["flash"],
+  "sync": { "saves": { "each": "latest" } },
+  "leaderboards": [{ "id": "best", "title": "Best", "order": "desc", "format": "points", "min": 0, "max": 1000000 }],
+  "palettes": { "flash-game": { "title": "Flash test game", "kind": "view" } }
+}
