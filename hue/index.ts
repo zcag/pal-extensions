@@ -17,7 +17,7 @@ import { hostname } from "node:os";
 import { argsForm, bar, effects, errorMessage, failed as failedRow, settings, storage, toast, view as liveView, type BarCtx, type BarItem, type Ctx, type Effect, type Extension, type Item, type LinkParams } from "@zcag/pal";
 import { Client, GROUP_GAP_MS, HueError, LIGHT_GAP_MS, PAIR_WINDOW_MS, config, devicetype, discoverCloud, discoverMdns, peekCertificate, pressLink, type Bridge, type Found, type HueEvent } from "./api.ts";
 import { MIREK_MAX, MIREK_MIN, clamp, hsToXy, mirekOf, toHex, xyToHs } from "./color.ts";
-import { Home, aggregate, automationsOf, entertainmentOf, lightColor, lightsOf, roomsOf, scenesOf, sensorsOf, type Light, type Room, type Scene } from "./model.ts";
+import { Holds, Home, aggregate, automationsOf, entertainmentOf, lightColor, lightsOf, roomsOf, scenesOf, sensorsOf, type Light, type Room, type Scene } from "./model.ts";
 import { freshPopover, gridRooms, moveCursor, renderPopover, type PopoverData, type PopoverState } from "./popover.ts";
 import { DURATIONS, EFFECTS, FOCUS, PRESETS, fresh, render, renderSetup, shown, type SetupState, type Target, type ViewState } from "./render.ts";
 import { BRIGHTNESS_ARG, G, KELVIN_ARG, NAME, SET, SETUP_ROW, automationRow, entertainmentRow, hint, lightDetail, lightRow, roomDetail, roomRow, sceneRow, sensorRows } from "./rows.ts";
@@ -172,7 +172,9 @@ function startStream(b: Bridge) {
 }
 
 function onEvent(bridge: string, ev: HueEvent) {
-  const touched = home.merge(bridge, ev);
+  const now = Date.now();
+  const data = ev.type === "update" ? ev.data.map((d) => (d?.id ? holds.filter(`${bridge}/${d.id}`, d, now) : d)) as HueEvent["data"] : ev.data;
+  const touched = home.merge(bridge, { ...ev, data });
   if (touched.length) { scheduleBar(); pushViews(); }
 }
 
@@ -187,6 +189,9 @@ function pushViews() {
 
 // ---- writes -------------------------------------------------------------------------
 
+/** What the latest writes set, kept until the stream reports them: an older write's late report does not undo a newer one. */
+const holds = new Holds();
+
 /** Per resource, the last body queued while one is in flight: arrow-key repeats collapse to the newest, sent once the gap Hue asks for has passed. */
 const inflight = new Map<string, { next?: Record<string, unknown>; timer?: ReturnType<typeof setTimeout> }>();
 
@@ -196,7 +201,9 @@ function applyLocally(bridge: string, rid: string, body: Record<string, unknown>
   const fx = (rest.effects as { effect?: string } | undefined)?.effect;
   if (fx) rest.effects = { status: fx };
   const cur = home.get(bridge, rid);
-  if (cur) home.merge(bridge, { id: "local", type: "update", creationtime: new Date().toISOString(), data: [{ id: rid, type: cur.type, ...rest }] });
+  if (!cur) return;
+  holds.set(`${bridge}/${rid}`, rest, Date.now());
+  home.merge(bridge, { id: "local", type: "update", creationtime: new Date().toISOString(), data: [{ id: rid, type: cur.type, ...rest }] });
 }
 
 /** A PUT with Hue's rate guidance: one per light per 100 ms, one per group per second; the model takes the change at once. */

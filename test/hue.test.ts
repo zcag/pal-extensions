@@ -11,7 +11,7 @@ import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import { GAMUTS, clampToGamut, hsvToRgb, inGamut, kelvin, kelvinToXy, lux, mirekOf, mirekToRgb, rgbToHsv, rgbToXy, temperatureStops, toHex, xyToRgb } from "../hue/color.ts";
 import { GROUP_GAP_MS, LIGHT_GAP_MS, devicetype, hostPort, parseMdns, parseMdnsLookup, parseSse } from "../hue/api.ts";
 import { ROOT_BRIDGE_PEM, ROOT_BRIDGE_SHA256 } from "../hue/cert.ts";
-import { Home, aggregate, automationsOf, deepMerge, entertainmentOf, lightsOf, roomsOf, scenesOf, sensorsOf, slug, swatchesOf } from "../hue/model.ts";
+import { Holds, Home, aggregate, automationsOf, deepMerge, entertainmentOf, lightsOf, roomsOf, scenesOf, sensorsOf, slug, swatchesOf } from "../hue/model.ts";
 import { PRESETS, fresh, render, renderSetup, shown } from "../hue/render.ts";
 import { lightRow, roomRow, sceneRow } from "../hue/rows.ts";
 import { SAMPLE_BRIDGE_ID, SAMPLE_KEY, SAMPLE_RESOURCES } from "../hue/sample.ts";
@@ -214,6 +214,18 @@ describe("the model over the sample home", () => {
 });
 
 describe("wire parsers", () => {
+  test("holds: a late report that contradicts a fresh write is dropped, a matching one confirms it, after the hold anything goes", () => {
+    const h = new Holds(2000);
+    h.set("b/l1", { on: { on: false }, dimming: { brightness: 40 } }, 0);
+    // The older write's "on" lands after this one took effect: dropped; the brightness within the bridge's rounding confirms.
+    expect(h.filter("b/l1", { id: "l1", on: { on: true }, dimming: { brightness: 40.4 } }, 500)).toEqual({ id: "l1", dimming: { brightness: 40.4 } });
+    expect(h.filter("b/l1", { id: "l1", on: { on: false } }, 600)).toEqual({ id: "l1", on: { on: false } });
+    // Confirmed, so a change made elsewhere is believed at once.
+    expect(h.filter("b/l1", { id: "l1", on: { on: true } }, 700)).toEqual({ id: "l1", on: { on: true } });
+    h.set("b/l2", { on: { on: true } }, 0);
+    expect(h.filter("b/l2", { id: "l2", on: { on: false } }, 2500)).toEqual({ id: "l2", on: { on: false } });
+  });
+
   test("SSE blocks: the data lines' events, comments and junk skipped", () => {
     expect(parseSse(": hi")).toEqual([]);
     expect(parseSse("id: 1:0\ndata: not json")).toEqual([]);

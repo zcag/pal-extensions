@@ -88,6 +88,43 @@ export class Home {
   get paired() { return this.bridges.size > 0; }
 }
 
+/** Whether a reported value is what was asked for: objects by the fields asked, numbers within the bridge's rounding. */
+function meets(want: unknown, got: unknown): boolean {
+  if (want && typeof want === "object" && !Array.isArray(want)) return !!got && typeof got === "object" && Object.entries(want).every(([k, v]) => meets(v, (got as Record<string, unknown>)[k]));
+  if (typeof want === "number" && typeof got === "number") return Math.abs(want - got) <= (Math.abs(want) < 1 ? 0.01 : 1);
+  return JSON.stringify(want) === JSON.stringify(got);
+}
+
+/**
+ * What a write just set, per resource, until the bridge reports it or
+ * `ms` passes. The stream can still carry an older write's report after a
+ * newer write took effect locally (All off, then All on before off's
+ * events arrived); a report that contradicts a held field is that echo
+ * and is dropped, one that matches confirms the field and ends its hold.
+ */
+export class Holds {
+  private held = new Map<string, { want: Record<string, unknown>; until: number }>();
+  constructor(private ms = 2000) {}
+  set(key: string, fields: Record<string, unknown>, now: number) {
+    const h = this.held.get(key);
+    this.held.set(key, { want: { ...(h && h.until > now ? h.want : {}), ...fields }, until: now + this.ms });
+  }
+  /** The report with the held fields it contradicts taken out. */
+  filter(key: string, d: Record<string, unknown>, now: number): Record<string, unknown> {
+    const h = this.held.get(key);
+    if (!h) return d;
+    if (h.until <= now) { this.held.delete(key); return d; }
+    const out = { ...d };
+    for (const [f, v] of Object.entries(h.want)) {
+      if (!(f in d)) continue;
+      if (meets(v, d[f])) delete h.want[f];
+      else delete out[f];
+    }
+    if (!Object.keys(h.want).length) this.held.delete(key);
+    return out;
+  }
+}
+
 export function deepMerge(base: unknown, patch: unknown): unknown {
   if (!patch || typeof patch !== "object" || Array.isArray(patch) || !base || typeof base !== "object" || Array.isArray(base)) return patch;
   const out: Record<string, unknown> = { ...(base as Record<string, unknown>) };
