@@ -59,6 +59,18 @@ export function startHour(r: Reading): number {
   return times.findIndex((t) => { const s = str(t); return !!s && hourKey(s) > key; });
 }
 
+/** Hours until rain is likely (a wet hour, or a chance of half or more) within the next day: 0 while it falls, undefined when none comes. */
+export function rainIn(r: Reading): number | undefined {
+  if (isWet(r.current.weather_code)) return 0;
+  const h = r.hourly, start = startHour(r), nowAt = r.current.time ? Date.parse(r.current.time) : NaN;
+  if (!h?.time || start < 0) return;
+  for (let i = start; i < Math.min(h.time.length, start + 24); i++) {
+    const time = str(h.time[i]);
+    if (!time || !(isWet(num(h.weather_code?.[i])) || (num(h.precipitation_probability?.[i]) ?? 0) >= RAIN_LIKELY)) continue;
+    return Number.isFinite(nowAt) ? Math.max(0, Math.round(((Date.parse(time) - nowAt) / 3.6e6) * 10) / 10) : i - start;
+  }
+}
+
 const COMPASS = ["N", "NE", "E", "SE", "S", "SW", "W", "NW"];
 /** The direction the wind blows from, as a compass point. */
 export const compass = (deg: number) => COMPASS[Math.round((((deg % 360) + 360) % 360) / 45) % 8];

@@ -2,7 +2,7 @@
 // then the forecast answers the bar, its popover and the palette's page. No
 // Home Assistant account, device permission or token is involved.
 import { errorMessage, now, settings, storage, type BarItem, type Effect, type Extension, type View } from "@zcag/pal";
-import { fmt, fold, lookOf, num, parseLocation, placeLabel, type Current, type Place, type Reading } from "./model.ts";
+import { fmt, fold, isWet, lookOf, num, parseLocation, placeLabel, rainIn, type Current, type Place, type Reading } from "./model.ts";
 import { render as renderPopover } from "./view.ts";
 
 export { parseLocation } from "./model.ts";
@@ -96,10 +96,12 @@ async function read(force = false): Promise<Reading | undefined> {
  */
 async function bar(): Promise<BarItem> {
   try {
-    const r = await read(true); if (!r) return { hidden: true, states: { temp: null, code: null, quiet: null, condition: null } };
+    const r = await read(true); if (!r) return { hidden: true, states: { temp: null, code: null, quiet: null, condition: null, rain_in: null } };
     const [condition, glyph, color] = lookOf(r.current.weather_code);
-    const item = { icon: glyph, title: `${fmt(r.current.temperature_2m)}${r.unit}`, tooltip: `${condition} in ${r.place.name}`, menu: { view: renderPopover(r) } };
-    return { ...item, color, empty: item, states: { temp: r.current.temperature_2m, code: r.current.weather_code, quiet: quietCodes.has(r.current.weather_code), condition } };
+    const soon = rainIn(r), at = new Date(Date.parse(r.current.time ?? "") + (soon ?? 0) * 3.6e6);
+    const coming = soon !== undefined && !isWet(r.current.weather_code) && Number.isFinite(at.getTime()) ? ` · rain likely around ${String(at.getHours()).padStart(2, "0")}:00` : "";
+    const item = { icon: glyph, title: `${fmt(r.current.temperature_2m)}${r.unit}`, tooltip: `${condition} in ${r.place.name}${coming}`, menu: { view: renderPopover(r) } };
+    return { ...item, color, empty: item, states: { temp: r.current.temperature_2m, code: r.current.weather_code, quiet: quietCodes.has(r.current.weather_code), condition, rain_in: soon ?? null } };
   }
   catch (e) { const message = errorMessage(e); return { icon: "󰖪", title: "Weather", color: "red", stale: true, tooltip: message }; }
 }

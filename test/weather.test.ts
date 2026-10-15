@@ -57,7 +57,7 @@ afterAll(() => { host.kill(); server.stop(true); delete process.env.PAL_WEATHER_
 describe("weather", () => {
   test("meta: the bar item advertises its popover keys", () => {
     const loaded = host.loaded().find((x) => x.extension === "weather")!;
-    expect(loaded.bar).toEqual([{ id: "weather", title: "Weather", description: expect.any(String), refresh: { every: 600, on: ["wake", "network"] }, mocks: expect.any(Object), keys: expect.any(Array), rules: [{ id: "ordinary", when: "weather.quiet and weather.temp >= 10 and weather.temp <= 30", description: expect.any(String), hidden: true, color: "muted" }, { id: "cold", when: "weather.temp < 10", description: expect.any(String), color: "blue" }, { id: "hot", when: "weather.temp > 30", description: expect.any(String), color: "red" }], source: true }]);
+    expect(loaded.bar).toEqual([{ id: "weather", title: "Weather", description: expect.any(String), refresh: { every: 600, on: ["wake", "network"] }, mocks: expect.any(Object), keys: expect.any(Array), rules: [{ id: "ordinary", when: "weather.quiet and weather.temp >= 10 and weather.temp <= 30 and not (weather.rain_in <= 12)", description: expect.any(String), hidden: true, color: "muted" }, { id: "rain_soon", when: "weather.quiet and weather.rain_in <= 12", description: expect.any(String), icon: "󰖗", color: "blue" }, { id: "cold", when: "weather.temp < 10", description: expect.any(String), color: "blue" }, { id: "hot", when: "weather.temp > 30", description: expect.any(String), color: "red" }], source: true }]);
     expect(loaded.bar[0].keys!.map((k) => k.keys)).toEqual(["o", "r"]);
   });
 
@@ -138,9 +138,12 @@ describe("weather", () => {
       forecast = quiet;
       host.changeSettings("weather", configured("Istanbul, Turkey"));
       const item = await host.render("weather", "weather");
-      expect(item).toMatchObject({ icon: "󰖕", title: "21°C", tooltip: "Mostly clear in Istanbul", color: "amber", states: { temp: 21, code: 1, quiet: true, condition: "Mostly clear" }, empty: { icon: "󰖕", title: "21°C", tooltip: "Mostly clear in Istanbul" } });
+      // The hourly forecast is wet from 09:00, so rain is due now and the rain_soon rule keeps it on the strip; a dry forecast leaves rain_in unknown.
+      expect(item).toMatchObject({ icon: "󰖕", title: "21°C", tooltip: "Mostly clear in Istanbul · rain likely around 09:00", color: "amber", states: { temp: 21, code: 1, quiet: true, condition: "Mostly clear", rain_in: 0 }, empty: { icon: "󰖕", title: "21°C" } });
       expect(item).not.toHaveProperty("hidden");
       expect(viewOf(item.empty!).title).toBe("Istanbul, Republic of Türkiye");
+      forecast = { ...quiet, hourly: { ...quiet.hourly, weather_code: hours.map(() => 1), precipitation_probability: hours.map(() => 5) } };
+      expect((await host.render("weather", "weather")).states).toMatchObject({ quiet: true, rain_in: null });
       forecast = forecastWithOutlook;
       expect(await host.render("weather", "weather")).toMatchObject({ icon: "󰖗", title: "14°C", states: { quiet: false }, tooltip: "Rain in Istanbul" });
     } finally {

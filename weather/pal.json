@@ -85,12 +85,16 @@
     "condition": {
       "description": "The condition's name",
       "kind": "string"
+    },
+    "rain_in": {
+      "description": "Hours until rain is likely (a wet hour, or a chance of half or more) within the next day; 0 while it rains, unknown when none comes",
+      "kind": "number"
     }
   },
   "bar": {
     "weather": {
       "title": "Weather",
-      "description": "A quiet condition-led weather signal: hidden by its rules in ordinary weather (a quiet sky between 10 and 30 degrees), visible for rain, fog, wind or temperatures outside that band, blue when cold and red when hot. The popover is the forecast: the reading now on a card tinted by the sky, humidity, wind, UV and the next sunrise or sunset, the next eight hours, then five days with each day's span against theirs.",
+      "description": "A quiet condition-led weather signal: hidden by its rules in ordinary weather (a quiet sky between 10 and 30 degrees), visible for rain now or likely within 12 hours, fog, wind or temperatures outside that band, blue when cold and red when hot. The popover is the forecast: the reading now on a card tinted by the sky, humidity, wind, UV and the next sunrise or sunset, the next eight hours, then five days with each day's span against theirs.",
       "refresh": {
         "every": 600,
         "on": [
@@ -164,6 +168,15 @@
             "stale": true,
             "tooltip": "Weather service did not answer"
           }
+        },
+        "soon": {
+          "title": "Rain coming",
+          "item": {
+            "icon": "󰖗",
+            "title": "14°C",
+            "color": "blue",
+            "tooltip": "Overcast in Istanbul · rain likely around 06:00"
+          }
         }
       },
       "keys": [
@@ -179,10 +192,17 @@
       "rules": [
         {
           "id": "ordinary",
-          "when": "weather.quiet and weather.temp >= 10 and weather.temp <= 30",
-          "description": "A quiet sky inside the comfort band: off the strip (move the band here).",
+          "when": "weather.quiet and weather.temp >= 10 and weather.temp <= 30 and not (weather.rain_in <= 12)",
+          "description": "A quiet sky inside the comfort band with no rain likely in the next 12 hours: off the strip (move the band or the window here).",
           "hidden": true,
           "color": "muted"
+        },
+        {
+          "id": "rain_soon",
+          "when": "weather.quiet and weather.rain_in <= 12",
+          "description": "Rain likely within 12 hours while the sky is still dry: the rain glyph, in blue.",
+          "icon": "󰖗",
+          "color": "blue"
         },
         {
           "id": "cold",
@@ -208,7 +228,7 @@
       "The days ahead with each one's span against the others, today's reading marked on it",
       "Pick a day and its hours fill the row; walk the hours and the sky turns to each one",
       "Opens at once on the last reading and refreshes behind it; search for a place right in the palette",
-      "The bar item hides in ordinary weather and comes back for rain, fog, wind, heat or cold"
+      "The bar item hides in ordinary weather and comes back for rain now or within 12 hours, fog, wind, heat or cold"
     ],
     "permissions": [
       "network"
