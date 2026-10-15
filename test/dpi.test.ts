@@ -266,7 +266,6 @@ describe("over the wire, macOS", () => {
 
   test("partial: amber, the reason, a Repair row (off, then on) and cmd+shift+r on the Turn off row", async () => {
     setState("half");
-    await Bun.sleep(10);
     expect(await host.pick("dpi", "dpi", "hint:error")).toEqual({ keep: true }); // drops the cache
     const r = await rows();
     expect(r.map((x) => x.id)).toEqual(["toggle", "repair", "status", "test", "log", "build", "copy"]);
@@ -285,7 +284,6 @@ describe("over the wire, macOS", () => {
     expect(await host.barAction("dpi", "bypass", "copy")).toMatchObject({ hud: "Copied the bypass status" });
     expect(await host.barAction("dpi", "bypass", "open")).toEqual({ push: { extension: "dpi", palette: "dpi" } });
     host.viewShown("dpi", { bar: "bypass" }, "bypass", true);
-    await Bun.sleep(20);
     expect(await host.barAction("dpi", "bypass", "test")).toEqual({ keep: true });
     const u = await host.nextViewUpdate("dpi", { bar: "bypass" }, (u) => badges(u.spec as View)[0] === "2 blocked reach, 2 controls fine", 6000);
     expect(badges(u.spec as View)).toEqual(["2 blocked reach, 2 controls fine", "blocked", "200", "blocked", "200", "control", "200", "control", "200"]);

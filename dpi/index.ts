@@ -167,7 +167,13 @@ const testOpen = () => liveView.open(EXTENSION).some((v) => v.palette === TEST);
 /** Where the requests go: through byedpi while it is up on macOS (`socks5h`, so DNS goes through it too), direct otherwise (zapret is system-wide). */
 const proxyOf = (s: Snap) => (MAC && s.status?.facts.platform === "macos" && s.status.facts.proxy.up ? `127.0.0.1:${s.status.port}` : null);
 
+let redrawOnShown = false;
+
 async function launch(): Promise<Run> {
+  if (!redrawOnShown) {
+    redrawOnShown = true;
+    liveView.onShown((ev) => { if (ev.palette === TEST) pushViews().catch(() => {}); }, EXTENSION);
+  }
   const s = await snapshot();
   cursor = 0;
   current = start(parseTargets(conf().test_urls ?? []), proxyOf(s), (run) => { if (run === current) pushViews().catch(() => {}); });
