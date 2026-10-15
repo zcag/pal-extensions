@@ -33,7 +33,9 @@ game that needs one.
 SharedObjects (`TopScore`, `stats.best`), or `ei:<function>`, a function the
 game calls through `ExternalInterface` (a patched SWF). A better value than
 the last goes to `board`. A boolean `sound` setting, when the game declares
-one, mutes it.
+one, mutes it. The view's `mute` action ("Sound on or off", `cmd+m`: the
+game owns the bare letters) flips sound for that game and is remembered in
+its storage as `muted`.
 
 ## What the runtime does
 

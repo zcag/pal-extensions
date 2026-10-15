@@ -126,6 +126,8 @@ function fail(why: string) {
 async function main() {
   document.documentElement.style.cssText = "height:100%;background:#000";
   document.body.style.cssText = "margin:0;height:100%;display:flex;overflow:hidden";
+  // Ruffle cancels every key it is given, so the panel's cmd combos (⌘M, ⌘W) would never leave the frame: let them.
+  addEventListener("keydown", (e) => { if (e.metaKey || e.ctrlKey) Object.defineProperty(e, "preventDefault", { value() {} }); }, true);
   const game = (await (await fetch(new URL("./game.json", location.href))).json()) as Game;
   hydrate(await pal.storage.get("saves"));
   (window as any).RufflePlayer = {
@@ -141,19 +143,20 @@ async function main() {
   await loadScript(`${RUFFLE}ruffle.js`);
   scores(game);
   let player: RufflePlayer | undefined;
-  const settings = await pal.settings();
-  let volume = settings.sound === false ? 0 : 1;
+  let sound = (await pal.settings()).sound !== false, muted = (await pal.storage.get("muted")) === true;
+  const loud = () => { if (player) player.ruffle().volume = sound && !muted ? 1 : 0; };
   const start = async () => {
     player = (window as any).RufflePlayer.newest().createPlayer() as RufflePlayer;
     player.style.cssText = "width:100%;height:100%;display:block";
     document.body.append(player);
     const url = new URL(game.swf, location.href).href;
     await player.ruffle().load({ url, base: new URL(".", url).href });
-    player.ruffle().volume = volume;
+    loud();
     player.focus();
   };
   const stop = () => { quiet = true; player?.remove(); player = undefined; quiet = false; };
-  pal.onSettings((s) => { volume = s.sound === false ? 0 : 1; if (player) player.ruffle().volume = volume; });
+  pal.onSettings((s) => { sound = s.sound !== false; loud(); });
+  pal.onAction((id) => { if (id !== "mute") return; muted = !muted; void pal.storage.set("muted", muted); loud(); });
   pal.onHidden(() => { window.dispatchEvent(new Event("pagehide")); player?.ruffle().suspend(); });
   pal.onShown(() => { window.dispatchEvent(new Event("pageshow")); player?.ruffle().resume(); player?.focus(); });
   // Saves from another machine: the running game holds its own copy and would
