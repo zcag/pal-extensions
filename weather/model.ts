@@ -59,6 +59,24 @@ export function startHour(r: Reading): number {
   return times.findIndex((t) => { const s = str(t); return !!s && hourKey(s) > key; });
 }
 
+/** Light drizzle, rain and showers (and their snowy kin): the codes a forecast model sprinkles on hours it also calls dry. */
+const LIGHT_WET = new Set([51, 53, 56, 61, 66, 71, 80, 85]);
+/**
+ * The hourly forecast with its noise taken out: a light wet code on an hour
+ * whose own chance of rain is under 30% reads as the cloud it is (overcast,
+ * or partly cloudy under a broken sky), so the photo, the icon, the outlook
+ * and the bar item do not flip to rain for one hour the forecast calls dry.
+ */
+export function steady(h: Hourly | undefined): Hourly | undefined {
+  if (!h?.weather_code) return h;
+  const weather_code = h.weather_code.map((c, i) => {
+    const code = num(c), pop = num(h.precipitation_probability?.[i]);
+    if (code === undefined || !LIGHT_WET.has(code) || pop === undefined || pop >= 30) return c;
+    return (num(h.cloud_cover?.[i]) ?? 100) < 60 ? 2 : 3;
+  });
+  return { ...h, weather_code };
+}
+
 /** Hours until rain is likely (a wet hour, or a chance of half or more) within the next day: 0 while it falls, undefined when none comes. */
 export function rainIn(r: Reading): number | undefined {
   if (isWet(r.current.weather_code)) return 0;

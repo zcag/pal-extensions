@@ -2,7 +2,7 @@
 // then the forecast answers the bar, its popover and the palette's page. No
 // Home Assistant account, device permission or token is involved.
 import { errorMessage, now, settings, storage, type BarItem, type Effect, type Extension, type View } from "@zcag/pal";
-import { fmt, fold, isWet, lookOf, num, parseLocation, placeLabel, rainIn, type Current, type Place, type Reading } from "./model.ts";
+import { fmt, fold, isWet, lookOf, num, parseLocation, placeLabel, rainIn, steady, type Current, type Place, type Reading } from "./model.ts";
 import { render as renderPopover } from "./view.ts";
 
 export { parseLocation } from "./model.ts";
@@ -65,7 +65,7 @@ async function fetchReading(query: string): Promise<Reading> {
   url.searchParams.set("timezone", "auto");
   const data = await json<{ current?: Current; current_units?: Record<string, string>; hourly?: Reading["hourly"]; daily?: Reading["daily"] }>(url);
   if (!data.current || num(data.current.temperature_2m) === undefined || num(data.current.weather_code) === undefined) throw new Error("Weather service returned no current conditions");
-  return { place: p, current: data.current, unit: data.current_units?.temperature_2m ?? "°C", windUnit: data.current_units?.wind_speed_10m ?? "km/h", hourly: data.hourly, daily: data.daily };
+  return { place: p, current: data.current, unit: data.current_units?.temperature_2m ?? "°C", windUnit: data.current_units?.wind_speed_10m ?? "km/h", hourly: steady(data.hourly), daily: data.daily };
 }
 
 /** The last reading, shared by the bar, the popover and the page, kept in storage so a restart still opens on it; and the one request in flight. */

@@ -142,8 +142,11 @@ describe("weather", () => {
       expect(item).toMatchObject({ icon: "󰖕", title: "21°C", tooltip: "Mostly clear in Istanbul · rain likely around 09:00", color: "amber", states: { temp: 21, code: 1, quiet: true, condition: "Mostly clear", rain_in: 0 }, empty: { icon: "󰖕", title: "21°C" } });
       expect(item).not.toHaveProperty("hidden");
       expect(viewOf(item.empty!).title).toBe("Istanbul, Republic of Türkiye");
-      forecast = { ...quiet, hourly: { ...quiet.hourly, weather_code: hours.map(() => 1), precipitation_probability: hours.map(() => 5) } };
-      expect((await host.render("weather", "weather")).states).toMatchObject({ quiet: true, rain_in: null });
+      // A light shower code on an hour the forecast gives a 5% chance is noise: it reads as cloud, and no rain is due.
+      forecast = { ...quiet, hourly: { ...quiet.hourly, weather_code: hours.map((_, i) => i === 11 ? 80 : 1), precipitation_probability: hours.map(() => 5) } };
+      const dry = await host.render("weather", "weather");
+      expect(dry.states).toMatchObject({ quiet: true, rain_in: null });
+      expect(dry.tooltip).toBe("Mostly clear in Istanbul");
       forecast = forecastWithOutlook;
       expect(await host.render("weather", "weather")).toMatchObject({ icon: "󰖗", title: "14°C", states: { quiet: false }, tooltip: "Rain in Istanbul" });
     } finally {
