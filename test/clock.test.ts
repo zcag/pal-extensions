@@ -144,7 +144,8 @@ describe("the extension", () => {
   test("the strip: the date and time, then a push on the minute's boundary and none before it", async () => {
     const item = await h.render(E, "time", { reason: "load" });
     expect(item).toMatchObject({ title: title(h.now()), tooltip: expect.stringMatching(/, week \d+$/), menu: { view: { id: "clock" } } });
-    const to = 60_000 - (h.now() % 60_000);
+    // The minute timer's own time left: recomputed from the clock here, it fell short by the render's real time on a slow runner.
+    const to = Math.max(...(await h.timers()).filter((t) => t <= 60_000));
     const n = h.updates(E, "time").length;
     if (to > 200) { await h.advance(to - 200); expect(h.updates(E, "time")).toHaveLength(n); }
     const [p] = await pushed(() => h.advance(300));
