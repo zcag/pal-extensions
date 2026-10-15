@@ -64,16 +64,21 @@ const LIGHT_WET = new Set([51, 53, 56, 61, 66, 71, 80, 85]);
 /** A light shower the forecast itself doubts (a chance under 30%): still rain, drawn and said lightly. */
 export const isLight = (code: number | undefined, pop: number | undefined) => code !== undefined && LIGHT_WET.has(code) && pop !== undefined && pop < 30;
 
-/** Hours until rain is likely (a wet hour, or a chance of half or more) within the next day: 0 while it falls, undefined when none comes. */
-export function rainIn(r: Reading): number | undefined {
-  if (isWet(r.current.weather_code)) return 0;
-  const h = r.hourly, start = startHour(r), nowAt = r.current.time ? Date.parse(r.current.time) : NaN;
+/** The first hour from the current one with rain likely (a wet hour, or a chance of half or more) within the next day: what the bar item and the outlook both read, so they never disagree. */
+export function nextRain(r: Reading): { i: number; time: string; code: number | undefined; light: boolean } | undefined {
+  const h = r.hourly, start = startHour(r);
   if (!h?.time || start < 0) return;
   for (let i = start; i < Math.min(h.time.length, start + 24); i++) {
-    const time = str(h.time[i]);
-    if (!time || !(isWet(num(h.weather_code?.[i])) || (num(h.precipitation_probability?.[i]) ?? 0) >= RAIN_LIKELY)) continue;
-    return Number.isFinite(nowAt) ? Math.max(0, Math.round(((Date.parse(time) - nowAt) / 3.6e6) * 10) / 10) : i - start;
+    const time = str(h.time[i]), code = num(h.weather_code?.[i]), pop = num(h.precipitation_probability?.[i]);
+    if (time && (isWet(code) || (pop ?? 0) >= RAIN_LIKELY)) return { i, time, code, light: isLight(code, pop) };
   }
+}
+/** Hours until rain is likely: 0 while it falls, undefined when none comes within the day. */
+export function rainIn(r: Reading): number | undefined {
+  if (isWet(r.current.weather_code)) return 0;
+  const n = nextRain(r), nowAt = r.current.time ? Date.parse(r.current.time) : NaN;
+  if (!n) return;
+  return Number.isFinite(nowAt) ? Math.max(0, Math.round(((Date.parse(n.time) - nowAt) / 3.6e6) * 10) / 10) : n.i - startHour(r);
 }
 
 const COMPASS = ["N", "NE", "E", "SE", "S", "SW", "W", "NW"];
@@ -93,13 +98,15 @@ export function summary(r: Reading): string | undefined {
   const word = (code: number | undefined) => { const k = lookOf(code)[3]; return k === "snow" ? "Snow" : k === "storm" || k === "hail" ? "Storms" : k === "sleet" ? "Sleet" : "Rain"; };
   if (h?.time && start >= 0) {
     const end = Math.min(h.time.length, start + LOOKAHEAD);
-    for (let i = start + 1; i < end; i++) {
-      const code = num(h.weather_code?.[i]), time = str(h.time[i]); if (!time) continue;
-      const wet = isWet(code) || (num(h.precipitation_probability?.[i]) ?? 0) >= RAIN_LIKELY;
-      if (wetNow && !isWet(code)) return `${word(r.current.weather_code)} easing around ${at(time)}`;
-      if (!wetNow && wet) return isLight(code, num(h.precipitation_probability?.[i])) ? `${lookOf(code)[0]} possible around ${at(time)}` : `${word(isWet(code) ? code : 61)} likely around ${at(time)}`;
+    if (wetNow) {
+      for (let i = start + 1; i < end; i++) { const time = str(h.time[i]); if (time && !isWet(num(h.weather_code?.[i]))) return `${word(r.current.weather_code)} easing around ${at(time)}`; }
+      return `${word(r.current.weather_code)} for the next ${end - start} hours`;
     }
-    if (wetNow) return `${word(r.current.weather_code)} for the next ${end - start} hours`;
+    const n = nextRain(r);
+    if (n && n.i < end) {
+      const when = n.i === start ? "within the hour" : `around ${at(n.time)}`;
+      return n.light ? `${lookOf(n.code)[0]} possible ${when}` : `${word(isWet(n.code) ? n.code : 61)} likely ${when}`;
+    }
   }
   const hi = r.daily?.temperature_2m_max ?? [];
   const today = num(hi[0]), tomorrow = num(hi[1]);
