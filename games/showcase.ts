@@ -7,8 +7,9 @@
 // through the app's `icon://` file scheme, so a tree carries paths rather
 // than bytes. A screenshot is the panel centred on a wallpaper
 // (docs/design/screenshots.md: 1440 by 900, the panel's body at `BODY`).
-// Every picture is a crop: a box clipping the whole screenshot, scaled so
-// the crop fills it and shifted onto it by spacers beside it. The top one
+// Every picture is a crop: a box clipping the whole screenshot (a store
+// shot; a Flash game's is a capture of the game alone, its size read from
+// the PNG), scaled so the crop fills it and shifted onto it by spacers beside it. The top one
 // is the panel's body, the whole game; a grid tile is the game's `cover`,
 // the part of the shot its fixture picked to show it up close (the body
 // when it has none). A game whose picture is not here yet shows its glyph
@@ -18,7 +19,7 @@
 // tall: scrolling moves the whole grid in the window (a spacer above or
 // below it), so the covers slide (`move`) rather than come and go, and the
 // next row's covers peeking in at the bottom say there is more.
-import { existsSync, statSync } from "node:fs";
+import { existsSync, readSync, openSync, closeSync, statSync } from "node:fs";
 import { mkdir, rename, writeFile } from "node:fs/promises";
 import { createHash } from "node:crypto";
 import { homedir } from "node:os";
@@ -100,6 +101,24 @@ const glyphOf = (icon?: OwnIcon) => (icon && typeof icon === "object" && "tile" 
  * onto it by a spacer beside it (the box centres what it holds and clips
  * the rest). Drawn from the file itself: a zoomed crop wants every pixel.
  */
+/** A picture's pixel size, from its PNG header; a store screenshot's when it cannot be read. */
+const sizes = new Map<string, { w: number; h: number }>();
+function sizeOf(path: string): { w: number; h: number } {
+  let size = sizes.get(path);
+  if (size) return size;
+  const head = Buffer.alloc(24);
+  try { const fd = openSync(path, "r"); try { readSync(fd, head, 0, 24, 0); } finally { closeSync(fd); } } catch {}
+  size = head.toString("ascii", 12, 16) === "IHDR" ? { w: head.readUInt32BE(16), h: head.readUInt32BE(20) } : SHOT;
+  sizes.set(path, size);
+  return size;
+}
+
+/** The part of a picture that is the whole game: a store screenshot's panel body, else (a capture of the game itself, a Flash game's) all of it. */
+function gameOf(path: string | undefined): Rect {
+  const s = path ? sizeOf(path) : SHOT;
+  return s.w === SHOT.w && s.h === SHOT.h ? WHOLE : [0, 0, s.w, s.h];
+}
+
 function cover(g: Shown, w: number, path: string | undefined, crop: Rect, extra: Record<string, unknown>): ViewNode {
   const h = Math.round((w * BODY.h) / BODY.w);
   const box = { width: w, height: h, radius: true, align: "center", justify: "center", gap: 0, ...extra } as const;
@@ -109,7 +128,8 @@ function cover(g: Shown, w: number, path: string | undefined, crop: Rect, extra:
   }
   const [cx, cy, cw, ch] = crop;
   const k = Math.max(w / cw, h / ch);
-  const iw = Math.round(SHOT.w * k), ih = Math.round(SHOT.h * k);
+  const size = sizeOf(path);
+  const iw = Math.round(size.w * k), ih = Math.round(size.h * k);
   // How far the crop's centre sits from the picture's, in box px: twice that in a spacer on the other side moves it to the box's centre.
   const dx = Math.round(2 * ((cx + cw / 2) * k - iw / 2)), dy = Math.round(2 * ((cy + ch / 2) * k - ih / 2));
   const spacer = (size: number): ViewNode[] => (size ? [{ type: "spacer", size: Math.abs(size) }] : []);
@@ -148,7 +168,7 @@ function grid(all: Shown[], at: number, paths: (string | undefined)[]): ViewNode
     rows.push(row(all.slice(r, r + COLS).map((g, k) => {
       const i = r + k;
       return column([
-        column([cover(g, THUMB_W, paths[i], g.crop ?? WHOLE, {})], { padding: 1, gap: 0, radius: true, ...(i === at && { selected: true }) }),
+        column([cover(g, THUMB_W, paths[i], g.crop ?? gameOf(paths[i]), {})], { padding: 1, gap: 0, radius: true, ...(i === at && { selected: true }) }),
         column([text(g.title, { size: "sm", align: "center", width: TILE_W, ...(i === at ? { weight: "semibold" } : { color: "muted" }) })], { height: LABEL_H, gap: 0 }),
       ], { key: `g-${g.id}`, transition: { move: true }, gap: 1, align: "center", width: TILE_W, height: TILE_H, action: `go:${g.id}` });
     }), { gap: 2, align: "start" }));
@@ -188,18 +208,18 @@ export function actionsOf(all: Shown[], at: number): Action[] {
   ];
 }
 
-/** The tree for the game at `at`; `redraw` pushes it again once a missing picture lands. */
-export function showcase(all: Shown[], at: number, redraw: () => void): View {
+/** The tree for the game at `at`, as `palette`'s view; `redraw` pushes it again once a missing picture lands. */
+export function showcase(all: Shown[], at: number, redraw: () => void, palette = PALETTE): View {
   const g = all[at]!;
   const paths = all.map((x) => picture(x.shot, redraw));
   return {
-    id: PALETTE,
-    // The crumb says Games; the title line says where the cursor is.
+    id: palette,
+    // The crumb says the palette's name; the title line says where the cursor is.
     title: `${at + 1} of ${all.length}`,
     keys: "actions",
     tree: column([
       row([
-        column([cover(g, HERO_W, paths[at], WHOLE, {})], { key: `hero-${g.id}`, transition: { enter: "fade", exit: "none" } }),
+        column([cover(g, HERO_W, paths[at], gameOf(paths[at]), {})], { key: `hero-${g.id}`, transition: { enter: "fade", exit: "none" } }),
         info(g),
       ], { key: "top", gap: 4, align: "start" }),
       grid(all, at, paths),

@@ -27,7 +27,7 @@
       "A game's saves are kept in pal and follow you to your other machines when you sign in",
       "Scores go to the game's leaderboards when it keeps one",
       "Games pause when the panel hides and save what they had",
-      "Adds the Flash games collection, which asks for a password, then lists its games to play"
+      "Its palette is the Flash games as a showcase, like Games; until the collection is added it offers to, and asks for its password"
     ],
     "permissions": [],
     "platforms": [
@@ -37,19 +37,19 @@
     "screenshots": [
       {
         "file": "1-add.png",
-        "caption": "Follows the Flash games collection; it asks for a password, then its games show in Games"
+        "caption": "Until the Flash games collection is added, the palette offers to add it; it asks for a password, then its games show here as in Games"
       },
       {
         "file": "2-actions.png",
-        "caption": "One thing to do: add the collection"
+        "caption": "One thing to do until then: add the collection"
       }
     ]
   },
   "palettes": {
     "flash": {
       "title": "Flash games",
-      "kind": "list",
-      "description": "Add the Flash games collection, then play its games from here or from Games."
+      "kind": "view",
+      "description": "The Flash games as a showcase, like Games: Enter plays one, or installs it first. Until the Flash games collection is added, it offers to add it."
     }
   }
 }

@@ -1,12 +1,15 @@
 // flash: the SharedObject reader on Ruffle's own test saves (AMF0 from an
 // ActionScript 2 SWF, AMF3 from a 3 one; ruffle-rs/ruffle's
 // tests/swfs/avm{1,2}/shared_object), the save keys that sync across
-// platforms, the score sources, and the palette that adds the collection.
+// platforms, the score sources, and the palette: the offer to add the collection,
+// then the Games showcase over the Flash games.
 import { describe, expect, test } from "bun:test";
 import { checkIcon, checkPalettes } from "../.pal/sdk/src/index.ts";
 import { at, readSol } from "../flash/surface/amf.ts";
 import { absolute, better, relative, scoreSource } from "../flash/surface/saves.ts";
-import ext, { ADD, COLLECTION, LINK, rows } from "../flash/index.ts";
+import ext, { COLLECTION, LINK, empty } from "../flash/index.ts";
+import type { View } from "../.pal/sdk/src/index.ts";
+import { Host } from "../.pal/host/test/harness.ts";
 import manifest from "../flash/pal.json" with { type: "json" };
 
 const AMF0 = "AL8AAAERVENTTwAEAAAAAAAKUnVmZmxlVGVzdAAAAAAABXNhdmVkAQEAAANudW0AQCQAAAAAAAAAAANzdHICAAVoZWxsbwAABWFycmF5CAAAAAUAATACAAVlbGVtMAABNAIABWVsZW00AARwcm9wAgAIcHJvcGVydHkAAi0xAgARZWxlbSBuZWdhdGl2ZSBvbmUAAAkAAApkZW5zZUFycmF5CAAAAAMAATAAP/AAAAAAAAAAATEAQAAAAAAAAAAAATIAQAgAAAAAAAAAAAkAAARkYXRlC0Hf////wAAAAAAAAAd0ZXN0eG1sDwAAABE8dGVzdD5UZXN0PC90ZXN0PgAAAW8DAAFiAgABYgABYQIAAWEAAAkA";
@@ -91,20 +94,33 @@ describe("the palette", () => {
     expect(checkPalettes(manifest as never, ext).warnings).toEqual([]);
     expect(checkIcon(manifest.icon, "flash")).toBeUndefined();
   });
-  test("the add row, with the collection's key pinned, until it is followed", () => {
-    expect(rows({ registries: [], available: [] })).toEqual([ADD]);
+  test("the add offer, with the collection's key pinned, until it is followed; then why it has nothing", () => {
+    expect(empty([]).actions).toEqual([{ id: "add", title: "Add the collection", shortcut: "enter" }]);
+    expect(ext.palettes.flash.pick("flash", "add")).toEqual({ open: LINK });
     expect(LINK).toBe("pal://registry/add?url=https%3A%2F%2Fpal.cagdas.io%2Fregistry%2Fflash%2Findex.json&key=RWSmfltmgdpajpSlhnFLhlRXXnqfQBTjmhEo4D8H3nBf%2BiFI6jaJXoA1");
+    const silent = empty([{ url: COLLECTION, last_error: "401" }]);
+    expect(silent.actions).toEqual([]);
+    expect(JSON.stringify(silent.tree)).toContain("401");
   });
-  test("then the collection's games by title, whatever the registry is called; another registry's are not", () => {
-    const game = (name: string, title: string, registry: string, installed: boolean) => ({
-      name, registry, installed, installable: !installed, bundled: false,
-      listing: { title, tagline: `${title}'s tagline`, keywords: [], icon: "x", palettes: [{ id: name, title, kind: "view" }] },
+  test("followed: the Games showcase over the games that require flash, whatever the registry is called", async () => {
+    const offer = (name: string, requires: string[]) => ({
+      name, registry: "swf", installed: false, installable: true, bundled: false,
+      listing: { title: name, tagline: "", description: "", features: [], category: "fun", keywords: [], icon: "x", author: "", play: true, palettes: [{ id: name, title: name, kind: "view" }], screenshots: [], requires, suggests: [] },
     });
-    const followed = { registries: [{ name: "swf", url: COLLECTION }], available: [game("portal", "Portal", "swf", false), game("canabalt", "Canabalt", "swf", true), game("pong", "Pong", "pal", false)] };
-    expect(rows(followed as never).map((r) => [r.id, r.subtitle, r.actions?.[0]?.title])).toEqual([
-      ["canabalt/canabalt", "Canabalt's tagline", "Play"],
-      ["portal/portal", "Portal's tagline · not installed", "Install and play"],
-    ]);
-    expect(rows({ registries: [{ name: "swf", url: COLLECTION, last_error: "401" }], available: [] } as never)).toMatchObject([{ id: "silent", subtitle: "401", actions: [] }]);
+    const host = await Host.bundled({
+      only: ["flash"],
+      core: {
+        "extensions.list": () => [],
+        "store.state": () => ({ registries: [{ name: "swf", url: COLLECTION }], available: [offer("portal", ["flash"]), offer("canabalt", ["flash"]), offer("pong", [])] }),
+      },
+    });
+    try {
+      const v = await host.request<View>("view", { extension: "flash", palette: "flash" });
+      expect(v.title).toBe("1 of 2");
+      expect(v.actions.filter((a) => a.id.startsWith("go:")).map((a) => a.id)).toEqual(["go:canabalt/canabalt", "go:portal/portal"]);
+      expect(v.actions[0]).toMatchObject({ id: "install", title: "Install and play" });
+    } finally {
+      host.kill();
+    }
   });
 });
