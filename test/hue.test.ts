@@ -244,7 +244,7 @@ describe("over the wire against the mock bridge", () => {
     mock = new MockBridge();
     discovery = discoveryServer([{ id: SAMPLE_BRIDGE_ID, ip: "127.0.0.1", port: mock.port }]);
     process.env.PAL_HUE_DISCOVERY = `http://127.0.0.1:${discovery.port}/`;
-    host = await Host.bundled({ settings: { [E]: { settings: { timeout: 2, transition: 400 } } }, core: { "effects.run": ({ effect }: { effect: unknown }) => { ran.push(effect); return null; } } });
+    host = await Host.bundled({ only: [E], settings: { [E]: { settings: { timeout: 2, transition: 400 } } }, core: { "effects.run": ({ effect }: { effect: unknown }) => { ran.push(effect); return null; } } });
   });
   afterAll(() => { host.kill(); mock.stop(); discovery.stop(true); });
 
@@ -261,6 +261,13 @@ describe("over the wire against the mock bridge", () => {
     await host.advance(gap);
     await host.until(sent, 300, "the PUT").catch(() => host.advanceUntil(gap, sent, "the PUT"));
     return r;
+  };
+  /** Every event the bridge streamed so far is in the model: the stream is ordered, so a marker sent after them (the light level's report time) shows once they did. A write's own echo can otherwise land after the next write and undo it. */
+  let fences = 0;
+  const settled = async () => {
+    const changed = new Date(Date.UTC(2026, 0, 1, 0, 0, ++fences)).toISOString();
+    mock.change("ll-1", { light: { light_level_report: { changed } } });
+    await host.until(async () => (await list("sensors")).find((i) => i.id === "sensor:hallway-sensor-light-level")!.accessories!.some((a) => (a as { date?: string }).date === changed), 2000, "the stream settled");
   };
   const getsSince = (n: number) => mock.calls.slice(n).filter((c) => c.method === "GET" && c.path.startsWith("/clip/v2/resource"));
 
@@ -351,6 +358,7 @@ describe("over the wire against the mock bridge", () => {
     expect(await host.pick(E, "rooms", "room:living-room", "open")).toEqual({ push: { extension: E, palette: "light", args: { room: "room:living-room" } } });
     expect(await host.pick(E, "rooms", "room:living-room", "scenes")).toEqual({ push: { extension: E, palette: "scenes", args: { scenes: "room:living-room" } } });
     expect(await host.pick(E, "rooms", "room:living-room", "copy_id")).toEqual({ copy: "room:living-room" });
+    await settled();
     const d = await host.detail(E, "rooms", "room:living-room");
     expect(d).toMatchObject({ caption: "Room", title: "Living room", chips: [{ text: "all on", color: "green" }], stats: [{ value: "3/3", label: "lights on" }, { value: "72%", label: "brightness" }] });
     expect(d.metadata!.map((m) => m.label)).toEqual(["Lights", "Id"]);
@@ -390,6 +398,7 @@ describe("over the wire against the mock bridge", () => {
     expect((await host.pick(E, "lights", "light:wardrobe", "set")).form).toMatchObject({ title: "Set Wardrobe", submit: { id: "set", title: "Set brightness or temperature" }, fields: [{ id: "brightness" }] });
     // Back to the sample's state (72 %, 2732 K) for the detail below.
     expect(await putting(() => host.pick(E, "lights", "light:sofa-lamp", "set", { values: { brightness: "72", kelvin: "2732" } }))).toEqual({ keep: true, hud: "Sofa lamp: 72%, 2732 K" });
+    await settled();
     const d = await host.detail(E, "lights", "light:sofa-lamp");
     expect(d).toMatchObject({ caption: "Living room", title: "Sofa lamp", chips: [{ text: "on", color: "green" }], stats: [{ value: "72%", label: "brightness" }, { value: "2732 K", label: "temperature" }] });
     expect(d.metadata!.find((m) => m.label === "Temperature")!.value).toBe("2732 K (366 mirek)");
@@ -624,7 +633,8 @@ describe("over the wire against the mock bridge", () => {
     expect(lastPut()).toEqual({ type: "light", id: "light-1", body: { on: { on: true }, dimming: { brightness: 50 }, dynamics: { duration: 400 } } });
     expect(JSON.stringify(r.view!.tree)).toContain('"key":"level","value":0.5');
     expect(r.view!.actions[0].title).toBe("Turn off Sofa lamp");
-    // Past the light's gap (putting), so the toggle is its own PUT rather than folded into the one in flight.
+    // Past the light's gap (putting), so the toggle is its own PUT rather than folded into the one in flight; Enter reads the lamp's state, which the level's echo must not undo after.
+    await settled();
     r = await putting(() => host.barAction(E, "home", "enter", ctx));
     expect(lastPut()).toEqual({ type: "light", id: "light-1", body: { on: { on: false }, dynamics: { duration: 400 } } });
     expect(JSON.stringify(r.view!.tree)).toContain('"type":"switch","key":"on","on":false,"action":"toggle:light:sofa-lamp"');
@@ -634,6 +644,8 @@ describe("over the wire against the mock bridge", () => {
     r = await host.barAction(E, "home", "scene:scene:living-room/read", ctx);
     expect(lastPut()).toMatchObject({ type: "scene", body: { recall: { action: "active" } } });
     expect(r.view).toBeTruthy();
+    // A recall changes the lights only on the bridge, and the model learns it from the stream: landing after All off's own change, it would light the living room again.
+    await settled();
     // All off sends to every lit room; the strip follows.
     const n = mock.puts.length;
     r = await putting(() => host.barAction(E, "home", "all_off", ctx), GROUP_GAP_MS);
@@ -642,16 +654,18 @@ describe("over the wire against the mock bridge", () => {
     expect(offs.every((p) => (p.body as any).on?.on === false)).toBe(true);
     expect(offs.map((p) => p.id).sort()).toEqual(expect.arrayContaining(["gl-living"]));
     expect(JSON.stringify(r.view!.tree)).toContain('"value":"All lights off"');
-    // The bridge's events for the scene played above land too; once they did the item says nothing is on.
-    await host.until(async () => (await host.render(E, "home")).title === undefined, 2000, "the item with nothing on");
+    expect((await host.render(E, "home")).title).toBeUndefined();
     // Everything on brings every room back; Open in pal pushes the rooms palette.
     r = await putting(() => host.barAction(E, "home", "all_on", ctx), GROUP_GAP_MS);
     expect(mock.puts.slice(-1)[0].body).toMatchObject({ on: { on: true } });
-    await host.until(async () => /^\d+ on$/.test((await host.render(E, "home")).title ?? ""), 2000, "the item with lights on");
+    // All off's echoes would otherwise land after it and put rooms out that the next All off then skips.
+    await settled();
+    expect((await host.render(E, "home")).title).toMatch(/^\d+ on$/);
     expect(await host.barAction(E, "home", "open", ctx)).toEqual({ push: { extension: E, palette: "rooms" } });
     // Off again, so the links test finds the living room off.
     await putting(() => host.barAction(E, "home", "all_off", ctx), GROUP_GAP_MS);
-    await host.until(async () => (await host.render(E, "home")).title === undefined, 2000, "the item with nothing on");
+    await settled();
+    expect((await host.render(E, "home")).title).toBeUndefined();
     // The item's settings pick the main room and the scenes the popover offers.
     const again = (await host.render(E, "home", { reason: "settings", settings: { main_room: "Bedroom", scenes: ["Relax", "scene:bedroom/bright"] } })).menu as { view: View };
     expect(again.view.actions.filter((a) => a.id.startsWith("scene:")).map((a) => a.title)).toEqual(["Play Bright", "Play Relax"]);
@@ -686,7 +700,7 @@ describe("a bridge from the settings, and one that rejects the key", () => {
     const good = new MockBridge();
     const disc = discoveryServer([]);
     process.env.PAL_HUE_DISCOVERY = `http://127.0.0.1:${disc.port}/`;
-    const h = await Host.bundled({ settings: { [E]: { settings: { bridge: good.ip, application_key: SAMPLE_KEY, insecure: true, timeout: 2 } } } });
+    const h = await Host.bundled({ only: [E], settings: { [E]: { settings: { bridge: good.ip, application_key: SAMPLE_KEY, insecure: true, timeout: 2 } } } });
     try {
       const rooms = await h.list(E, "rooms");
       expect(rooms.map((i) => i.id)).toEqual(["room:bedroom", "room:hallway", "room:living-room", "zone:evening"]);
@@ -715,7 +729,7 @@ describe("a bridge from the settings, and one that rejects the key", () => {
     }
   });
   test("a bridge that is not there: the hint says it did not answer, within the timeout", async () => {
-    const h = await Host.bundled({ settings: { [E]: { settings: { bridge: "127.0.0.1:1", application_key: "k", insecure: true, timeout: 1 } } } });
+    const h = await Host.bundled({ only: [E], settings: { [E]: { settings: { bridge: "127.0.0.1:1", application_key: "k", insecure: true, timeout: 1 } } } });
     try {
       const t0 = Date.now();
       const rows = await h.list(E, "lights");
