@@ -150,7 +150,7 @@ function band() {
     track.innerHTML = temps.map((t, j) => {
       const i = a + j, pop = num(h.precipitation_probability?.[i]) ?? 0, iso = str(h.time?.[i]) ?? "";
       const label = j === 0 ? "Now" : iso.slice(11, 13) === "00" ? WEEKDAY[dateOf(iso).getDay()].slice(0, 3) : iso.slice(11, 16);
-      return `<button class="col${j === 0 ? " now" : ""}" type="button" tabindex="-1" data-i="${i}" style="width:${w}px"><small>${label}</small><div class="art">${weatherArt(lookOf(num(h.weather_code?.[i]))[3], nightAt(i), 30)}</div><b>${deg(t)}</b><span class="pop">${pop >= 30 ? `${fmt(pop)}%` : ""}</span></button>`;
+      return `<button class="col${j === 0 ? " now" : ""}" type="button" tabindex="-1" data-i="${i}" style="width:${w}px"><small>${label}</small><div class="art">${j === 0 ? weatherArt(lookOf(x.current.weather_code)[3], x.current.is_day === 0, 30) : weatherArt(lookOf(num(h.weather_code?.[i]))[3], nightAt(i), 30)}</div><b>${deg(t)}</b><span class="pop">${pop >= 30 ? `${fmt(pop)}%` : ""}</span></button>`;
     }).join("");
   } else {
     const d = x.daily!, n = dayCount();
