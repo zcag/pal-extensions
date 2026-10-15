@@ -2,8 +2,8 @@
 # Vendors Ruffle's self-hosted build into surface/ruffle/ from npm, pinned by
 # version and checked against its integrity. `make ruffle` runs it.
 set -euo pipefail
-VERSION=0.6.0
-INTEGRITY=sha512-P2X1zDENBoiLt2ZjPcsUzaDxoR7fVF2e1U/bi7hbIAQEjkykxljSoG8AgbywHvlVVzL9Y5tIZMRqDwIm31jgPA==
+VERSION=0.7.1
+INTEGRITY=sha512-6ZWxx/cfX3RoNyQ1AVimECSae4gKqMxdPimOD+chiIcOFiJS0ATGKcjkretxNT03lqNUpiSyJjF55AuvvZ+QeA==
 
 cd "$(dirname "$0")"
 tmp=$(mktemp -d)
