@@ -55,7 +55,7 @@ const FRAG = `precision highp float;
 uniform vec2 uRes; uniform float uTime;
 uniform vec3 uTop, uMid, uLow;
 uniform vec2 uSun;
-uniform float uNight, uCover, uGloom, uFog, uWarm, uSeen, uFlash, uDrift;
+uniform float uNight, uCover, uGloom, uFog, uWarm, uSeen, uFlash, uDrift, uBody;
 float hash(vec2 p){ p = fract(p * vec2(123.34, 456.21)); p += dot(p, p + 45.32); return fract(p.x * p.y); }
 float noise(vec2 p){ vec2 i = floor(p), f = fract(p); vec2 u = f * f * (3. - 2. * f);
   return mix(mix(hash(i), hash(i + vec2(1., 0.)), u.x), mix(hash(i + vec2(0., 1.)), hash(i + vec2(1., 1.)), u.x), u.y); }
@@ -70,11 +70,11 @@ void main(){
   vec3 sunCol = mix(vec3(1., .96, .88), vec3(1., .56, .28), uWarm);
   float day = 1. - uNight;
   col += sunCol * (exp(-r * 2.4) * .42 + exp(-r * 9.) * .45) * uSeen * day;
-  col = mix(col, mix(vec3(1., .98, .94), vec3(1., .62, .36), uWarm), smoothstep(.052, .044, r) * smoothstep(.4, .8, uSeen) * day);
+  col = mix(col, mix(vec3(1., .98, .94), vec3(1., .62, .36), uWarm), smoothstep(.052, .044, r) * smoothstep(.4, .8, uSeen) * day * uBody);
   vec2 g = uv * vec2(aspect, 1.) * 70.; vec2 id = floor(g); float h = hash(id);
   float star = step(.982, h) * smoothstep(.16, 0., length(fract(g) - .5 - (hash(id + 3.) - .5) * .5)) * (.55 + .45 * sin(uTime * (.7 + h * 2.5) + h * 60.));
   col += vec3(1., .96, .88) * star * uNight * (1. - uCover) * smoothstep(.12, .55, uv.y) * 1.4;
-  float moon = smoothstep(.05, .044, r) * uNight * smoothstep(.25, .55, uSeen);
+  float moon = smoothstep(.05, .044, r) * uNight * smoothstep(.25, .55, uSeen) * uBody;
   float craters = fbm(d * 60. + 3.) * .22;
   col += vec3(.78, .82, 1.) * exp(-r * 6.) * .22 * uNight * uSeen;
   col = mix(col, vec3(.96, .94, .86) - craters * .5, moon);
@@ -120,6 +120,8 @@ export class Sky {
   private last = 0;
   private frame = 0;
   private seed = 7;
+  /** Whether the sky draws the sun's and the moon's discs, or leaves them to a picture on the page. */
+  bodies = true;
 
   constructor(private canvas: HTMLCanvasElement, private overlay: HTMLCanvasElement) {
     this.gl = canvas.getContext("webgl", { antialias: false, alpha: false, preserveDrawingBuffer: false })!;
@@ -132,7 +134,7 @@ export class Sky {
     gl.bindBuffer(gl.ARRAY_BUFFER, gl.createBuffer());
     gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1, -1, 3, -1, -1, 3]), gl.STATIC_DRAW);
     const at = gl.getAttribLocation(prog, "p"); gl.enableVertexAttribArray(at); gl.vertexAttribPointer(at, 2, gl.FLOAT, false, 0, 0);
-    for (const name of ["uRes", "uTime", "uTop", "uMid", "uLow", "uSun", "uNight", "uCover", "uGloom", "uFog", "uWarm", "uSeen", "uFlash", "uDrift"]) this.u[name] = gl.getUniformLocation(prog, name);
+    for (const name of ["uRes", "uTime", "uTop", "uMid", "uLow", "uSun", "uNight", "uCover", "uGloom", "uFog", "uWarm", "uSeen", "uFlash", "uDrift", "uBody"]) this.u[name] = gl.getUniformLocation(prog, name);
     for (let i = 0; i < MAX_DROPS; i++) this.drops.push(this.drop(true));
     for (let i = 0; i < MAX_DROPS / 2; i++) this.flakes.push(this.flake(true));
     this.resize();
@@ -202,6 +204,7 @@ export class Sky {
     gl.uniform1f(u.uSeen, 1 - clamp(s.cover * 0.75 + s.fog * 0.6 + s.storm));
     gl.uniform1f(u.uFlash, this.flash);
     gl.uniform1f(u.uDrift, this.drift);
+    gl.uniform1f(u.uBody, this.bodies ? 1 : 0);
     gl.drawArrays(gl.TRIANGLES, 0, 3);
   }
 

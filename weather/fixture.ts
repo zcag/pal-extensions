@@ -110,9 +110,9 @@ try {
   writeFixture("weather", await settle({
     palettes: { now: palette(now, [{ msg: { op: "search", q: "lond" }, reply: search }]), storm: palette(stormPage) },
     shots: {
-      "1-now": { palette: "now", keys: ["wait:1800"], caption: "Showers over Istanbul: the reading and when the rain eases, the next hours along the bottom, under a raining sky" },
-      "2-later": { palette: "now", keys: ["wait:1200", ...right(7), "wait:2000"], caption: "The arrows walk the hours: at nine the rain has gone, the sun is down and the sky turns to night" },
-      "3-days": { palette: "now", keys: ["wait:1200", "down", "right", "right", "wait:2000"], caption: "Down for the week: each day's sky and its span against the others" },
+      "1-now": { palette: "now", keys: ["wait:1800"], caption: "Showers over Istanbul: the reading with its picture, when the rain eases, the next hours and the days ahead" },
+      "2-later": { palette: "now", keys: ["wait:1200", ...right(7), "wait:2000"], caption: "The arrows walk the hours: at nine the rain has gone and the sky turns to night" },
+      "3-days": { palette: "now", keys: ["wait:1200", "down", "down", "wait:2000"], caption: "Down picks a day: Friday's hours fill the row, and its clear sky takes over" },
       "4-storm": { palette: "storm", keys: ["wait:1800"], caption: "A thunderstorm: heavy rain blown by the wind, lightning now and then" },
       "5-place": { palette: "now", keys: ["wait:1200", "type:l", "wait:300", "type:lond", "wait:1200"], caption: "L searches for a place and keeps it" },
     },

@@ -26,7 +26,7 @@
     "weather": {
       "title": "Weather",
       "kind": "view",
-      "description": "The weather where you are over a live sky that rains, snows, clears and darkens with it: the reading now and what is coming, then the next hours or the week along the bottom.",
+      "description": "The weather where you are over a live sky: the reading now with its picture, what is coming over the next hours, and the days ahead with each one's span.",
       "keywords": [
         "weather",
         "forecast",
@@ -36,19 +36,19 @@
       "keys": [
         {
           "keys": "left",
-          "title": "An hour or a day earlier (shift: three hours)"
+          "title": "An hour earlier (shift: three)"
         },
         {
           "keys": "right",
-          "title": "An hour or a day later (shift: three hours)"
+          "title": "An hour later (shift: three)"
         },
         {
           "keys": "up",
-          "title": "The hours"
+          "title": "The day before; its hours fill the row"
         },
         {
           "keys": "down",
-          "title": "The days"
+          "title": "The day after; its hours fill the row"
         },
         {
           "keys": "n",
@@ -203,11 +203,11 @@
     "tagline": "A live sky with the weather where you are, and a bar item only when it is worth noticing",
     "category": "system",
     "features": [
-      "A sky drawn live from the forecast: lit clouds by cover drifting with the real wind, the sun on its arc, sunset colours, moon and stars, rain, snow, fog and lightning",
-      "The next hours along the bottom; walk them with the arrows and the sky turns to that hour",
-      "The week one key away, each day's span set against the others",
-      "Opens at once on the last reading and refreshes behind it",
-      "Search for a place right in the palette; no account, key or Home Assistant",
+      "The reading now with its own picture, over a sky drawn live from the forecast: clouds by cover drifting with the wind, sunset colours, stars, rain, snow, fog and lightning",
+      "One plain sentence on what is coming, then the next hours with sunrise and sunset in their place",
+      "The days ahead with each one's span against the others, today's reading marked on it",
+      "Pick a day and its hours fill the row; walk the hours and the sky turns to each one",
+      "Opens at once on the last reading and refreshes behind it; search for a place right in the palette",
       "The bar item hides in ordinary weather and comes back for rain, fog, wind, heat or cold"
     ],
     "permissions": [
@@ -220,15 +220,15 @@
     "screenshots": [
       {
         "file": "1-now.png",
-        "caption": "Showers over Istanbul: the reading and when the rain eases, the next hours along the bottom, under a raining sky"
+        "caption": "Showers over Istanbul: the reading with its picture, when the rain eases, the next hours and the days ahead"
       },
       {
         "file": "2-later.png",
-        "caption": "The arrows walk the hours: at nine the rain has gone, the sun is down and the sky turns to night"
+        "caption": "The arrows walk the hours: at nine the rain has gone and the sky turns to night"
       },
       {
         "file": "3-days.png",
-        "caption": "Down for the week: each day's sky and its span against the others"
+        "caption": "Down picks a day: Friday's hours fill the row, and its clear sky takes over"
       },
       {
         "file": "4-storm.png",

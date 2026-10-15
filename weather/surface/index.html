@@ -11,23 +11,24 @@
 <body>
   <canvas id="sky"></canvas>
   <canvas id="fx"></canvas>
-  <div class="scrim"></div>
   <main id="app">
     <section id="hero">
-      <button id="place" type="button" tabindex="-1" title="Change the place (L)"><svg viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M12 2.5a7 7 0 0 0-7 7c0 5 7 12 7 12s7-7 7-12a7 7 0 0 0-7-7zm0 9.6a2.6 2.6 0 1 1 0-5.2 2.6 2.6 0 0 1 0 5.2z"/></svg><span></span></button>
+      <div id="art"></div>
+      <button id="place" type="button" tabindex="-1" title="Change the place (L)"><span></span><svg viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M20.5 3.5 3 11.2l7.4 2.4 2.4 7.4z"/></svg></button>
       <div id="when"></div>
       <div id="temp"></div>
       <div id="cond"></div>
       <div id="range"></div>
-      <div id="summary"></div>
     </section>
-    <dl id="facts"></dl>
-    <section id="band">
-      <header>
-        <nav><button type="button" tabindex="-1" data-mode="hours">Hours</button><button type="button" tabindex="-1" data-mode="days">Days</button></nav>
-        <span class="hint"><kbd>←</kbd><kbd>→</kbd> move <kbd>↑</kbd><kbd>↓</kbd> hours or days <kbd>N</kbd> now</span>
-      </header>
-      <div id="strip"><div id="track"></div></div>
+    <section id="cards">
+      <div class="card" id="hours">
+        <p id="summary"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9" fill="none" stroke="currentColor" stroke-width="2"/><path d="M12 7v5l3 2" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg><span></span></p>
+        <div id="strip"><div id="track"></div></div>
+      </div>
+      <div class="card" id="days">
+        <h3><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3.5" y="5" width="17" height="15" rx="3" fill="none" stroke="currentColor" stroke-width="2"/><path d="M3.5 10h17M8 3v4M16 3v4" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>Next days</h3>
+        <ol id="week"></ol>
+      </div>
     </section>
   </main>
   <div id="search" hidden>

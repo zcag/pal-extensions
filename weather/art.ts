@@ -16,6 +16,9 @@ function defs(p: string): string {
 <linearGradient id="${p}drop" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#8FD0FF"/><stop offset="1" stop-color="#2F7FE8"/></linearGradient>
 <linearGradient id="${p}bolt" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#FFEB7A"/><stop offset="1" stop-color="#FFA600"/></linearGradient>
 ${(Object.keys(TONES) as Tone[]).map(tone).join("")}
+<radialGradient id="${p}hl" cx=".34" cy=".18" r=".62"><stop offset="0" stop-color="#fff" stop-opacity=".95"/><stop offset=".6" stop-color="#fff" stop-opacity=".18"/><stop offset="1" stop-color="#fff" stop-opacity="0"/></radialGradient>
+<linearGradient id="${p}under" x1="0" y1="0" x2="0" y2="1"><stop offset=".5" stop-color="#2A3550" stop-opacity="0"/><stop offset="1" stop-color="#2A3550" stop-opacity=".22"/></linearGradient>
+<radialGradient id="${p}glow" cx=".5" cy=".5" r=".5"><stop offset=".45" stop-color="#FFC531" stop-opacity=".45"/><stop offset="1" stop-color="#FFC531" stop-opacity="0"/></radialGradient>
 <mask id="${p}crescent"><rect width="64" height="64" fill="#fff"/><circle cx="40" cy="22" r="13" fill="#000"/></mask>
 </defs>`;
 }
@@ -25,13 +28,14 @@ const sun = (p: string, cx: number, cy: number, r: number) => {
     const a = (i * Math.PI) / 4, c = Math.cos(a), s = Math.sin(a);
     return `<line x1="${(cx + c * (r + 4)).toFixed(1)}" y1="${(cy + s * (r + 4)).toFixed(1)}" x2="${(cx + c * (r + 8.5)).toFixed(1)}" y2="${(cy + s * (r + 8.5)).toFixed(1)}"/>`;
   }).join("");
-  return `<g stroke="#FFB21F" stroke-width="3.2" stroke-linecap="round">${rays}</g><circle cx="${cx}" cy="${cy}" r="${r}" fill="url(#${p}sun)"/>`;
+  return `<circle cx="${cx}" cy="${cy}" r="${r * 2.1}" fill="url(#${p}glow)"/><g stroke="#FFB21F" stroke-width="3.2" stroke-linecap="round">${rays}</g><circle cx="${cx}" cy="${cy}" r="${r}" fill="url(#${p}sun)"/><circle cx="${cx - r * 0.32}" cy="${cy - r * 0.36}" r="${r * 0.38}" fill="#fff" opacity=".35"/>`;
 };
 const moon = (p: string, cx: number, cy: number, r: number) =>
   `<g transform="translate(${cx - 32 * r / 15} ${cy - 32 * r / 15}) scale(${r / 15})"><circle cx="32" cy="32" r="15" fill="url(#${p}moon)" mask="url(#${p}crescent)"/></g>`;
 const star = (x: number, y: number, s: number) => `<path d="M${x} ${y - s}Q${x} ${y} ${x + s} ${y}Q${x} ${y} ${x} ${y + s}Q${x} ${y} ${x - s} ${y}Q${x} ${y} ${x} ${y - s}Z" fill="#FFE9A8"/>`;
+/** A cloud with depth: its body, a soft light from the upper left and its shaded underside. */
 const cloud = (p: string, tone: Tone, x = 0, y = 0, s = 1) =>
-  `<path transform="translate(${x} ${y}) scale(${s})" d="${CLOUD}" fill="url(#${p}c-${tone})" stroke="#4A5568" stroke-opacity=".28" stroke-width="${(1.1 / s).toFixed(2)}"/>`;
+  `<g transform="translate(${x} ${y}) scale(${s})"><path d="${CLOUD}" fill="url(#${p}c-${tone})" stroke="#4A5568" stroke-opacity=".28" stroke-width="${(1.1 / s).toFixed(2)}"/><path d="${CLOUD}" fill="url(#${p}hl)" opacity="${tone === "dark" ? ".35" : ".8"}"/><path d="${CLOUD}" fill="url(#${p}under)"/></g>`;
 const streaks = (p: string, pts: [number, number, number][]) =>
   `<g stroke="url(#${p}drop)" stroke-width="3.2" stroke-linecap="round">${pts.map(([x, y, l]) => `<line x1="${x}" y1="${y}" x2="${x - l * 0.35}" y2="${y + l}"/>`).join("")}</g>`;
 const flakes = (pts: [number, number][]) =>

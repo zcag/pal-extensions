@@ -2,12 +2,13 @@
 // `open` (the reading it holds, at once), `refresh`, `search` and `set`,
 // and the page draws the answer over the sky (sky.ts).
 //
-// Keys: ← → walk the hours or the days (shift: three hours), ↑ the hours,
-// ↓ the days, 1–7 a day, N back to now, L or / a place, O or Enter the
-// map, R refresh. A column is a click, and the pointer walks the band.
+// Keys: ← → walk the hours (shift: three at a time), ↑ ↓ or 1–7 pick a
+// day (its hours fill the row), N back to now, L or / a place, O or Enter
+// the map, R refresh. An hour or a day is a click, and the pointer walks
+// the hours.
 import type { SurfaceKit } from "@zcag/pal";
 import { weatherArt } from "../art.ts";
-import { compass, deg, fmt, isWet, lookOf, num, startHour, str, summary, tempColor, uvWord, type Kind, type Reading } from "../model.ts";
+import { deg, fmt, isWet, lookOf, num, startHour, str, summary, tempColor, uvWord, type Kind, type Reading } from "../model.ts";
 import type { Found, Reply } from "../index.ts";
 import { Sky, type SkyTarget } from "./sky.ts";
 
@@ -18,24 +19,33 @@ const esc = (s: string) => s.replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&l
 const WEEKDAY = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
 const dateOf = (iso: string) => new Date(`${iso.slice(0, 10)}T12:00:00`);
 const minutes = (iso: string | undefined) => iso ? Number(iso.slice(11, 13)) * 60 + Number(iso.slice(14, 16)) : undefined;
-const VISIBLE_HOURS = 12;
+/** Hours the row holds for today: from now into tomorrow, as Apple's does. */
+const TODAY_HOURS = 26;
+const COL_W = 52;
 
 const sky = new Sky($<HTMLCanvasElement>("sky"), $<HTMLCanvasElement>("fx"));
+sky.bodies = false;
 let reply: Reply | undefined;
-let mode: "hours" | "days" = "hours";
-let cursor = -1;
 let day = 0;
-let first = -1;
+let cursor = -1;
+let first = 0;
 let shownTemp: number | undefined;
+let shownArt = "";
 
 const r = () => reply?.reading;
 const now = () => r() ? startHour(r()!) : -1;
-const lastHour = () => (r()?.hourly?.time?.length ?? 0) - 1;
+const hourCount = () => r()?.hourly?.time?.length ?? 0;
 const dayCount = () => Math.min(7, r()?.daily?.time?.length ?? 0);
 const dayKey = (d: number) => str(r()?.daily?.time?.[d]);
 const hourOf = (d: number, h: number) => { const key = dayKey(d); return key ? (r()?.hourly?.time ?? []).findIndex((t) => str(t)?.startsWith(`${key}T${String(h).padStart(2, "0")}`)) : -1; };
-const atNow = () => mode === "hours" ? cursor === now() : day === 0;
-const dayName = (iso: string) => { const d = Math.round((dateOf(iso).getTime() - dateOf(dayKey(0)!).getTime()) / 864e5); return d === 0 ? "Today" : d === 1 ? "Tomorrow" : WEEKDAY[dateOf(iso).getDay()]; };
+const atNow = () => day === 0 && cursor === now();
+const dayName = (d: number) => d === 0 ? "Today" : d === 1 ? "Tomorrow" : WEEKDAY[dateOf(dayKey(d)!).getDay()];
+/** The hours the row shows for the chosen day. */
+function span(): [number, number] {
+  if (day === 0) { const a = now(); return [a, Math.min(hourCount(), a + TODAY_HOURS)]; }
+  const a = hourOf(day, 0);
+  return a < 0 ? [0, 0] : [a, Math.min(hourCount(), a + 24)];
+}
 
 // ---- the sky ------------------------------------------------------------------
 
@@ -67,119 +77,133 @@ function skyFor(i: number): SkyTarget {
   return { ...sunAt(x, iso), cover, rain: (k.rain ?? 0) * heavy, snow: (k.snow ?? 0) * heavy, fog: k.fog ?? 0, storm: k.storm ?? 0, wind };
 }
 const nightAt = (i: number) => r()?.hourly?.is_day?.[i] === 0;
+/** The cards' glass takes the sky's colour: deep at night, slate in rain, blue by day. */
+function glass(t: SkyTarget) {
+  const night = t.sun < -0.05, wet = t.rain > 0.2 || t.storm > 0.2;
+  const tint = t.storm > 0.2 ? "28, 32, 44, 0.34" : night ? "16, 22, 54, 0.32" : wet ? "44, 58, 84, 0.28" : t.sun < 0.15 ? "96, 70, 110, 0.24" : t.cover > 0.7 ? "70, 84, 106, 0.26" : "28, 74, 150, 0.22";
+  document.documentElement.style.setProperty("--glass", `rgba(${tint})`);
+}
 
 // ---- the reading ----------------------------------------------------------------
 
 function rollTemp(to: number) {
   const el = $("temp"), from = shownTemp ?? to;
   shownTemp = to;
-  const t0 = performance.now(), span = 420;
+  const t0 = performance.now(), dur = 420;
   const step = (t: number) => {
-    const k = Math.min(1, (t - t0) / span), e = 1 - Math.pow(1 - k, 3);
+    const k = Math.min(1, (t - t0) / dur), e = 1 - Math.pow(1 - k, 3);
     el.textContent = deg(from + (to - from) * e);
     if (k < 1) requestAnimationFrame(step);
   };
   requestAnimationFrame(step);
 }
+function art(kind: Kind, night: boolean) {
+  const key = `${kind}${night}`; if (key === shownArt) return;
+  shownArt = key;
+  const el = $("art");
+  el.innerHTML = weatherArt(kind, night, 112);
+  el.classList.remove("swap"); void el.offsetWidth; el.classList.add("swap");
+}
 const hilo = (d: number) => {
   const hi = num(r()?.daily?.temperature_2m_max?.[d]), lo = num(r()?.daily?.temperature_2m_min?.[d]);
-  return hi !== undefined && lo !== undefined ? `H <b>${deg(hi)}</b>&ensp;L <b>${deg(lo)}</b>` : "";
+  return hi !== undefined && lo !== undefined ? `H:${deg(hi)}&ensp;L:${deg(lo)}` : "";
 };
-const join = (parts: string[]) => parts.filter(Boolean).join("&ensp;·&ensp;");
 
 function hero() {
-  const x = r()!, when = $("when"), h = x.hourly, d = x.daily;
-  let code: number | undefined, night: boolean, said: string | undefined;
+  const x = r()!, h = x.hourly, when = $("when");
+  let code: number | undefined, night: boolean;
   if (atNow()) {
-    when.textContent = "Now"; when.classList.remove("away");
+    when.textContent = ""; when.classList.remove("away");
     rollTemp(x.current.temperature_2m);
-    code = x.current.weather_code; night = x.current.is_day === 0; said = summary(x);
+    code = x.current.weather_code; night = x.current.is_day === 0;
     const feels = num(x.current.apparent_temperature);
-    $("range").innerHTML = join([hilo(0), feels !== undefined ? `Feels <b>${deg(feels)}</b>` : ""]);
-  } else if (mode === "hours") {
+    $("range").innerHTML = `${hilo(0)}${feels !== undefined && Math.round(feels) !== Math.round(x.current.temperature_2m) ? `&ensp;·&ensp;Feels ${deg(feels)}` : ""}`;
+  } else {
     const iso = str(h?.time?.[cursor]) ?? "";
-    when.textContent = `${dayName(iso)} · ${iso.slice(11, 16)}`; when.classList.add("away");
+    when.textContent = `${dayName(day)} · ${iso.slice(11, 16)}`; when.classList.add("away");
     rollTemp(num(h?.temperature_2m?.[cursor]) ?? 0);
     code = num(h?.weather_code?.[cursor]); night = nightAt(cursor);
-    const pop = num(h?.precipitation_probability?.[cursor]), wind = num(h?.wind_speed_10m?.[cursor]);
-    $("range").innerHTML = join([pop !== undefined ? `Rain <b>${fmt(pop)}%</b>` : "", wind !== undefined ? `Wind <b>${Math.round(wind)}</b> ${esc(x.windUnit)}` : ""]);
-    said = undefined;
-  } else {
-    when.textContent = dayName(dayKey(day)!); when.classList.add("away");
-    rollTemp(num(d?.temperature_2m_max?.[day]) ?? 0);
-    code = num(d?.weather_code?.[day]); night = false; said = daySentence(day);
     $("range").innerHTML = hilo(day);
   }
   $("cond").textContent = lookOf(code)[0];
-  $("summary").innerHTML = said ? `${weatherArt(lookOf(code)[3], night, 24)}<span>${esc(said)}</span>` : "";
+  art(lookOf(code)[3], night);
 }
 /** A later day in a sentence: the wettest it gets, or its sky. */
-function daySentence(d: number): string | undefined {
+function daySentence(d: number): string {
   const x = r()!, pop = num(x.daily?.precipitation_probability_max?.[d]), uv = num(x.daily?.uv_index_max?.[d]);
-  const code = num(x.daily?.weather_code?.[d]);
-  if (pop !== undefined && pop >= 40) return `${fmt(pop)}% chance of rain`;
-  if (!isWet(code) && uv !== undefined && uv >= 6) return `UV ${Math.round(uv)}, ${uvWord(uv).toLowerCase()}`;
-  return isWet(code) ? undefined : "Dry all day";
+  const code = num(x.daily?.weather_code?.[d]), name = lookOf(code)[0];
+  const lead = `${dayName(d)}: ${name.toLowerCase()}`;
+  if (pop !== undefined && pop >= 40) return `${lead}, ${fmt(pop)}% chance of rain.`;
+  if (!isWet(code) && uv !== undefined && uv >= 6) return `${lead}, UV ${uvWord(uv).toLowerCase()} at ${Math.round(uv)}.`;
+  return `${lead}, ${deg(num(x.daily?.temperature_2m_max?.[d]))} at best.`;
 }
 
-const svg = (body: string) => `<svg viewBox="0 0 24 24" aria-hidden="true">${body}</svg>`;
-function facts() {
-  const x = r()!, c = x.current, d = x.daily;
-  const out: [string, string][] = [];
-  const dir = num(c.wind_direction_10m);
-  if (c.wind_speed_10m !== undefined) out.push([`Wind${dir === undefined ? "" : ` · ${compass(dir)}`}`, `${Math.round(c.wind_speed_10m)} <em>${esc(x.windUnit)}</em>${dir === undefined ? "" : `<i class="arrow" style="transform:rotate(${dir + 180}deg)">${svg('<path fill="currentColor" d="M12 3l6 15-6-3.5L6 18z"/>')}</i>`}`]);
-  if (c.relative_humidity_2m !== undefined) out.push(["Humidity", `${fmt(c.relative_humidity_2m)}%`]);
-  const uv = num(d?.uv_index_max?.[0]);
-  if (c.precipitation) out.push(["Rain", `${fmt(c.precipitation)} <em>mm</em>`]);
-  else if (uv !== undefined) out.push(["UV today", `${Math.round(uv)} <em>${uvWord(uv)}</em>`]);
-  const sun = [["Sunrise", str(d?.sunrise?.[0])], ["Sunset", str(d?.sunset?.[0])], ["Sunrise", str(d?.sunrise?.[1])]].find(([, t]) => t && t > (c.time ?? ""));
-  if (sun?.[1]) out.push([sun[0]!, sun[1].slice(11, 16)]);
-  $("facts").innerHTML = out.map(([k, v]) => `<div><dt>${k}</dt><dd>${v}</dd></div>`).join("");
-}
+// ---- the hours ---------------------------------------------------------------------
 
-// ---- the band ---------------------------------------------------------------------
-
-const colWidth = () => $("strip").clientWidth / (mode === "hours" ? VISIBLE_HOURS : Math.max(1, dayCount()));
-
-function band() {
-  const x = r()!, track = $("track"), w = colWidth();
-  for (const b of document.querySelectorAll<HTMLElement>("#band nav button")) b.classList.toggle("on", b.dataset.mode === mode);
-  if (mode === "hours") {
-    const h = x.hourly!, a = now(), n = lastHour() - a + 1;
-    const temps = Array.from({ length: n }, (_, j) => j === 0 ? x.current.temperature_2m : num(h.temperature_2m?.[a + j]) ?? x.current.temperature_2m);
-    track.innerHTML = temps.map((t, j) => {
-      const i = a + j, pop = num(h.precipitation_probability?.[i]) ?? 0, iso = str(h.time?.[i]) ?? "";
-      const label = j === 0 ? "Now" : iso.slice(11, 13) === "00" ? WEEKDAY[dateOf(iso).getDay()].slice(0, 3) : iso.slice(11, 16);
-      return `<button class="col${j === 0 ? " now" : ""}" type="button" tabindex="-1" data-i="${i}" style="width:${w}px"><small>${label}</small><div class="art">${j === 0 ? weatherArt(lookOf(x.current.weather_code)[3], x.current.is_day === 0, 30) : weatherArt(lookOf(num(h.weather_code?.[i]))[3], nightAt(i), 30)}</div><b>${deg(t)}</b><span class="pop">${pop >= 30 ? `${fmt(pop)}%` : ""}</span></button>`;
-    }).join("");
-  } else {
-    const d = x.daily!, n = dayCount();
-    const his = Array.from({ length: n }, (_, i) => num(d.temperature_2m_max?.[i]));
-    const los = Array.from({ length: n }, (_, i) => num(d.temperature_2m_min?.[i]));
-    const all = [...his, ...los, x.current.temperature_2m].filter((v): v is number => v !== undefined);
-    const lo = Math.min(...all), span = Math.max(...all) - lo || 1, at = (t: number) => ((t - lo) / span) * 100;
-    track.innerHTML = Array.from({ length: n }, (_, i) => {
-      const hi = his[i], low = los[i], pop = num(d.precipitation_probability_max?.[i]);
-      const bar = hi === undefined || low === undefined ? "" : `<div class="bar"><i style="left:${at(low)}%;right:${100 - at(hi)}%;background:linear-gradient(90deg,${tempColor(low, x.unit)},${tempColor(hi, x.unit)})"></i>${i === 0 ? `<u style="left:${at(x.current.temperature_2m)}%"></u>` : ""}</div>`;
-      return `<button class="col${i === 0 ? " now" : ""}" type="button" tabindex="-1" data-d="${i}" style="width:${w}px"><small>${i === 0 ? "Today" : WEEKDAY[dateOf(dayKey(i)!).getDay()].slice(0, 3)}${pop !== undefined && pop >= 30 ? ` <span class="pop">${fmt(pop)}%</span>` : ""}</small><div class="art">${weatherArt(lookOf(num(d.weather_code?.[i]))[3], false, 30)}</div><b>${deg(hi)}<i>${deg(low)}</i></b>${bar}</button>`;
-    }).join("");
+type Col = { i: number; label: string; html: string };
+/** The sun on the horizon with an arrow up or down, for the row's sunrise and sunset. */
+const SUN_EDGE = (rise: boolean) => `<svg viewBox="0 0 26 26" aria-hidden="true"><defs><radialGradient id="se${rise ? 1 : 0}" cx=".4" cy=".35" r=".7"><stop offset="0" stop-color="#FFF1A8"/><stop offset=".6" stop-color="#FFC531"/><stop offset="1" stop-color="#FF8A1F"/></radialGradient></defs><path d="M6.5 17a6.5 6.5 0 0 1 13 0z" fill="url(#se${rise ? 1 : 0})"/><g stroke="#FFB21F" stroke-width="1.8" stroke-linecap="round"><path d="M13 7.6v1.6M6.4 10.4l1.1 1.1M19.6 10.4l-1.1 1.1M3.6 17h1.6M20.8 17h1.6"/></g><path d="M3 19.5h20" stroke="#fff" stroke-width="1.6" stroke-linecap="round" opacity=".85"/><path d="${rise ? "M13 2.5v4M11 4.5l2-2 2 2" : "M13 2v4M11 4l2 2 2-2"}" stroke="#fff" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" fill="none"/></svg>`;
+function hours(): Col[] {
+  const x = r()!, h = x.hourly!, [a, b] = span(), cols: Col[] = [];
+  const suns = [...(x.daily?.sunrise ?? []).map((t) => [str(t), "Sunrise"] as const), ...(x.daily?.sunset ?? []).map((t) => [str(t), "Sunset"] as const)]
+    .filter((s): s is [string, "Sunrise" | "Sunset"] => !!s[0]);
+  for (let i = a; i < b; i++) {
+    const iso = str(h.time?.[i]) ?? "", live = day === 0 && i === a;
+    const code = live ? x.current.weather_code : num(h.weather_code?.[i]);
+    const pop = num(h.precipitation_probability?.[i]) ?? 0, t = live ? x.current.temperature_2m : num(h.temperature_2m?.[i]);
+    const night = live ? x.current.is_day === 0 : nightAt(i);
+    cols.push({ i, label: live ? "Now" : iso.slice(11, 13), html: `<div class="ic">${weatherArt(lookOf(code)[3], night, 26)}</div><span class="pop">${pop >= 30 ? `${fmt(pop)}%` : ""}</span><b>${deg(t)}</b>` });
+    const next = str(h.time?.[i + 1]);
+    for (const [s, what] of suns) if (s > (live ? x.current.time ?? iso : iso) && (!next || s < next) && i + 1 < b) {
+      cols.push({ i: -1, label: s.slice(11, 16), html: `<div class="ic">${SUN_EDGE(what === "Sunrise")}</div><span class="pop"></span><b>${what}</b>` });
+    }
   }
+  return cols;
+}
+function strip() {
+  const cols = hours();
+  $("track").innerHTML = cols.map((c) => `<div class="hr${c.i < 0 ? " sun" : ""}${c.label === "Now" ? " now" : ""}" data-i="${c.i}" style="width:${c.i < 0 ? COL_W + 8 : COL_W}px"><small>${c.label}</small>${c.html}</div>`).join("");
+  first = 0;
   mark(true);
 }
-/** The selected column lit, and the track slid so it is in view. */
+/** The chosen hour lit, and the row slid so it is in view. */
 function mark(jump = false) {
-  const track = $("track"), w = colWidth();
-  for (const c of track.querySelectorAll<HTMLElement>(".col")) c.classList.toggle("on", mode === "hours" ? Number(c.dataset.i) === cursor : Number(c.dataset.d) === day);
-  let shift = 0;
-  if (mode === "hours") {
-    const a = now();
-    if (first < a) first = a;
-    if (cursor < first) first = cursor;
-    if (cursor > first + VISIBLE_HOURS - 1) first = cursor - VISIBLE_HOURS + 1;
-    shift = (first - a) * w;
+  const track = $("track"), view = $("strip").clientWidth;
+  let x = 0, at = 0, w = 0;
+  for (const c of track.querySelectorAll<HTMLElement>(".hr")) {
+    const on = Number(c.dataset.i) === cursor;
+    c.classList.toggle("on", on);
+    if (on) { at = x; w = c.offsetWidth; }
+    x += c.offsetWidth;
   }
+  if (at < first) first = at;
+  if (at + w > first + view - 12) first = at + w - view + 12;
+  first = Math.max(0, Math.min(first, Math.max(0, x - view)));
   if (jump) { track.style.transition = "none"; requestAnimationFrame(() => { track.style.transition = ""; }); }
-  track.style.transform = `translateX(${-shift}px)`;
+  track.style.transform = `translateX(${-first}px)`;
+}
+
+// ---- the week ----------------------------------------------------------------------
+
+function week() {
+  const x = r()!, d = x.daily!, n = dayCount();
+  const his = Array.from({ length: n }, (_, i) => num(d.temperature_2m_max?.[i]));
+  const los = Array.from({ length: n }, (_, i) => num(d.temperature_2m_min?.[i]));
+  const all = [...his, ...los, x.current.temperature_2m].filter((v): v is number => v !== undefined);
+  const lo = Math.min(...all), span = Math.max(...all) - lo || 1, at = (t: number) => ((t - lo) / span) * 100;
+  $("week").innerHTML = Array.from({ length: n }, (_, i) => {
+    const hi = his[i], low = los[i], pop = num(d.precipitation_probability_max?.[i]), code = num(d.weather_code?.[i]);
+    const bar = hi === undefined || low === undefined ? "" : `<i style="left:${at(low)}%;right:${100 - at(hi)}%;background:linear-gradient(90deg,${tempColor(low, x.unit)},${tempColor(hi, x.unit)})"></i>${i === 0 ? `<u style="left:${Math.min(100, Math.max(0, at(x.current.temperature_2m)))}%"></u>` : ""}`;
+    return `<li data-d="${i}"><span class="d">${i === 0 ? "Today" : WEEKDAY[dateOf(dayKey(i)!).getDay()].slice(0, 3)}</span><span class="ic">${weatherArt(lookOf(code)[3], false, 22)}${pop !== undefined && pop >= 30 ? `<i>${fmt(pop)}%</i>` : ""}</span><span class="lo">${deg(low)}</span><span class="bar">${bar}</span><span class="hi">${deg(hi)}</span></li>`;
+  }).join("");
+  fitWeek();
+}
+/** As many days as the card holds at a readable height; the compact panel shows fewer. */
+function fitWeek() {
+  const list = $("week"), rows = [...list.querySelectorAll<HTMLElement>("li")];
+  for (const li of rows) li.hidden = false;
+  const fits = Math.max(3, Math.floor(list.clientHeight / 22));
+  rows.forEach((li, i) => { li.hidden = i >= fits; });
 }
 
 // ---- moving through time ---------------------------------------------------------
@@ -188,40 +212,37 @@ function show() {
   if (!r()) return;
   hero();
   mark();
-  sky.set(skyFor(mode === "hours" ? (atNow() ? -1 : cursor) : day === 0 ? -1 : hourOf(day, 13)));
-}
-function setMode(m: "hours" | "days") {
-  if (m === mode) return;
-  if (m === "hours") cursor = day === 0 ? now() : Math.max(now(), hourOf(day, 9));
-  else day = Math.max(0, (r()?.daily?.time ?? []).findIndex((t) => str(t) === str(r()?.hourly?.time?.[cursor])?.slice(0, 10)));
-  mode = m;
-  band();
-  show();
+  for (const li of document.querySelectorAll<HTMLElement>("#week li")) li.classList.toggle("on", day > 0 && Number(li.dataset.d) === day);
+  $("summary").querySelector("span")!.textContent = day === 0 ? summary(r()!) ?? `${lookOf(r()!.current.weather_code)[0]} now.` : daySentence(day);
+  const t = skyFor(atNow() ? -1 : cursor);
+  sky.set(t);
+  glass(t);
 }
 function pickDay(d: number) {
-  if (d < 0 || d >= dayCount()) return;
-  if (mode !== "days") { day = d; mode = "days"; band(); }
+  if (d < 0 || d >= dayCount() || (d > 0 && hourOf(d, 0) < 0)) return;
   day = d;
+  cursor = d === 0 ? now() : Math.max(hourOf(d, 0), hourOf(d, 13));
+  strip();
   show();
 }
 function moveHour(by: number) {
-  const next = Math.max(now(), Math.min(lastHour(), cursor + by));
+  const [a, b] = span(), next = Math.max(a, Math.min(b - 1, cursor + by));
   if (next !== cursor) { cursor = next; show(); }
 }
-function backToNow() { mode === "hours" ? (cursor = now(), first = now(), show()) : (day = 0, setMode("hours")); }
+const backToNow = () => pickDay(0);
 
 $("strip").addEventListener("pointermove", (e) => {
-  // The panel opening under a still pointer reports a move of nothing: only a real move walks the band.
+  // The panel opening under a still pointer reports a move of nothing: only a real move walks the hours.
   if (!e.movementX && !e.movementY) return;
-  const c = (e.target as HTMLElement).closest<HTMLElement>(".col"); if (!c) return;
-  if (c.dataset.i && Number(c.dataset.i) !== cursor) { cursor = Number(c.dataset.i); show(); }
-  if (c.dataset.d && Number(c.dataset.d) !== day) { day = Number(c.dataset.d); show(); }
+  const c = (e.target as HTMLElement).closest<HTMLElement>(".hr"); if (!c) return;
+  const i = Number(c.dataset.i);
+  if (i >= 0 && i !== cursor) { cursor = i; show(); }
 });
-$("strip").addEventListener("click", (e) => {
-  const c = (e.target as HTMLElement).closest<HTMLElement>(".col"); if (!c) return;
-  if (c.dataset.d) { day = Number(c.dataset.d); setMode("hours"); }
+$("week").addEventListener("click", (e) => {
+  const li = (e.target as HTMLElement).closest<HTMLElement>("li"); if (!li) return;
+  const d = Number(li.dataset.d);
+  pickDay(d === day ? 0 : d);
 });
-for (const b of document.querySelectorAll<HTMLElement>("#band nav button")) b.addEventListener("click", () => setMode(b.dataset.mode as "hours" | "days"));
 
 // ---- talking to the extension -----------------------------------------------------
 
@@ -231,10 +252,10 @@ function apply(next: Reply) {
   $("place").querySelector("span")!.textContent = next.reading ? next.reading.place.name : "Choose a place";
   if (next.setup) { openSearch(); return; }
   if (!next.reading) { if (next.error) note(next.error); return; }
-  if (cursor < 0 || cursor > lastHour()) cursor = now();
   if (day >= dayCount()) day = 0;
-  if (mode === "hours" && cursor < now()) cursor = now();
-  facts(); band(); show();
+  const [a, b] = span();
+  if (cursor < a || cursor >= b) cursor = day === 0 ? now() : a;
+  week(); strip(); show();
   document.body.classList.add("in");
 }
 async function call(msg: Record<string, unknown>): Promise<Reply | undefined> {
@@ -290,7 +311,7 @@ async function choose(i: number) {
   if (!next) return;
   if (next.error) { note(next.error); return; }
   $("search").hidden = true;
-  mode = "hours"; cursor = -1; first = -1; day = 0;
+  day = 0; cursor = -1;
   apply(next);
 }
 $("place").addEventListener("click", openSearch);
@@ -314,9 +335,9 @@ window.addEventListener("keydown", (e: KeyboardEvent) => {
   }
   if (!r()) return;
   const k = e.key.toLowerCase();
-  const step = (by: number) => mode === "hours" ? moveHour(by * (e.shiftKey ? 3 : 1)) : pickDay(day + by);
   const keys: Record<string, () => void> = {
-    arrowleft: () => step(-1), arrowright: () => step(1), arrowup: () => setMode("hours"), arrowdown: () => setMode("days"),
+    arrowleft: () => moveHour(e.shiftKey ? -3 : -1), arrowright: () => moveHour(e.shiftKey ? 3 : 1),
+    arrowup: () => pickDay(day - 1), arrowdown: () => pickDay(day + 1),
     n: backToNow, home: backToNow, o: () => run("map"), enter: () => run("map"), r: () => run("refresh"), l: () => run("place"), "/": () => run("place"),
   };
   if (/^[1-7]$/.test(k)) { e.preventDefault(); pickDay(Number(k) - 1); return; }
@@ -324,7 +345,7 @@ window.addEventListener("keydown", (e: KeyboardEvent) => {
   if (f) { e.preventDefault(); f(); }
 });
 
-new ResizeObserver(() => { if (r()) band(); }).observe($("strip"));
+new ResizeObserver(() => { if (r()) { mark(true); fitWeek(); } }).observe($("cards"));
 pal.onShown(async () => {
   sky.start();
   const next = await call({ op: "open" });
@@ -334,8 +355,8 @@ pal.onShown(async () => {
 pal.onHidden(() => sky.stop());
 
 const firstReply = await call({ op: "open" });
-if (firstReply?.reading) { apply(firstReply); sky.set(skyFor(-1), true); }
-else if (firstReply) apply(firstReply);
+if (firstReply) apply(firstReply);
+if (firstReply?.reading) { const t = skyFor(-1); sky.set(t, true); glass(t); }
 sky.paint();
 sky.start();
 pal.ready();
