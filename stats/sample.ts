@@ -326,7 +326,8 @@ export class Sampler {
     this.counters = counters;
     this.at = now;
     if (wantAddrs) this.addrsAt = now;
-    if (vols) { this.volumes = vols; this.volumesAt = now; }
+    // A read that came back empty (`df` cut short) is tried again on the next tick rather than kept for DISK_EVERY.
+    if (vols?.length) { this.volumes = vols; this.volumesAt = now; }
     if (procs) { this.lastProcs = procs; this.procsAt = now; }
     const [l1, l5, l15] = loadavg();
     return { at: now, cpu: delta, load: [l1, l5, l15], memory, net: { ifaces, down: totals.reduce((a, i) => a + i.down, 0), up: totals.reduce((a, i) => a + i.up, 0) }, uptime: uptime(), volumes: this.volumes, procs: procs ?? this.lastProcs };

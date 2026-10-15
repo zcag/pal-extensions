@@ -380,13 +380,9 @@ describe("stats popovers", () => {
 let host: Host;
 beforeAll(async () => {
   host = await Host.bundled();
-  // The first render takes two readings FIRST_GAP_MS apart; the gap starts once the first reading (real tools) is in, so the clock is
-  // moved on until the answer comes (a sample ahead of it is the extension's from then on).
-  const first = host.render("stats", "cpu");
-  let done = false;
-  first.finally(() => { done = true; }).catch(() => {});
-  while (!done) { await host.advance(FIRST_GAP_MS); await Bun.sleep(10); }
-  await first;
+  // The first render takes two readings FIRST_GAP_MS apart; the gap starts once the first reading (real tools) is in, so the clock
+  // moves only while that gap is armed: moved blindly, it ran past the tools' own timeouts on a slow runner and killed `df` mid-read.
+  await host.through(host.render("stats", "cpu"), FIRST_GAP_MS);
 });
 afterAll(() => host.kill());
 
