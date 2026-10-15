@@ -8,7 +8,7 @@
 // the hours.
 import type { SurfaceKit } from "@zcag/pal";
 import { sunArt, weatherArt } from "../art.ts";
-import { deg, fmt, isWet, lookOf, num, startHour, str, summary, tempColor, uvWord, type Kind, type Reading } from "../model.ts";
+import { deg, fmt, isLight, isWet, lookOf, num, startHour, str, summary, tempColor, uvWord, type Kind, type Reading } from "../model.ts";
 import type { Found, Reply } from "../index.ts";
 import { Sky, type SkyTarget } from "./sky.ts";
 
@@ -67,8 +67,13 @@ function sunAt(x: Reading, iso: string): { sun: number; arc: number } {
 function skyFor(i: number): SkyTarget {
   const x = r()!, h = x.hourly, live = i < 0;
   const code = live ? x.current.weather_code : num(h?.weather_code?.[i]);
-  const k = KIND[lookOf(code)[3]];
   const cloud = live ? num(x.current.cloud_cover) : num(h?.cloud_cover?.[i]);
+  // A light shower the forecast doubts keeps its cloud and sprinkles: the sky does not turn into a downpour for it.
+  if (!live && isLight(code, num(h?.precipitation_probability?.[i]))) {
+    const sky = KIND[(cloud ?? 100) < 60 ? "partly" : "cloudy"];
+    return { ...sunAt(x, str(h?.time?.[i]) ?? `${dayKey(0)}T12:00`), cover: Math.max((cloud ?? 90) / 100 * 0.95, sky.cover * 0.85), rain: 0.1, snow: 0, fog: 0, storm: 0, wind: num(h?.wind_speed_10m?.[i]) ?? 10 };
+  }
+  const k = KIND[lookOf(code)[3]];
   const cover = cloud === undefined ? k.cover : Math.max((cloud / 100) * 0.95, k.cover * 0.85);
   const wind = (live ? num(x.current.wind_speed_10m) : num(h?.wind_speed_10m?.[i])) ?? 10;
   const iso = (live ? x.current.time : str(h?.time?.[i])) ?? `${dayKey(0)}T12:00`;
@@ -141,8 +146,9 @@ function hero() {
     code = num(h?.weather_code?.[cursor]); night = nightAt(cursor);
     $("range").innerHTML = hilo(day);
   }
-  $("cond").textContent = lookOf(code)[0];
-  photo(lookOf(code)[3], night);
+  const light = !atNow() && isLight(code, num(h?.precipitation_probability?.[cursor]));
+  $("cond").textContent = light ? `${lookOf(code)[0]} possible` : lookOf(code)[0];
+  photo(light ? ((num(h?.cloud_cover?.[cursor]) ?? 100) < 60 ? "partly" : "cloudy") : lookOf(code)[3], night);
 }
 /** A later day in a sentence: the wettest it gets, or its sky. */
 function daySentence(d: number): string {
