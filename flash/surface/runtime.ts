@@ -127,7 +127,7 @@ async function main() {
   document.documentElement.style.cssText = "height:100%;background:#000";
   document.body.style.cssText = "margin:0;height:100%;display:flex;overflow:hidden";
   // Ruffle cancels every key it is given, so the panel's cmd combos (⌘M, ⌘W) would never leave the frame: let them.
-  addEventListener("keydown", (e) => { if (e.metaKey || e.ctrlKey) Object.defineProperty(e, "preventDefault", { value() {} }); }, true);
+  window.addEventListener("keydown", (e: KeyboardEvent) => { if (e.metaKey || e.ctrlKey) Object.defineProperty(e, "preventDefault", { value() {} }); }, true);
   const game = (await (await fetch(new URL("./game.json", location.href))).json()) as Game;
   hydrate(await pal.storage.get("saves"));
   (window as any).RufflePlayer = {
