@@ -48,15 +48,16 @@ const short = (text: string, n = 80) => truncate(oneLine(text), n);
 type Entry = { cmd: string; code: number | null; at: number; ms: number; cwd?: string; timedOut?: boolean };
 const history = async (): Promise<Entry[]> => ((await storage.get<Entry[]>("history")) ?? []).filter((e) => e && typeof e.cmd === "string");
 
-/** One write at a time: two runs ending together would each read the list before the other's write, and one entry would be lost. */
+/** One write at a time, in the order asked, and a listing waits for them: two runs ending together would otherwise lose an entry. */
 let saving = Promise.resolve();
-function remember(r: Run, cwd: string): Promise<void> {
-  return (saving = saving.then(async () => {
-    const list = (await history()).filter((e) => e.cmd !== r.cmd);
-    list.unshift({ cmd: r.cmd, code: r.code, at: r.startedAt, ms: r.ms, cwd, ...(r.timedOut && { timedOut: true }) });
-    await storage.set("history", list.slice(0, HISTORY_MAX));
-  }).catch(() => {}));
+function edit(change: (list: Entry[]) => Entry[]): Promise<void> {
+  const done = saving.then(async () => { await storage.set("history", change(await history())); });
+  saving = done.catch(() => {});
+  return done;
 }
+
+const remember = (r: Run, cwd: string) =>
+  edit((list) => [{ cmd: r.cmd, code: r.code, at: r.startedAt, ms: r.ms, cwd, ...(r.timedOut && { timedOut: true }) }, ...list.filter((e) => e.cmd !== r.cmd)].slice(0, HISTORY_MAX)).catch(() => {});
 
 // ---- running -----------------------------------------------------------------------
 
@@ -103,18 +104,19 @@ const viewOf = (l: Live): View => ({ id: VIEW_ID, title: `$ ${short(l.cmd, 60)}`
 /** Pushes the live tree into the open view (dropped by the core while none is open). */
 const push = (l: Live) => viewApi.update(tree(l), { palette: l.palette, id: VIEW_ID, extension: "shell" }).catch(() => {});
 
-/** Starts the command; the run's end lands in `live` and is pushed to the view, the history updated. */
+/** Starts the command, its running tree pushed at once; the run's end lands in `live` and is pushed to the view, the history updated. */
 function start(cmd: string, palette: Live["palette"]): Live {
   const s = S();
   const l: Live = { cmd, cwd: cwdOf(s), startedAt: Date.now(), palette };
   if (live?.ticker) clearInterval(live.ticker);
   live = l;
+  push(l);
   l.ran = run(cmd, { shell: shellArgv(s.shell), cwd: l.cwd, env: envTable(s.env ?? []), timeout: Math.max(1, s.timeout || 10) });
-  l.ran.then(async (r) => {
+  l.ran.then((r) => {
     l.result = r;
     if (l.ticker) { clearInterval(l.ticker); l.ticker = undefined; }
-    if (live === l) await push(l);
-    await remember(r, l.cwd);
+    if (live === l) push(l);
+    remember(r, l.cwd);
   });
   return l;
 }
@@ -196,6 +198,7 @@ async function pick(id: string, action?: string): Promise<Effect> {
 const historyId = (e: Entry) => `h:${e.cmd}`;
 
 async function historyRows(query = ""): Promise<Item[]> {
+  await saving;
   const list = await history();
   const q = query.trim().toLowerCase();
   const rows = list.filter((e) => !q || e.cmd.toLowerCase().includes(q)).map((e): Item => ({
@@ -215,7 +218,7 @@ async function historyRows(query = ""): Promise<Item[]> {
 
 async function historyPick(id: string, action?: string, ctx?: Ctx): Promise<Effect> {
   if (id === VIEW_ID) return pick(id, action);
-  if (id === "clear") { await storage.remove("history"); return { keep: true, toast: { title: "History cleared" } }; }
+  if (id === "clear") { await edit(() => []); return { keep: true, toast: { title: "History cleared" } }; }
   if (!id.startsWith("h:")) return { keep: true, toast: { title: "Not a command", style: "failure" } };
   const cmd = id.slice(2);
   switch (action) {
@@ -224,8 +227,8 @@ async function historyPick(id: string, action?: string, ctx?: Ctx): Promise<Effe
     case "remove": {
       // Marked rows (`ctx.ids`) go in one write.
       const gone = new Set((ctx?.ids ?? [id]).filter((x) => x.startsWith("h:")).map((x) => x.slice(2)));
-      const all = await history(), kept = all.filter((e) => !gone.has(e.cmd)), n = all.length - kept.length;
-      await storage.set("history", kept);
+      let n = 0;
+      await edit((all) => { const kept = all.filter((e) => !gone.has(e.cmd)); n = all.length - kept.length; return kept; });
       return { keep: true, toast: { title: "Removed", message: n > 1 ? `${n} commands` : short(cmd, 60) } };
     }
     default: return answer(start(cmd, "history"));

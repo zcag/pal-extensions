@@ -11,7 +11,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { CAP, commandsOf, duration, envTable, looksDestructive, PICK_GRACE_MS, run, shellArgv, terminalArgv } from "../shell/run.ts";
 import { tile } from "../.pal/sdk/src/icon.ts";
-import type { Item, View, ViewNode } from "../.pal/sdk/src/protocol.ts";
+import type { View, ViewNode } from "../.pal/sdk/src/protocol.ts";
 import { checkView } from "../.pal/sdk/src/view.ts";
 import { Host, stored, writeTool, logLines } from "../.pal/host/test/harness.ts";
 
@@ -225,9 +225,7 @@ describe("shell", () => {
   });
 
   test("history: every command with its exit code (killed for a timeout), the duration and folder, newest first and once; Enter runs it again as a view; remove and clear; a query filters", async () => {
-    // The run before this one (Run in terminal's `git status`) writes its entry once it ends, which can land after its pick answered.
-    let rows: Item[] = [];
-    await host.until(async () => (rows = await host.list("shell", "history", ""))[0]?.name === "git status", 3000, "git status in the history");
+    const rows = await host.list("shell", "history", "");
     expect(rows.at(-1)).toMatchObject({ id: "clear", name: "Clear history" });
     const entries = rows.slice(0, -1);
     expect(entries.map((r) => r.name).slice(0, 4)).toEqual(["git status", `echo x >> ${join(dir, "stamp")}; wc -l < ${join(dir, "stamp")}`, KILLED, LATE]);
