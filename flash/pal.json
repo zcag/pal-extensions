@@ -27,7 +27,7 @@
       "A game's saves are kept in pal and follow you to your other machines when you sign in",
       "Scores go to the game's leaderboards when it keeps one",
       "Games pause when the panel hides and save what they had",
-      "Adds the Flash games collection, which asks for a password"
+      "Adds the Flash games collection, which asks for a password, then lists its games to play"
     ],
     "permissions": [],
     "platforms": [
@@ -49,7 +49,7 @@
     "flash": {
       "title": "Flash games",
       "kind": "list",
-      "description": "Add the Flash games collection; its games then show in Games."
+      "description": "Add the Flash games collection, then play its games from here or from Games."
     }
   }
 }
