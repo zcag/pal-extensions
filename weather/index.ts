@@ -1,7 +1,7 @@
 // Weather is its own small surface: a named place resolves through Open-Meteo,
 // then the forecast answers the bar, its popover and the palette's page. No
 // Home Assistant account, device permission or token is involved.
-import { errorMessage, now, settings, type BarItem, type Effect, type Extension, type View } from "@zcag/pal";
+import { errorMessage, now, settings, storage, type BarItem, type Effect, type Extension, type View } from "@zcag/pal";
 import { fmt, fold, lookOf, num, parseLocation, placeLabel, type Current, type Place, type Reading } from "./model.ts";
 import { render as renderPopover } from "./view.ts";
 
@@ -68,15 +68,18 @@ async function fetchReading(query: string): Promise<Reading> {
   return { place: p, current: data.current, unit: data.current_units?.temperature_2m ?? "°C", windUnit: data.current_units?.wind_speed_10m ?? "km/h", hourly: data.hourly, daily: data.daily };
 }
 
-/** The last reading, shared by the bar, the popover and the page, and the one request in flight. */
-let held: { query: string; at: number; reading: Reading } | undefined;
+/** The last reading, shared by the bar, the popover and the page, kept in storage so a restart still opens on it; and the one request in flight. */
+type Held = { query: string; at: number; reading: Reading };
+let held: Held | undefined;
+let restored: Promise<void> | undefined;
+const restore = () => (restored ??= storage.get<Held>("last").then((h) => { if (h?.reading && !held) held = h; }, () => {}));
 let inflight: { query: string; promise: Promise<Reading> } | undefined;
 const location = () => settings.get<Settings>().location?.trim() ?? "";
 async function read(force = false): Promise<Reading | undefined> {
   const query = location(); if (!query) return;
   if (!force && held?.query === query && now() - held.at < FRESH_MS) return held.reading;
   if (inflight?.query !== query) {
-    const promise = fetchReading(query).then((reading) => { held = { query, at: now(), reading }; return reading; }).finally(() => { if (inflight?.promise === promise) inflight = undefined; });
+    const promise = fetchReading(query).then((reading) => { held = { query, at: now(), reading }; storage.set("last", held).catch(() => {}); return reading; }).finally(() => { if (inflight?.promise === promise) inflight = undefined; });
     inflight = { query, promise };
   }
   return inflight.promise;
@@ -119,8 +122,12 @@ export type Reply = { title: string; reading?: Reading; error?: string; setup?: 
 /** A place the search found, as the page lists it. */
 export type Found = Place & { region: string };
 
+/** `open` answers at once with whatever is held for the place, marked stale when old (the page then asks for `refresh`); only with nothing held does it wait for the service. */
 async function reply(force = false): Promise<Reply> {
-  if (!location()) return { title: "Weather", setup: true };
+  const query = location();
+  if (!query) return { title: "Weather", setup: true };
+  await restore();
+  if (!force && held?.query === query) return { title: placeLabel(held.reading.place), reading: held.reading, ...(now() - held.at >= FRESH_MS && { stale: true as const }) };
   try {
     const r = await read(force);
     if (!r) return { title: "Weather", setup: true };

@@ -110,10 +110,11 @@ try {
   writeFixture("weather", await settle({
     palettes: { now: palette(now, [{ msg: { op: "search", q: "lond" }, reply: search }]), storm: palette(stormPage) },
     shots: {
-      "1-now": { palette: "now", keys: ["wait:2200"], caption: "Showers over Istanbul: the reading, what is coming, the next 24 hours and the week, over a sky that is raining" },
-      "2-later": { palette: "now", keys: ["wait:1500", ...right(7), "wait:2200"], caption: "The arrows walk the hours: at nine the rain has gone, the sun is down and the sky turns to night" },
-      "3-storm": { palette: "storm", keys: ["wait:2200"], caption: "A thunderstorm: heavy rain blown by the wind, lightning now and then" },
-      "4-place": { palette: "now", keys: ["wait:1500", "type:l", "wait:300", "type:lond", "wait:1200"], caption: "L searches for a place and keeps it" },
+      "1-now": { palette: "now", keys: ["wait:1800"], caption: "Showers over Istanbul: the reading and when the rain eases, the next hours along the bottom, under a raining sky" },
+      "2-later": { palette: "now", keys: ["wait:1200", ...right(7), "wait:2000"], caption: "The arrows walk the hours: at nine the rain has gone, the sun is down and the sky turns to night" },
+      "3-days": { palette: "now", keys: ["wait:1200", "down", "right", "right", "wait:2000"], caption: "Down for the week: each day's sky and its span against the others" },
+      "4-storm": { palette: "storm", keys: ["wait:1800"], caption: "A thunderstorm: heavy rain blown by the wind, lightning now and then" },
+      "5-place": { palette: "now", keys: ["wait:1200", "type:l", "wait:300", "type:lond", "wait:1200"], caption: "L searches for a place and keeps it" },
     },
   }, { hosts }));
   console.log("weather.json, bar-weather.json: showers over Istanbul at 21°C, a thunderstorm, a search for London");
