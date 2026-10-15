@@ -80,7 +80,8 @@ const opened = () => logLines(openLog);
 // Two commands that outlast the pick: each drops a `.up` file once running (in the working directory), so the test moves the clock
 // only after the extension started its waits. LATE ends when the test makes `late.go`; KILLED only by the timeout.
 const LATE = "touch late.up; until [ -e late.go ]; do sleep 0.01; done; echo late";
-const KILLED = "echo partial; touch killed.up; sleep 10; echo never"; // never waited for: the timeout kills it
+// never waited for: the timeout kills it. The marker is touched by the process that then becomes `sleep` (exec), so nothing in the group forks after it appears and the timeout's group kill reaches everything that holds the pipe.
+const KILLED = "echo partial; sh -c 'touch killed.up; exec sleep 10'; echo never";
 const up = (name: string) => host.until(() => existsSync(join(dir, `${name}.up`)), 3000, `${name} running`);
 
 /** The extension's settings here: a 2 s timeout, under the pick grace (a test that outlasts the grace raises it). */
