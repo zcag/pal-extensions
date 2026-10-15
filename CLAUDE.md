@@ -35,6 +35,9 @@ the time budget), and the matching section of `.pal/notes/decisions.md`.
 - `make test` before every push: it is what CI runs (on macOS and Linux),
   against pal's main, and a green run is what gets a commit published. `NAMES="calc timer"` narrows it to those extensions'
   tests while working; the push still needs the whole run.
+- **A flaky test is fixed the session it shows up**, not re-run past, and
+  touching tests leaves them fewer or faster, never more
+  (`.pal/host/test/README.md`).
 - Commit subjects are `<name>: what changed`, one extension a commit where
   you can: the store's per-build notes and pal-site's extension pages read
   them.
