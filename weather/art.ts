@@ -1,68 +1,40 @@
-// The weather illustrations: colour SVG on a 64 grid, shared by the page
-// (inline) and the popover (as `data:` images). They read on light and dark:
-// the clouds carry a faint outline and the flakes are blue, not white.
+// The weather icons: Meteocons (icons.ts), picked by the kind of sky and
+// day or night, as SVG markup for the page and as `data:` images for the
+// popover. Each copy's ids get a prefix of its own, since one page holds
+// many of them and an icon's gradients are found by id.
+import { ICONS } from "./icons.ts";
 import type { Kind } from "./model.ts";
 
 let seq = 0;
-const CLOUD = "M19 46H46A9 9 0 0 0 47.5 28.1A13 13 0 0 0 22.4 25.6A10.2 10.2 0 0 0 19 46Z";
-const TONES = { light: ["#FFFFFF", "#D3DBE6"], grey: ["#E2E7EE", "#A9B4C3"], dark: ["#AEB7C6", "#6E798C"], night: ["#D9DEEB", "#9BA4BF"] } as const;
-type Tone = keyof typeof TONES;
-
-function defs(p: string): string {
-  const tone = (t: Tone) => `<linearGradient id="${p}c-${t}" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="${TONES[t][0]}"/><stop offset="1" stop-color="${TONES[t][1]}"/></linearGradient>`;
-  return `<defs>
-<radialGradient id="${p}sun" cx=".38" cy=".36" r=".7"><stop offset="0" stop-color="#FFF1A8"/><stop offset=".55" stop-color="#FFC531"/><stop offset="1" stop-color="#FF9A1F"/></radialGradient>
-<radialGradient id="${p}moon" cx=".35" cy=".35" r=".75"><stop offset="0" stop-color="#FFF9E3"/><stop offset="1" stop-color="#E9D7A0"/></radialGradient>
-<linearGradient id="${p}drop" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#8FD0FF"/><stop offset="1" stop-color="#2F7FE8"/></linearGradient>
-<linearGradient id="${p}bolt" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#FFEB7A"/><stop offset="1" stop-color="#FFA600"/></linearGradient>
-${(Object.keys(TONES) as Tone[]).map(tone).join("")}
-<radialGradient id="${p}hl" cx=".34" cy=".18" r=".62"><stop offset="0" stop-color="#fff" stop-opacity=".95"/><stop offset=".6" stop-color="#fff" stop-opacity=".18"/><stop offset="1" stop-color="#fff" stop-opacity="0"/></radialGradient>
-<linearGradient id="${p}under" x1="0" y1="0" x2="0" y2="1"><stop offset=".5" stop-color="#2A3550" stop-opacity="0"/><stop offset="1" stop-color="#2A3550" stop-opacity=".22"/></linearGradient>
-<radialGradient id="${p}glow" cx=".5" cy=".5" r=".5"><stop offset=".45" stop-color="#FFC531" stop-opacity=".45"/><stop offset="1" stop-color="#FFC531" stop-opacity="0"/></radialGradient>
-<mask id="${p}crescent"><rect width="64" height="64" fill="#fff"/><circle cx="40" cy="22" r="13" fill="#000"/></mask>
-</defs>`;
-}
-
-const sun = (p: string, cx: number, cy: number, r: number) => {
-  const rays = Array.from({ length: 8 }, (_, i) => {
-    const a = (i * Math.PI) / 4, c = Math.cos(a), s = Math.sin(a);
-    return `<line x1="${(cx + c * (r + 4)).toFixed(1)}" y1="${(cy + s * (r + 4)).toFixed(1)}" x2="${(cx + c * (r + 8.5)).toFixed(1)}" y2="${(cy + s * (r + 8.5)).toFixed(1)}"/>`;
-  }).join("");
-  return `<circle cx="${cx}" cy="${cy}" r="${r * 2.1}" fill="url(#${p}glow)"/><g stroke="#FFB21F" stroke-width="3.2" stroke-linecap="round">${rays}</g><circle cx="${cx}" cy="${cy}" r="${r}" fill="url(#${p}sun)"/><circle cx="${cx - r * 0.32}" cy="${cy - r * 0.36}" r="${r * 0.38}" fill="#fff" opacity=".35"/>`;
+const NAME: Record<Kind, [day: string, night: string]> = {
+  clear: ["clear-day", "clear-night"], partly: ["partly-cloudy-day", "partly-cloudy-night"], cloudy: ["overcast", "overcast"],
+  fog: ["fog-day", "fog-night"], drizzle: ["drizzle", "drizzle"], rain: ["rain", "rain"], heavy: ["extreme-rain", "extreme-rain"],
+  sleet: ["sleet", "sleet"], snow: ["snow", "snow"], storm: ["thunderstorms-rain", "thunderstorms-rain"], hail: ["thunderstorms-hail", "thunderstorms-hail"],
 };
-const moon = (p: string, cx: number, cy: number, r: number) =>
-  `<g transform="translate(${cx - 32 * r / 15} ${cy - 32 * r / 15}) scale(${r / 15})"><circle cx="32" cy="32" r="15" fill="url(#${p}moon)" mask="url(#${p}crescent)"/></g>`;
-const star = (x: number, y: number, s: number) => `<path d="M${x} ${y - s}Q${x} ${y} ${x + s} ${y}Q${x} ${y} ${x} ${y + s}Q${x} ${y} ${x - s} ${y}Q${x} ${y} ${x} ${y - s}Z" fill="#FFE9A8"/>`;
-/** A cloud with depth: its body, a soft light from the upper left and its shaded underside. */
-const cloud = (p: string, tone: Tone, x = 0, y = 0, s = 1) =>
-  `<g transform="translate(${x} ${y}) scale(${s})"><path d="${CLOUD}" fill="url(#${p}c-${tone})" stroke="#4A5568" stroke-opacity=".28" stroke-width="${(1.1 / s).toFixed(2)}"/><path d="${CLOUD}" fill="url(#${p}hl)" opacity="${tone === "dark" ? ".35" : ".8"}"/><path d="${CLOUD}" fill="url(#${p}under)"/></g>`;
-const streaks = (p: string, pts: [number, number, number][]) =>
-  `<g stroke="url(#${p}drop)" stroke-width="3.2" stroke-linecap="round">${pts.map(([x, y, l]) => `<line x1="${x}" y1="${y}" x2="${x - l * 0.35}" y2="${y + l}"/>`).join("")}</g>`;
-const flakes = (pts: [number, number][]) =>
-  `<g stroke="#6FB2F2" stroke-width="2.2" stroke-linecap="round">${pts.map(([x, y]) => `<path d="M${x} ${y - 4}V${y + 4}M${x - 3.5} ${y - 2}L${x + 3.5} ${y + 2}M${x - 3.5} ${y + 2}L${x + 3.5} ${y - 2}"/>`).join("")}</g>`;
-const bolt = (p: string) => `<path d="M34 40L25 53H32L28 62L42 47H35L39 40Z" fill="url(#${p}bolt)" stroke="#E08A00" stroke-width=".8" stroke-linejoin="round"/>`;
-const fogLines = `<g stroke="#9EA9B8" stroke-width="3.4" stroke-linecap="round"><line x1="12" y1="46" x2="50" y2="46"/><line x1="17" y1="53" x2="47" y2="53"/><line x1="13" y1="60" x2="40" y2="60"/></g>`;
 
-/** The illustration for a kind of sky, by day or night, as SVG markup `size` px square. */
-export function weatherArt(kind: Kind, night = false, size = 64): string {
-  const p = `wa${++seq}-`;
-  const lit = night ? moon(p, 42, 21, 11) + star(14, 12, 3) + star(24, 6, 2) : sun(p, 41, 21, 9.5);
-  const top = night ? "night" : "light";
-  const body: Record<Kind, () => string> = {
-    clear: () => night ? moon(p, 30, 32, 17) + star(50, 14, 3.4) + star(14, 18, 2.6) + star(50, 46, 2.2) : sun(p, 32, 32, 13),
-    partly: () => lit + cloud(p, top, -6, 8, 0.92),
-    cloudy: () => cloud(p, "grey", 12, -6, 0.72) + cloud(p, top, -3, 5, 0.95),
-    fog: () => cloud(p, "grey", 0, -10, 0.9) + fogLines,
-    drizzle: () => cloud(p, "grey", 0, -9) + streaks(p, [[24, 44, 6], [34, 47, 6], [44, 44, 6]]),
-    rain: () => cloud(p, "grey", 0, -10) + streaks(p, [[22, 43, 11], [33, 45, 13], [44, 43, 11]]),
-    heavy: () => cloud(p, "dark", 0, -11) + streaks(p, [[18, 41, 13], [27, 44, 15], [36, 41, 13], [45, 44, 15]]),
-    sleet: () => cloud(p, "grey", 0, -10) + streaks(p, [[24, 43, 10]]) + flakes([[38, 49], [30, 58]]),
-    snow: () => cloud(p, "grey", 0, -10) + flakes([[22, 47], [36, 51], [48, 45], [29, 59]]),
-    storm: () => cloud(p, "dark", 0, -12) + bolt(p),
-    hail: () => cloud(p, "dark", 0, -12) + bolt(p) + `<g fill="#E4F0FB" stroke="#7FA9D3" stroke-width="1"><circle cx="18" cy="50" r="2.6"/><circle cx="48" cy="54" r="2.6"/></g>`,
-  };
-  return `<svg xmlns="http://www.w3.org/2000/svg" width="${size}" height="${size}" viewBox="0 0 64 64" aria-hidden="true">${defs(p)}${body[kind]()}</svg>`;
+function sized(svg: string, size: number): string {
+  const p = `wi${++seq}-`;
+  return svg
+    .replace(/\bid="([^"]+)"/g, (_, id) => `id="${p}${id}"`)
+    .replace(/url\(#([^)]+)\)/g, (_, id) => `url(#${p}${id})`)
+    .replace(/href="#([^"]+)"/g, (_, id) => `href="#${p}${id}"`)
+    // Meteocons draw inside a 128 frame with a wide margin: trimmed, the picture fills the size it is given.
+    .replace(/viewBox="0 0 128 128"/, 'viewBox="12 12 104 104"')
+    .replace(/^<svg\b/, `<svg width="${size}" height="${size}" aria-hidden="true"`);
 }
 
-/** The same as an image source, for a view tree's `image` node. */
-export const weatherArtUrl = (kind: Kind, night = false, size = 64) => `data:image/svg+xml,${encodeURIComponent(weatherArt(kind, night, size))}`;
+/** The icon for a kind of sky, by day or night, as SVG markup `size` px square. */
+export const weatherArt = (kind: Kind, night = false, size = 64) => sized(ICONS[NAME[kind][night ? 1 : 0]], size);
+/** Sunrise or sunset. */
+export const sunArt = (rise: boolean, size = 26) => sized(ICONS[rise ? "sunrise" : "sunset"], size);
+/**
+ * The same as an image source, for a view tree's `image` node. The popover
+ * follows the theme and white clouds vanish on a light one, so the icon
+ * sits on a soft shadow that reads on both.
+ */
+export function weatherArtUrl(kind: Kind, night = false, size = 64): string {
+  const shadowed = weatherArt(kind, night, size)
+    .replace(/(<svg\b[^>]*>)/, `$1<defs><filter id="wi-ds" x="-20%" y="-20%" width="140%" height="140%"><feDropShadow dx="0" dy="1.2" stdDeviation="1.6" flood-color="#1b2433" flood-opacity=".38"/></filter></defs><g filter="url(#wi-ds)">`)
+    .replace(/<\/svg>\s*$/, "</g></svg>");
+  return `data:image/svg+xml,${encodeURIComponent(shadowed)}`;
+}

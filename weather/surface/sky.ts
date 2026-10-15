@@ -122,6 +122,8 @@ export class Sky {
   private seed = 7;
   /** Whether the sky draws the sun's and the moon's discs, or leaves them to a picture on the page. */
   bodies = true;
+  /** Whether the shader draws the air; off while a photograph shows the sky, leaving the 2D layer (rain, snow, lightning) over it. */
+  air = true;
 
   constructor(private canvas: HTMLCanvasElement, private overlay: HTMLCanvasElement) {
     this.gl = canvas.getContext("webgl", { antialias: false, alpha: false, preserveDrawingBuffer: false })!;
@@ -179,7 +181,7 @@ export class Sky {
     for (const key of KEYS) this.now[key] += (this.target[key] - this.now[key]) * k;
     const s = this.now;
     this.drift += dt * (0.004 + s.wind * 0.0009);
-    this.sky(s);
+    if (this.air) this.sky(s);
     this.weather(s, dt);
   }
 
@@ -239,6 +241,7 @@ export class Sky {
       this.nextBolt -= dt;
       if (this.nextBolt <= 0) { this.strike(); this.nextBolt = 2.5 + this.rnd() * 5; }
     }
+    if (!this.air && this.flash > 0.01) { g.fillStyle = `rgba(225,232,255,${(this.flash * 0.45).toFixed(3)})`; g.fillRect(0, 0, w, h); }
     this.flash *= Math.exp(-dt * 9);
     if (this.bolt) {
       const b = this.bolt; b.age += dt;

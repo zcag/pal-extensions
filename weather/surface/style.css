@@ -32,6 +32,10 @@ kbd {
 svg { display: block; }
 
 #sky, #fx { position: fixed; inset: 0; width: 100%; height: 100%; }
+/* The photograph of the sky now: two layers, the new one fading in over the old. */
+#photos .photo { position: fixed; inset: 0; background: center / cover no-repeat; opacity: 0; transition: opacity 0.9s var(--ease); }
+#photos .photo.on { opacity: 1; }
+.scrim { position: fixed; inset: 0; pointer-events: none; background: linear-gradient(90deg, rgba(0, 0, 0, 0.32), rgba(0, 0, 0, 0.08) 45%, rgba(0, 0, 0, 0.12)); }
 #app {
   position: fixed; inset: 0; padding: var(--gap); display: grid; gap: var(--gap);
   grid-template-columns: minmax(0, 0.8fr) minmax(0, 1.2fr);
@@ -44,11 +48,6 @@ body.in #app { opacity: 1; transform: none; }
   display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; min-width: 0;
   text-shadow: 0 1px 2px rgba(0, 0, 0, 0.12), 0 2px 18px rgba(0, 0, 0, 0.2);
 }
-#art { width: 112px; height: 112px; margin: -10px 0 -8px; filter: drop-shadow(0 12px 18px rgba(0, 0, 0, 0.25)); animation: float 6s ease-in-out infinite; }
-#art svg { width: 100%; height: 100%; }
-#art.swap { animation: float 6s ease-in-out infinite, pop 0.5s var(--ease); }
-@keyframes float { 50% { transform: translateY(-5px); } }
-@keyframes pop { from { opacity: 0.2; scale: 0.9; } }
 #place {
   display: inline-flex; align-items: center; gap: 4px; font-size: 20px; font-weight: 500; letter-spacing: -0.01em;
   max-width: 100%; padding: 1px 8px; border-radius: 9px; transition: background 0.2s;
@@ -58,7 +57,7 @@ body.in #app { opacity: 1; transform: none; }
 #place:hover { background: rgba(255, 255, 255, 0.13); }
 #when { height: 14px; font-size: 11px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: var(--ink-3); }
 #when.away { color: #ffe39a; }
-#temp { font-size: 74px; font-weight: 200; line-height: 0.95; letter-spacing: -0.03em; margin: 0 0 1px 0.18em; font-variant-numeric: tabular-nums; }
+#temp { font-size: 92px; font-weight: 200; line-height: 0.95; letter-spacing: -0.03em; margin: 0 0 1px 0.18em; font-variant-numeric: tabular-nums; }
 #cond { font-size: 15px; font-weight: 600; color: var(--ink-2); }
 #range { margin-top: 1px; font-size: 15px; font-weight: 600; font-variant-numeric: tabular-nums; }
 
@@ -73,15 +72,15 @@ body.in #app { opacity: 1; transform: none; }
 #summary { display: flex; align-items: center; gap: 6px; margin: 0 0 6px; padding-bottom: 7px; border-bottom: 0.5px solid var(--rule); font-size: 12.5px; font-weight: 500; line-height: 1.25; }
 #summary span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 #summary svg { width: 13px; height: 13px; flex: none; color: var(--ink-3); }
-#strip { position: relative; height: 80px; overflow: hidden; margin: 0 -8px; -webkit-mask-image: linear-gradient(90deg, transparent, #000 3%, #000 95%, transparent); mask-image: linear-gradient(90deg, transparent, #000 3%, #000 95%, transparent); }
+#strip { position: relative; height: 82px; overflow: hidden; margin: 0 -8px; -webkit-mask-image: linear-gradient(90deg, transparent, #000 3%, #000 95%, transparent); mask-image: linear-gradient(90deg, transparent, #000 3%, #000 95%, transparent); }
 #track { position: absolute; inset: 0 auto 0 0; display: flex; transition: transform 0.4s var(--ease); }
 .hr { flex: none; display: flex; flex-direction: column; align-items: center; padding-top: 3px; border-radius: 10px; transition: background 0.2s; }
 .hr.on { background: rgba(255, 255, 255, 0.17); }
 .hr small { font-size: 12px; font-weight: 600; white-space: nowrap; }
 .hr.now small { font-weight: 700; }
-.hr .ic { width: 26px; height: 26px; margin-top: 3px; }
+.hr .ic { width: 32px; height: 32px; margin-top: 1px; }
 .hr .ic svg { width: 100%; height: 100%; }
-.hr .pop { height: 11px; font-size: 9.5px; font-weight: 700; color: var(--rain); line-height: 11px; }
+.hr .pop { height: 10px; font-size: 9.5px; font-weight: 700; color: var(--rain); line-height: 11px; }
 .hr b { font-size: 15px; font-weight: 600; font-variant-numeric: tabular-nums; white-space: nowrap; }
 .hr.sun b { font-size: 12px; font-weight: 600; padding-top: 3px; }
 
@@ -98,7 +97,7 @@ body.in #app { opacity: 1; transform: none; }
 #week li.on::before, #week li.on + li::before { display: none; }
 #week .d { font-size: 14px; font-weight: 600; }
 #week .ic { display: flex; align-items: center; gap: 3px; }
-#week .ic svg { width: 22px; height: 22px; flex: none; }
+#week .ic svg { width: 26px; height: 26px; flex: none; margin: -2px 0; }
 #week .ic i { font-style: normal; font-size: 11px; font-weight: 700; color: var(--rain); }
 #week .lo { font-size: 14px; font-weight: 600; color: var(--ink-3); text-align: right; font-variant-numeric: tabular-nums; }
 #week .hi { font-size: 14px; font-weight: 600; text-align: right; font-variant-numeric: tabular-nums; }
@@ -138,12 +137,10 @@ body.in #app { opacity: 1; transform: none; }
 
 @media (max-width: 640px) {
   #app { grid-template-columns: minmax(0, 0.72fr) minmax(0, 1.28fr); }
-  #art { width: 88px; height: 88px; }
-  #temp { font-size: 62px; }
+  #temp { font-size: 76px; }
   #place { font-size: 17px; }
   #week li { grid-template-columns: 38px 50px 26px minmax(0, 1fr) 26px; column-gap: 6px; }
 }
 @media (max-height: 330px) {
-  #art { width: 84px; height: 84px; margin: -6px 0 -6px; }
-  #temp { font-size: 62px; }
+  #temp { font-size: 80px; }
 }

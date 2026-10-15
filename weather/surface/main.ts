@@ -7,7 +7,7 @@
 // the map, R refresh. An hour or a day is a click, and the pointer walks
 // the hours.
 import type { SurfaceKit } from "@zcag/pal";
-import { weatherArt } from "../art.ts";
+import { sunArt, weatherArt } from "../art.ts";
 import { deg, fmt, isWet, lookOf, num, startHour, str, summary, tempColor, uvWord, type Kind, type Reading } from "../model.ts";
 import type { Found, Reply } from "../index.ts";
 import { Sky, type SkyTarget } from "./sky.ts";
@@ -30,7 +30,6 @@ let day = 0;
 let cursor = -1;
 let first = 0;
 let shownTemp: number | undefined;
-let shownArt = "";
 
 const r = () => reply?.reading;
 const now = () => r() ? startHour(r()!) : -1;
@@ -77,6 +76,30 @@ function skyFor(i: number): SkyTarget {
   return { ...sunAt(x, iso), cover, rain: (k.rain ?? 0) * heavy, snow: (k.snow ?? 0) * heavy, fog: k.fog ?? 0, storm: k.storm ?? 0, wind };
 }
 const nightAt = (i: number) => r()?.hourly?.is_day?.[i] === 0;
+/** The photograph for a kind of sky at a time of day (photos/, credits in photos/credits.json). */
+function slot(kind: Kind, night: boolean, sun: number, arc: number): string {
+  const n = night ? "night" : "day";
+  switch (kind) {
+    case "clear": return night ? "clear-night" : sun < 0.3 ? (arc < 0.5 ? "clear-morning" : "clear-golden") : "clear-day";
+    case "partly": return `partly-${n}`;
+    case "cloudy": return `overcast-${n}`;
+    case "fog": return `fog-${n}`;
+    case "drizzle": return night ? "rain-night" : "drizzle";
+    case "rain": case "heavy": case "sleet": return `rain-${n}`;
+    case "snow": return `snow-${n}`;
+    case "storm": case "hail": return "storm";
+  }
+}
+let shownPhoto = "";
+function photo(kind: Kind, night: boolean) {
+  const t = skyFor(atNow() ? -1 : cursor), name = slot(kind, night, t.sun, t.arc);
+  if (name === shownPhoto) return;
+  shownPhoto = name;
+  const [a, b] = document.querySelectorAll<HTMLElement>("#photos .photo"), next = a.classList.contains("on") ? b : a, prev = next === a ? b : a;
+  const img = new Image();
+  img.onload = () => { next.style.backgroundImage = `url("${img.src}")`; next.classList.add("on"); prev.classList.remove("on"); sky.air = false; };
+  img.src = `./photos/${name}.jpg`;
+}
 /** The cards' glass takes the sky's colour: deep at night, slate in rain, blue by day. */
 function glass(t: SkyTarget) {
   const night = t.sun < -0.05, wet = t.rain > 0.2 || t.storm > 0.2;
@@ -96,13 +119,6 @@ function rollTemp(to: number) {
     if (k < 1) requestAnimationFrame(step);
   };
   requestAnimationFrame(step);
-}
-function art(kind: Kind, night: boolean) {
-  const key = `${kind}${night}`; if (key === shownArt) return;
-  shownArt = key;
-  const el = $("art");
-  el.innerHTML = weatherArt(kind, night, 112);
-  el.classList.remove("swap"); void el.offsetWidth; el.classList.add("swap");
 }
 const hilo = (d: number) => {
   const hi = num(r()?.daily?.temperature_2m_max?.[d]), lo = num(r()?.daily?.temperature_2m_min?.[d]);
@@ -126,7 +142,7 @@ function hero() {
     $("range").innerHTML = hilo(day);
   }
   $("cond").textContent = lookOf(code)[0];
-  art(lookOf(code)[3], night);
+  photo(lookOf(code)[3], night);
 }
 /** A later day in a sentence: the wettest it gets, or its sky. */
 function daySentence(d: number): string {
@@ -141,8 +157,6 @@ function daySentence(d: number): string {
 // ---- the hours ---------------------------------------------------------------------
 
 type Col = { i: number; label: string; html: string };
-/** The sun on the horizon with an arrow up or down, for the row's sunrise and sunset. */
-const SUN_EDGE = (rise: boolean) => `<svg viewBox="0 0 26 26" aria-hidden="true"><defs><radialGradient id="se${rise ? 1 : 0}" cx=".4" cy=".35" r=".7"><stop offset="0" stop-color="#FFF1A8"/><stop offset=".6" stop-color="#FFC531"/><stop offset="1" stop-color="#FF8A1F"/></radialGradient></defs><path d="M6.5 17a6.5 6.5 0 0 1 13 0z" fill="url(#se${rise ? 1 : 0})"/><g stroke="#FFB21F" stroke-width="1.8" stroke-linecap="round"><path d="M13 7.6v1.6M6.4 10.4l1.1 1.1M19.6 10.4l-1.1 1.1M3.6 17h1.6M20.8 17h1.6"/></g><path d="M3 19.5h20" stroke="#fff" stroke-width="1.6" stroke-linecap="round" opacity=".85"/><path d="${rise ? "M13 2.5v4M11 4.5l2-2 2 2" : "M13 2v4M11 4l2 2 2-2"}" stroke="#fff" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" fill="none"/></svg>`;
 function hours(): Col[] {
   const x = r()!, h = x.hourly!, [a, b] = span(), cols: Col[] = [];
   const suns = [...(x.daily?.sunrise ?? []).map((t) => [str(t), "Sunrise"] as const), ...(x.daily?.sunset ?? []).map((t) => [str(t), "Sunset"] as const)]
@@ -155,7 +169,7 @@ function hours(): Col[] {
     cols.push({ i, label: live ? "Now" : iso.slice(11, 13), html: `<div class="ic">${weatherArt(lookOf(code)[3], night, 26)}</div><span class="pop">${pop >= 30 ? `${fmt(pop)}%` : ""}</span><b>${deg(t)}</b>` });
     const next = str(h.time?.[i + 1]);
     for (const [s, what] of suns) if (s > (live ? x.current.time ?? iso : iso) && (!next || s < next) && i + 1 < b) {
-      cols.push({ i: -1, label: s.slice(11, 16), html: `<div class="ic">${SUN_EDGE(what === "Sunrise")}</div><span class="pop"></span><b>${what}</b>` });
+      cols.push({ i: -1, label: s.slice(11, 16), html: `<div class="ic">${sunArt(what === "Sunrise", 26)}</div><span class="pop"></span><b>${what}</b>` });
     }
   }
   return cols;
