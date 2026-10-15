@@ -1,0 +1,41 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Weather</title>
+  <script src="/__pal/surface.js"></script>
+  <link rel="stylesheet" href="./style.css">
+  <script type="module" src="./main.ts"></script>
+</head>
+<body>
+  <canvas id="sky"></canvas>
+  <div class="scrim"></div>
+  <main id="app">
+    <section id="hero">
+      <button id="place" type="button" tabindex="-1" title="Change the place (L)"><svg viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M12 2.5a7 7 0 0 0-7 7c0 5 7 12 7 12s7-7 7-12a7 7 0 0 0-7-7zm0 9.6a2.6 2.6 0 1 1 0-5.2 2.6 2.6 0 0 1 0 5.2z"/></svg><span></span></button>
+      <div id="when"></div>
+      <div id="temp"></div>
+      <div id="cond"></div>
+      <div id="range"></div>
+      <div id="summary"></div>
+    </section>
+    <section id="right">
+      <div id="hours" class="card">
+        <header><span id="hours-title"></span><span class="hint"><kbd>←</kbd><kbd>→</kbd> hours <kbd>↑</kbd><kbd>↓</kbd> days</span></header>
+        <div id="chart"></div>
+      </div>
+      <div id="chips"></div>
+    </section>
+    <section id="days"></section>
+  </main>
+  <div id="search" hidden>
+    <div class="sheet card">
+      <label><svg viewBox="0 0 24 24" aria-hidden="true"><path fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" d="M10.5 4a6.5 6.5 0 1 1 0 13 6.5 6.5 0 0 1 0-13zM15.4 15.4 20 20"/></svg><input id="q" type="text" placeholder="Search for a city" autocomplete="off" spellcheck="false"></label>
+      <ol id="found"></ol>
+      <footer><kbd>↑</kbd><kbd>↓</kbd> move <kbd>↵</kbd> choose</footer>
+    </div>
+  </div>
+  <div id="note" hidden></div>
+</body>
+</html>

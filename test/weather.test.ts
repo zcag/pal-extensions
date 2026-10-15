@@ -36,7 +36,6 @@ const currentOnly = { current: forecastWithOutlook.current, current_units: forec
 let forecast: Record<string, unknown> = forecastWithOutlook;
 const nodes = (n: ViewNode): ViewNode[] => [n, ...("children" in n ? n.children.flatMap(nodes) : [])];
 const texts = (v: View) => nodes(v.tree).flatMap((n) => (n.type === "text" ? [n.value] : []));
-const keycaps = (v: View) => nodes(v.tree).flatMap((n) => (n.type === "keycap" ? [n.keys] : []));
 const viewOf = (x: unknown): View => {
   const o = x as { view?: View; menu?: { view?: View } };
   const v = o.view ?? o.menu?.view;
@@ -46,8 +45,9 @@ const viewOf = (x: unknown): View => {
 const server = Bun.serve({ port: 0, fetch(req) {
   const url = new URL(req.url);
   if (url.pathname.includes("search")) { const hit = INDEX[(url.searchParams.get("name") ?? "").toLowerCase()]; return Response.json(hit ? { results: hit } : {}); }
-  expect(url.searchParams.get("hourly")).toBe("temperature_2m,weather_code,precipitation_probability");
-  expect(url.searchParams.get("daily")).toBe("weather_code,temperature_2m_max,temperature_2m_min,precipitation_probability_max,sunrise,sunset");
+  expect(url.searchParams.get("current")).toBe("temperature_2m,apparent_temperature,relative_humidity_2m,wind_speed_10m,wind_direction_10m,cloud_cover,weather_code,precipitation,is_day");
+  expect(url.searchParams.get("hourly")).toBe("temperature_2m,weather_code,precipitation_probability,is_day,cloud_cover,wind_speed_10m");
+  expect(url.searchParams.get("daily")).toBe("weather_code,temperature_2m_max,temperature_2m_min,precipitation_probability_max,sunrise,sunset,uv_index_max");
   return Response.json(forecast);
 } });
 const configured = (location: string) => ({ settings: { location } });
@@ -61,11 +61,25 @@ describe("weather", () => {
     expect(loaded.bar[0].keys!.map((k) => k.keys)).toEqual(["o", "r"]);
   });
 
-  test("a notable condition has an independent condition-led bar and compact palette", async () => {
+  test("a notable condition has a condition-led bar, and the page reads the same reading without asking again", async () => {
     forecast = forecastWithOutlook;
     host.changeSettings("weather", configured("Istanbul, Turkey"));
     expect(await host.render("weather", "weather")).toMatchObject({ icon: "󰖗", title: "14°C", tooltip: "Rain in Istanbul", states: { temp: 14, quiet: false, condition: "Rain" } });
-    expect((await host.list("weather", "weather")).map((x) => x.name)).toEqual(["14°C", "12°C", "82%", "18 km/h"]);
+    forecast = currentOnly;
+    try {
+      const open = await host.surfaceSend("weather", "weather", { op: "open" }) as { title: string; reading: { current: { temperature_2m: number }; daily?: unknown }; stale?: true };
+      expect(open).toMatchObject({ title: "Istanbul, Republic of Türkiye", reading: { current: { temperature_2m: 14 }, daily: { time: expect.any(Array) } } });
+      expect(open.stale).toBeUndefined();
+      const fresh = await host.surfaceSend("weather", "weather", { op: "refresh" }) as { reading: { daily?: unknown } };
+      expect(fresh.reading.daily).toBeUndefined();
+    } finally { forecast = forecastWithOutlook; }
+  });
+
+  test("with no location the page opens on the place search", async () => {
+    host.changeSettings("weather", configured(""));
+    try {
+      expect(await host.surfaceSend("weather", "weather", { op: "open" })).toEqual({ title: "Weather", setup: true });
+    } finally { host.changeSettings("weather", configured("Istanbul, Turkey")); }
   });
 
   test("the popover starts the hourly strip at the current hour and shows the compact forecast", async () => {
@@ -76,10 +90,11 @@ describe("weather", () => {
     const t = texts(v);
     expect(t).toContain("Next hours");
     expect(t).not.toContain("08:00");
-    expect(t).toEqual(expect.arrayContaining(["09:00", "10:00", "11:00", "12:00", "13:00", "14:00", "15:00", "16:00"]));
-    expect(t).toEqual(expect.arrayContaining(["14°C", "15°C", "80%", "35%"]));
-    expect(t).toEqual(expect.arrayContaining(["Forecast", "Today", "Fri 18 Sep", "Sat 19 Sep", "Sun 20 Sep", "17 / 11°C", "20 / 12°C", "24 / 14°C", "18 / 10°C", "Rise 06:47", "Set 19:08"]));
-    expect(keycaps(v)).toEqual(["o", "r"]);
+    expect(t).not.toContain("09:00");
+    expect(t).toEqual(expect.arrayContaining(["Now", "10:00", "11:00", "12:00", "13:00", "14:00", "15:00", "16:00"]));
+    expect(t).toEqual(expect.arrayContaining(["14°", "15°", "80%", "35%"]));
+    expect(t).toEqual(expect.arrayContaining(["Forecast", "Today", "Fri", "Sat", "Sun", "Mon", "17°", "11°", "24°"]));
+    expect(t).toEqual(expect.arrayContaining(["Rain", "H 17°  L 11°", "Feels like 12°", "Rain easing around 12:00", "Humidity 82%  ·  Wind 18 km/h  ·  Rain 1.2 mm  ·  Sunset 19:08"]));
     expect(v.actions!.map((a) => [a.id, a.shortcut])).toEqual([["map", "o"], ["refresh", "r"]]);
   });
 
@@ -88,7 +103,7 @@ describe("weather", () => {
     host.changeSettings("weather", configured("Istanbul, Turkey"));
     const v = viewOf(await host.render("weather", "weather"));
     const t = texts(v);
-    expect(t).toEqual(expect.arrayContaining(["14°C", "Rain", "Feels like", "12°C", "Humidity", "82%", "Wind", "18 km/h", "Rain", "1.2 mm"]));
+    expect(t).toEqual(expect.arrayContaining(["14°", "Rain", "Feels like 12°", "Humidity 82%  ·  Wind 18 km/h  ·  Rain 1.2 mm", "1.2 mm in the last hour"]));
     expect(t).not.toContain("Next hours");
     expect(t).not.toContain("Forecast");
     expect(await host.barAction("weather", "weather", "refresh")).toMatchObject({ view: { id: "weather" }, hud: "Refreshed" });
@@ -138,5 +153,14 @@ describe("weather", () => {
     host.changeSettings("weather", configured(""));
     expect(await host.render("weather", "weather")).toMatchObject({ hidden: true });
     expect(host.loaded().find((x) => x.extension === "weather")!.bar[0].mocks?.quiet.item).toEqual({ hidden: true, empty: { icon: "󰖕", title: "19°C", tooltip: "Partly cloudy in Istanbul" } });
+  });
+
+  test("the page searches places with their region and keeps the one chosen as the location", async () => {
+    const found = await host.surfaceSend("weather", "weather", { op: "search", q: "London, Canada" }) as { name: string; region: string; country_code: string }[];
+    expect(found.map((f) => [f.name, f.region, f.country_code])).toEqual([["London", "Ontario, Canada", "CA"], ["London", "England, United Kingdom", "GB"]]);
+    expect(await host.surfaceSend("weather", "weather", { op: "search", q: "Nowhereville" })).toEqual([]);
+    const set = await host.surfaceSend("weather", "weather", { op: "set", place: found[0] }) as { title: string; reading: unknown };
+    expect(set.title).toBe("London, Ontario, Canada");
+    expect(host.written.get("weather")).toMatchObject({ location: "London, Ontario, Canada" });
   });
 });

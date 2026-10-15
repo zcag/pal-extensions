@@ -1,26 +1,25 @@
 // Weather is its own small surface: a named place resolves through Open-Meteo,
-// then current conditions answer the bar and palette. No Home Assistant account,
-// device permission or token is involved.
-import { errorMessage, hint, settings, type BarItem, type Effect, type Extension, type Item } from "@zcag/pal";
-import { fmt, fold, label, placeLabel, render as renderPopover, type Current, type Place, type Reading } from "./view.ts";
+// then the forecast answers the bar, its popover and the palette's page. No
+// Home Assistant account, device permission or token is involved.
+import { errorMessage, now, settings, type BarItem, type Effect, type Extension, type View } from "@zcag/pal";
+import { fmt, fold, lookOf, num, parseLocation, placeLabel, type Current, type Place, type Reading } from "./model.ts";
+import { render as renderPopover } from "./view.ts";
 
-/** Each reading under the answer its own mark (md thermometer, water percent, weather windy), not the condition's again. */
-const ROW_GLYPH: Record<string, string> = { feels: "\u{f050f}", humidity: "\u{f058e}", wind: "\u{f059d}" };
+export { parseLocation } from "./model.ts";
 
 /** `[extensions.weather]`, defaults in pal.json. */
 type Settings = { location: string };
 const GEOCODE = () => process.env.PAL_WEATHER_GEOCODE ?? "https://geocoding-api.open-meteo.com/v1/search";
 const FORECAST = () => process.env.PAL_WEATHER_FORECAST ?? "https://api.open-meteo.com/v1/forecast";
+const CURRENT = "temperature_2m,apparent_temperature,relative_humidity_2m,wind_speed_10m,wind_direction_10m,cloud_cover,weather_code,precipitation,is_day";
+const HOURLY = "temperature_2m,weather_code,precipitation_probability,is_day,cloud_cover,wind_speed_10m";
+const DAILY = "weather_code,temperature_2m_max,temperature_2m_min,precipitation_probability_max,sunrise,sunset,uv_index_max";
+/** The bar polls (every render reads afresh); the page answers from its latest reading at once, and one older than this is marked stale so the page asks again. */
+const FRESH_MS = 5 * 60_000;
 const placeCache = new Map<string, Place>();
 
 const quietCodes = new Set([0, 1, 2, 3]);
-const number = (value: unknown) => typeof value === "number" && Number.isFinite(value) ? value : undefined;
 
-/** The searched name is the first segment; the rest only rank the answers. */
-export function parseLocation(raw: string): { name: string; qualifiers: string[] } {
-  const parts = raw.split(",").map((x) => x.trim()).filter(Boolean);
-  return { name: parts[0] ?? "", qualifiers: parts.slice(1).map(fold) };
-}
 const score = (p: Place, qualifiers: string[]) => {
   const fields = [p.country, p.country_code, p.admin1, p.admin2, ...(p.postcodes ?? [])].filter((x): x is string => !!x).map(fold);
   return qualifiers.filter((q) => fields.some((f) => f === q || f.includes(q))).length;
@@ -45,27 +44,44 @@ async function json<T>(url: URL): Promise<T> {
   if (!response.ok) throw new Error(`${response.status} from ${url.hostname}`);
   return response.json() as Promise<T>;
 }
+async function geocode(name: string, count = 10): Promise<Place[]> {
+  const url = new URL(GEOCODE()); url.searchParams.set("name", name); url.searchParams.set("count", String(count)); url.searchParams.set("language", "en");
+  return (await json<{ results?: Place[] }>(url)).results ?? [];
+}
 async function place(query: string): Promise<Place | undefined> {
   const cached = placeCache.get(query); if (cached) return cached;
   const { name, qualifiers } = parseLocation(query); if (!name) return;
-  const url = new URL(GEOCODE()); url.searchParams.set("name", name); url.searchParams.set("count", "10"); url.searchParams.set("language", "en");
-  const found = pickPlace((await json<{ results?: Place[] }>(url)).results ?? [], qualifiers);
+  const found = pickPlace(await geocode(name), qualifiers);
   if (found) placeCache.set(query, found);
   return found;
 }
-async function read(): Promise<Reading | undefined> {
-  const s = settings.get<Settings>(); const query = s.location?.trim(); if (!query) return;
+async function fetchReading(query: string): Promise<Reading> {
   const p = await place(query); if (!p) throw new Error(`No place named “${parseLocation(query).name}”`);
   const url = new URL(FORECAST());
   url.searchParams.set("latitude", String(p.latitude)); url.searchParams.set("longitude", String(p.longitude));
-  url.searchParams.set("current", "temperature_2m,apparent_temperature,relative_humidity_2m,wind_speed_10m,weather_code,precipitation,is_day");
-  url.searchParams.set("hourly", "temperature_2m,weather_code,precipitation_probability");
-  url.searchParams.set("daily", "weather_code,temperature_2m_max,temperature_2m_min,precipitation_probability_max,sunrise,sunset");
+  url.searchParams.set("current", CURRENT);
+  url.searchParams.set("hourly", HOURLY);
+  url.searchParams.set("daily", DAILY);
   url.searchParams.set("timezone", "auto");
   const data = await json<{ current?: Current; current_units?: Record<string, string>; hourly?: Reading["hourly"]; daily?: Reading["daily"] }>(url);
-  if (!data.current || number(data.current.temperature_2m) === undefined || number(data.current.weather_code) === undefined) throw new Error("Weather service returned no current conditions");
+  if (!data.current || num(data.current.temperature_2m) === undefined || num(data.current.weather_code) === undefined) throw new Error("Weather service returned no current conditions");
   return { place: p, current: data.current, unit: data.current_units?.temperature_2m ?? "°C", windUnit: data.current_units?.wind_speed_10m ?? "km/h", hourly: data.hourly, daily: data.daily };
 }
+
+/** The last reading, shared by the bar, the popover and the page, and the one request in flight. */
+let held: { query: string; at: number; reading: Reading } | undefined;
+let inflight: { query: string; promise: Promise<Reading> } | undefined;
+const location = () => settings.get<Settings>().location?.trim() ?? "";
+async function read(force = false): Promise<Reading | undefined> {
+  const query = location(); if (!query) return;
+  if (!force && held?.query === query && now() - held.at < FRESH_MS) return held.reading;
+  if (inflight?.query !== query) {
+    const promise = fetchReading(query).then((reading) => { held = { query, at: now(), reading }; return reading; }).finally(() => { if (inflight?.promise === promise) inflight = undefined; });
+    inflight = { query, promise };
+  }
+  return inflight.promise;
+}
+
 /**
  * The reading in the condition's own tint, and the facts (`weather/temp`,
  * `weather/code`, `weather/quiet`, `weather/condition`;
@@ -77,24 +93,81 @@ async function read(): Promise<Reading | undefined> {
  */
 async function bar(): Promise<BarItem> {
   try {
-    const r = await read(); if (!r) return { hidden: true, states: { temp: null, code: null, quiet: null, condition: null } };
-    const [condition, glyph, color] = label(r);
+    const r = await read(true); if (!r) return { hidden: true, states: { temp: null, code: null, quiet: null, condition: null } };
+    const [condition, glyph, color] = lookOf(r.current.weather_code);
     const item = { icon: glyph, title: `${fmt(r.current.temperature_2m)}${r.unit}`, tooltip: `${condition} in ${r.place.name}`, menu: { view: renderPopover(r) } };
     return { ...item, color, empty: item, states: { temp: r.current.temperature_2m, code: r.current.weather_code, quiet: quietCodes.has(r.current.weather_code), condition } };
   }
   catch (e) { const message = errorMessage(e); return { icon: "󰖪", title: "Weather", color: "red", stale: true, tooltip: message }; }
 }
-async function rows(): Promise<Item[]> {
-  try { const r = await read(); if (!r) return [hint("setup", "Choose a location", "Set a city or postal code under Settings › Extensions › Weather.", { icon: "󰖙" })]; const [condition, glyph] = label(r); return [{ id: "current", name: `${fmt(r.current.temperature_2m)}${r.unit}`, subtitle: `${condition} · ${placeLabel(r.place)}`, icon: glyph, hero: true, actions: [{ id: "map", title: "Open map" }] }, ...[["feels", "Feels like", r.current.apparent_temperature === undefined ? undefined : `${fmt(r.current.apparent_temperature)}${r.unit}`], ["humidity", "Humidity", r.current.relative_humidity_2m === undefined ? undefined : `${fmt(r.current.relative_humidity_2m)}%`], ["wind", "Wind", r.current.wind_speed_10m === undefined ? undefined : `${fmt(r.current.wind_speed_10m)} ${r.windUnit}`]].filter((x): x is [string, string, string] => !!x[2]).map(([id, name, value]) => ({ id, name: value, subtitle: name, icon: ROW_GLYPH[id] ?? glyph, actions: [] }))]; } catch (e) { return [hint("error", "Weather unavailable", errorMessage(e), { icon: "󰖪" })]; }
-}
-async function openMap(): Promise<Effect | void> { const r = await read(); if (r) return { open: `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(`${r.place.latitude},${r.place.longitude}`)}` }; }
+
+const mapUrl = (p: Place) => `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(`${p.latitude},${p.longitude}`)}`;
+async function openMap(): Promise<Effect | void> { const r = await read(); if (r) return { open: mapUrl(r.place) }; }
 async function refreshPopover(): Promise<Effect> {
   try {
-    const r = await read();
+    const r = await read(true);
     return r ? { view: renderPopover(r), hud: "Refreshed" } : { keep: true, hud: "No location" };
   } catch (e) {
     return { keep: true, hud: errorMessage(e) };
   }
 }
 
-export default { palettes: { weather: { title: "Weather", live: true, list: rows, pick: (_id, action) => action === "map" ? openMap() : undefined } }, bar: { weather: { render: bar, onAction: (action) => action === "map" ? openMap() : action === "refresh" ? refreshPopover() : undefined } } } satisfies Extension;
+// ---- the palette's page (surface/) --------------------------------------------------
+
+/** What the page draws: the reading, or why there is none. */
+export type Reply = { title: string; reading?: Reading; error?: string; setup?: true; stale?: true };
+/** A place the search found, as the page lists it. */
+export type Found = Place & { region: string };
+
+async function reply(force = false): Promise<Reply> {
+  if (!location()) return { title: "Weather", setup: true };
+  try {
+    const r = await read(force);
+    if (!r) return { title: "Weather", setup: true };
+    return { title: placeLabel(r.place), reading: r, ...(held && now() - held.at >= FRESH_MS && { stale: true as const }) };
+  } catch (e) {
+    return { title: held ? placeLabel(held.reading.place) : "Weather", reading: held?.reading, error: errorMessage(e) };
+  }
+}
+/** The page's own map key: an Effect cannot travel back over `pal.send`, so the opener is run here. */
+function openOutside(url: string) {
+  const argv = process.env.PAL_OPEN_URL ? [process.env.PAL_OPEN_URL, url] : process.platform === "darwin" ? ["open", url] : ["xdg-open", url];
+  Bun.spawn(argv, { stdin: "ignore", stdout: "ignore", stderr: "ignore" }).unref();
+}
+async function onMessage(raw: unknown): Promise<unknown> {
+  const msg = raw as { op?: string; q?: string; place?: Found };
+  switch (msg.op) {
+    case "open": return reply();
+    case "refresh": return reply(true);
+    case "search": {
+      const q = String(msg.q ?? "").trim(); if (!q) return [];
+      const { name, qualifiers } = parseLocation(q);
+      const all = await geocode(name, 8);
+      const ranked = qualifiers.length ? [...all].sort((a, b) => score(b, qualifiers) - score(a, qualifiers)) : all;
+      return ranked.map((p): Found => ({ ...p, region: [p.admin1 && fold(p.admin1) !== fold(p.name) ? p.admin1 : undefined, p.country].filter(Boolean).join(", ") }));
+    }
+    case "set": {
+      const p = msg.place; if (!p || typeof p.latitude !== "number" || typeof p.longitude !== "number") return { title: "Weather", error: "No place chosen" };
+      const { region: _region, ...chosen } = p;
+      const label = placeLabel(chosen);
+      placeCache.set(label, chosen);
+      await settings.set("location", label);
+      return reply(true);
+    }
+    case "map": { const r = await read(); if (r) openOutside(mapUrl(r.place)); return; }
+  }
+}
+const actions = () => [
+  { id: "map", title: "Open map", shortcut: "o" },
+  { id: "place", title: "Change place", shortcut: "l" },
+  { id: "refresh", title: "Refresh", shortcut: "r" },
+  { id: "now", title: "Back to now", shortcut: "n" },
+];
+function page(): View {
+  return { title: held && held.query === location() ? placeLabel(held.reading.place) : "Weather", tree: { type: "surface", src: "surface/index.html" }, actions: actions() };
+}
+
+export default {
+  palettes: { weather: { title: "Weather", view: page, pick: () => undefined, onMessage } },
+  bar: { weather: { render: bar, onAction: (action) => action === "map" ? openMap() : action === "refresh" ? refreshPopover() : undefined } },
+} satisfies Extension;

@@ -1,7 +1,7 @@
 {
   "name": "weather",
   "title": "Weather",
-  "description": "Current local weather from Open-Meteo, with no account or key. The bar stays out of the way in ordinary weather and shows up for rain, fog, wind or uncomfortable temperatures.",
+  "description": "Local weather from Open-Meteo, with no account or key: a live sky with the next hours and the week ahead, and a bar item that stays out of the way in ordinary weather and shows up for rain, fog, wind or uncomfortable temperatures.",
   "version": "0.1.0",
   "icon": {
     "tile": {
@@ -17,7 +17,7 @@
       "kind": "text",
       "id": "location",
       "label": "Location",
-      "description": "A place name, optionally narrowed by region or country: “Istanbul”, “London, Ontario”, “Paris, Texas”. Only the first part is searched; the rest choose between same-named places. Resolved privately by Open-Meteo's location search.",
+      "description": "A place name, optionally narrowed by region or country: “Istanbul”, “London, Ontario”, “Paris, Texas”. Only the first part is searched; the rest choose between same-named places. Resolved privately by Open-Meteo's location search. The palette's L key searches and sets it too.",
       "placeholder": "Istanbul, Turkey",
       "default": ""
     }
@@ -25,8 +25,48 @@
   "palettes": {
     "weather": {
       "title": "Weather",
-      "kind": "live",
-      "description": "Current temperature, condition, feels-like temperature, humidity and wind for the configured place."
+      "kind": "view",
+      "description": "The weather where you are over a live sky that rains, snows, clears and darkens with it: the reading now, the next 24 hours as a curve you walk through, and seven days ahead.",
+      "keywords": [
+        "weather",
+        "forecast",
+        "temperature",
+        "rain"
+      ],
+      "keys": [
+        {
+          "keys": "left",
+          "title": "An hour earlier (shift: three)"
+        },
+        {
+          "keys": "right",
+          "title": "An hour later (shift: three)"
+        },
+        {
+          "keys": "up",
+          "title": "The day before"
+        },
+        {
+          "keys": "down",
+          "title": "The day after"
+        },
+        {
+          "keys": "n",
+          "title": "Back to now"
+        },
+        {
+          "keys": "l",
+          "title": "Search for a place and keep it"
+        },
+        {
+          "keys": "o",
+          "title": "Open the place in Maps"
+        },
+        {
+          "keys": "r",
+          "title": "Read the forecast again now"
+        }
+      ]
     }
   },
   "states": {
@@ -50,7 +90,7 @@
   "bar": {
     "weather": {
       "title": "Weather",
-      "description": "A quiet condition-led weather signal: hidden by its rules in ordinary weather (a quiet sky between 10 and 30 degrees), visible for rain, fog, wind or temperatures outside that band, blue when cold and red when hot. The popover is the forecast: the reading now with feels-like, humidity, wind and rain, the next eight hours from this one, then four days of high, low and the chance of rain, with sunrise and sunset.",
+      "description": "A quiet condition-led weather signal: hidden by its rules in ordinary weather (a quiet sky between 10 and 30 degrees), visible for rain, fog, wind or temperatures outside that band, blue when cold and red when hot. The popover is the forecast: the reading now on a card tinted by the sky, humidity, wind, UV and the next sunrise or sunset, the next eight hours, then five days with each day's span against theirs.",
       "refresh": {
         "every": 600,
         "on": [
@@ -160,11 +200,13 @@
     }
   },
   "store": {
-    "tagline": "Local weather on the bar, only when it is worth noticing",
+    "tagline": "A live sky with the weather where you are, and a bar item only when it is worth noticing",
     "category": "system",
     "features": [
-      "Your city or postal code, looked up through Open-Meteo; no account, key or Home Assistant",
-      "Current condition, temperature, feels-like, humidity and wind",
+      "A sky that is the weather: sun on its arc, moon and stars at night, clouds drifting with the real wind, rain, snow, fog and lightning",
+      "The next 24 hours as a temperature curve; walk it with the arrows and the sky turns to that hour",
+      "Seven days ahead, each day's span set against the week's",
+      "Search for a place right in the palette; no account, key or Home Assistant",
       "The bar item hides in ordinary weather and comes back for rain, fog, wind, heat or cold"
     ],
     "permissions": [
@@ -176,12 +218,20 @@
     ],
     "screenshots": [
       {
-        "file": "1-current.png",
-        "caption": "The temperature and condition for the place you set, then feels-like, humidity and wind"
+        "file": "1-now.png",
+        "caption": "Showers over Istanbul: the reading, what is coming, the next 24 hours and the week, over a sky that is raining"
       },
       {
-        "file": "2-actions.png",
-        "caption": "The current reading opens the place on a map"
+        "file": "2-later.png",
+        "caption": "The arrows walk the hours: at nine the rain has gone, the sun is down and the sky turns to night"
+      },
+      {
+        "file": "3-storm.png",
+        "caption": "A thunderstorm: heavy rain blown by the wind, lightning now and then"
+      },
+      {
+        "file": "4-place.png",
+        "caption": "L searches for a place and keeps it"
       },
       {
         "file": "bar-menubar.png",
@@ -195,7 +245,7 @@
       },
       {
         "file": "bar-popover.png",
-        "caption": "A click opens the popover: the reading now, the next eight hours, four days of forecast, sunrise and sunset",
+        "caption": "A click opens the popover: the reading on a card tinted by the sky, the next eight hours, five days with each day's span",
         "kind": "bar",
         "box": [
           418,
@@ -213,8 +263,23 @@
     "actions": [
       {
         "title": "Open map",
-        "description": "Open the configured place in Maps.",
+        "description": "Open the place in Maps.",
         "keys": "o"
+      },
+      {
+        "title": "Change place",
+        "description": "Search for a place and keep it.",
+        "keys": "l"
+      },
+      {
+        "title": "Refresh",
+        "description": "Read the forecast again now.",
+        "keys": "r"
+      },
+      {
+        "title": "Back to now",
+        "description": "Return the hours and the sky to the present.",
+        "keys": "n"
       }
     ]
   }
