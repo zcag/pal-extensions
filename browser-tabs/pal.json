@@ -122,6 +122,7 @@
       "title": "Browser Tabs",
       "tier": "primary",
       "kind": "live",
+      "remember": false,
       "lazy": true,
       "description": "Open tabs across Chrome, Safari and Firefox.",
       "keys": [

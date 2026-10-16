@@ -92,6 +92,7 @@
       "title": "Timers",
       "description": "Every timer with what is left; New timer takes a duration, a name and whether to ring the phone in the bar; Start Pomodoro runs work and break timers in turn.",
       "kind": "live",
+      "remember": false,
       "keys": [
         {
           "keys": "enter",

@@ -298,6 +298,7 @@
     "history": {
       "title": "Colour History",
       "kind": "live",
+      "remember": false,
       "rank": 2,
       "description": "Every picked and copied colour, newest first, with when and where from; Pick Colour from Screen at the top.",
       "keys": [

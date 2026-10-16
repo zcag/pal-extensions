@@ -379,6 +379,7 @@
       "title": "Recent Notes",
       "description": "The twenty notes changed last, newest first.",
       "kind": "live",
+      "remember": false,
       "keys": [
         {
           "keys": "enter",

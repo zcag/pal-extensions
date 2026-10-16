@@ -204,6 +204,7 @@
       "description": "Unread, by reason; opening one marks it read.",
       "ttl": 60,
       "kind": "live",
+      "remember": false,
       "lazy": true,
       "keys": [
         {

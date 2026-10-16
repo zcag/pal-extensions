@@ -77,6 +77,7 @@
       "title": "Chats",
       "description": "Every chat, unread first then newest first, with the picture, the newest message and who sent it, the unread count, the time; the pane is the last twenty messages as a conversation.",
       "kind": "live",
+      "remember": false,
       "lazy": true,
       "tier": "primary",
       "rank": 10,
@@ -111,6 +112,7 @@
       "title": "Unread",
       "description": "Only the chats with something unread, direct messages then groups; the same rows and keys as Chats.",
       "kind": "live",
+      "remember": false,
       "lazy": true,
       "keys": [
         {

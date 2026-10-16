@@ -50,6 +50,7 @@
       "title": "Todos",
       "description": "Every open todo: the overdue and today's first, then the file's sections in order, subtasks under their parent, what waits for a day at the end. Add a todo from the first row, typed in the bar.",
       "kind": "live",
+      "remember": false,
       "lazy": true,
       "ttl": 60,
       "keys": [
@@ -150,6 +151,7 @@
       "title": "Completed",
       "description": "What is checked off, by section, the ones completed from pal with when; Enter reopens.",
       "kind": "live",
+      "remember": false,
       "lazy": true,
       "ttl": 60,
       "keys": [

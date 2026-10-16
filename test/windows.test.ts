@@ -45,8 +45,8 @@ describe("windows", () => {
   test("meta: live, not input, so titles are root results; Spaces the same one level up", () => {
     const keywords = ["window", "switcher", "space", "desktop", "workspace"];
     expect(host.loaded().find((l) => l.extension === "windows")!.palettes).toEqual([
-      { name: "windows", title: "Windows", live: true, input: false, icon: tile("slate", "\u{f10ac}"), placeholder: "Switch to a window", tier: "primary", multi: true, hold: "alt+tab", tap: true, keywords },
-      { name: "spaces", title: "Spaces", live: true, input: false, icon: tile("slate", "\u{f10ac}"), placeholder: "Switch to a space", keywords },
+      { name: "windows", title: "Windows", live: true, input: false, icon: tile("slate", "\u{f10ac}"), placeholder: "Switch to a window", tier: "primary", multi: true, hold: "alt+tab", tap: true, remember: false, keywords },
+      { name: "spaces", title: "Spaces", live: true, input: false, icon: tile("slate", "\u{f10ac}"), placeholder: "Switch to a space", remember: false, keywords },
     ]);
   });
 

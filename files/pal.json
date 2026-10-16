@@ -383,6 +383,7 @@
       "title": "Recent Files",
       "tier": "primary",
       "kind": "live",
+      "remember": false,
       "ttl": 60,
       "description": "Files used in the last seven days under the configured folders, newest first.",
       "keys": [

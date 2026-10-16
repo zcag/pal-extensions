@@ -230,6 +230,7 @@
       "title": "Queue",
       "description": "What plays now and what comes next; skip to a row.",
       "kind": "live",
+      "remember": false,
       "keys": [
         {
           "keys": "enter",

@@ -281,6 +281,7 @@
       "title": "Comments",
       "description": "Mentions of you and replies to your comments, unread first; opening one marks it read.",
       "kind": "live",
+      "remember": false,
       "lazy": true,
       "ttl": 60,
       "keys": [

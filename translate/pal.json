@@ -181,6 +181,7 @@
     "history": {
       "title": "Translation History",
       "kind": "live",
+      "remember": false,
       "description": "Translations you copied, pasted or spoke, newest first; Enter copies the translation again.",
       "keys": [
         {

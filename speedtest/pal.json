@@ -156,6 +156,7 @@
     "history": {
       "title": "Speedtest History",
       "kind": "live",
+      "remember": false,
       "description": "Finished runs, newest first, with a Trend row that draws the last twenty as bars.",
       "keys": [
         {

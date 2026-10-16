@@ -246,6 +246,7 @@
     "schedule": {
       "title": "My Schedule",
       "kind": "live",
+      "remember": false,
       "ttl": 60,
       "description": "The next days' events in time order, sectioned by day, the current or next one tagged; a New event row at the end (system calendar).",
       "keys": [
@@ -270,6 +271,7 @@
     "today": {
       "title": "Today",
       "kind": "live",
+      "remember": false,
       "ttl": 60,
       "description": "The day's events in order with the time, how long, and where each stands (`in 12 min`, `now, 25 min left`, `over`); tomorrow's once today is done; what the bar item opens. At the root, a Join row for a call from a few minutes before it starts until ten minutes in.",
       "keys": [

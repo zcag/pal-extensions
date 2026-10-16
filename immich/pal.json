@@ -245,6 +245,7 @@
     "memories": {
       "title": "On This Day",
       "kind": "live",
+      "remember": false,
       "lazy": true,
       "ttl": 1800,
       "description": "Immich's memories for today: a row per past year with the count and the places; Enter opens that year's photos as a grid.",

@@ -117,6 +117,7 @@
       "title": "Sessions",
       "description": "Every session by state: waiting on you, your turn, working, ended. The pane shows the last exchange and, for a blocked one, the tool call left hanging.",
       "kind": "live",
+      "remember": false,
       "tier": "primary",
       "keys": [
         {

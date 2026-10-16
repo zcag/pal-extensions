@@ -135,6 +135,7 @@
       "title": "Windows",
       "tier": "primary",
       "kind": "live",
+      "remember": false,
       "description": "What is open right now, most recently used first.",
       "hold": "alt+tab",
       "tap": true,
@@ -172,6 +173,7 @@
     "spaces": {
       "title": "Spaces",
       "kind": "live",
+      "remember": false,
       "description": "Every Space, workspace or desktop in the desktop's order, with the apps on it; Enter brings it in front. Previous space goes back to the one left most recently; Toggle flips between the two spaces named in the setting.",
       "keys": [
         {

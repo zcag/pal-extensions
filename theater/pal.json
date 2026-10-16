@@ -294,6 +294,7 @@
       "title": "Jellyfin",
       "description": "Continue Watching with the position, then the latest additions, posters on the rows; the pane has the overview, year, rating, runtime and watched state.",
       "kind": "live",
+      "remember": false,
       "lazy": true,
       "ttl": 60,
       "keywords": [
@@ -359,6 +360,7 @@
       "title": "Now Playing on Jellyfin",
       "description": "Active sessions: who watches what on which device, with the position; Enter opens the item, cmd+Enter pauses or resumes that session.",
       "kind": "live",
+      "remember": false,
       "lazy": true,
       "ttl": 30,
       "keywords": [
@@ -397,6 +399,7 @@
       "title": "Requests",
       "description": "Jellyseerr requests, pending first, with the poster, who asked and the status; Approve and Decline on a pending one. The filter narrows to pending, approved, available or all.",
       "kind": "live",
+      "remember": false,
       "lazy": true,
       "ttl": 60,
       "keywords": [
@@ -719,6 +722,7 @@
       "title": "Downloads",
       "description": "SABnzbd and qBittorrent as one queue: each item with progress, speed, time left and category; pause, resume and delete per item; Pause all, Resume all and a speed limit on top.",
       "kind": "live",
+      "remember": false,
       "lazy": true,
       "ttl": 20,
       "keywords": [
@@ -852,6 +856,7 @@
       "title": "Navidrome",
       "description": "What is playing now, then the albums added lately with their covers; Enter opens in Navidrome, cmd+S stars.",
       "kind": "live",
+      "remember": false,
       "lazy": true,
       "ttl": 60,
       "keywords": [
@@ -905,6 +910,7 @@
       "title": "Audiobookshelf",
       "description": "Continue listening with the progress, then what was added lately across your libraries; Enter opens in Audiobookshelf.",
       "kind": "live",
+      "remember": false,
       "lazy": true,
       "ttl": 60,
       "keywords": [
@@ -951,6 +957,7 @@
       "title": "Kavita",
       "description": "Continue reading with the pages read, then the series added lately; Enter opens the web reader.",
       "kind": "live",
+      "remember": false,
       "lazy": true,
       "ttl": 60,
       "keywords": [

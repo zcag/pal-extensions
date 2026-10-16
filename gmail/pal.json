@@ -68,6 +68,7 @@
       "title": "Inbox ({instance})",
       "description": "The inbox, unread first then recent, with the sender's avatar, the subject, the snippet, the labels, an attachment mark and the date; the pane is the message as text with the quoted replies folded.",
       "kind": "live",
+      "remember": false,
       "lazy": true,
       "rank": 10,
       "keys": [
@@ -165,6 +166,7 @@
       "title": "Drafts ({instance})",
       "description": "The drafts of the account with the recipient and the subject; open one in Gmail, send it, or discard it. Only with send on for the account.",
       "kind": "live",
+      "remember": false,
       "lazy": true,
       "keys": [
         {

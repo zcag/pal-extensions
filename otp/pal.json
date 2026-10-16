@@ -52,6 +52,7 @@
       "title": "Verification Codes",
       "description": "Codes from the last day of messages, Today and Earlier.",
       "kind": "live",
+      "remember": false,
       "lazy": true,
       "keys": [
         {

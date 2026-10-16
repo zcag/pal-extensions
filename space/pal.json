@@ -259,6 +259,7 @@
     "largest": {
       "title": "Largest Files",
       "kind": "live",
+      "remember": false,
       "lazy": true,
       "description": "The biggest files under the last scanned root (or the root a link names), kind as a tag; a filter by kind.",
       "keys": [
@@ -291,6 +292,7 @@
     "folders": {
       "title": "Largest Folders",
       "kind": "live",
+      "remember": false,
       "lazy": true,
       "description": "The biggest folders under the last scanned root, with their file counts.",
       "keys": [
@@ -319,6 +321,7 @@
     "cleanup": {
       "title": "Cleanup Suggestions",
       "kind": "live",
+      "remember": false,
       "lazy": true,
       "description": "What is usually safe to clear, with its size: user and package caches, Xcode's DerivedData, node_modules and target folders untouched for a month, downloads older than a month, the Trash. Every action asks first and goes to the Trash.",
       "keys": [

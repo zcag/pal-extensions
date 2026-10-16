@@ -140,6 +140,7 @@
       "title": "Grafana Alerts",
       "description": "Every alert instance firing or pending, by rule, with its summary, severity, labels and since when; silences as a filter, with the active silences to expire.",
       "kind": "live",
+      "remember": false,
       "lazy": true,
       "ttl": 30,
       "keys": [

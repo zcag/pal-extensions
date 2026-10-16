@@ -80,6 +80,7 @@
       "title": "Unreads",
       "description": "Direct messages, mentions and threads addressed to you, then the channels that are only unread; each row with who said what and how long ago.",
       "kind": "live",
+      "remember": false,
       "lazy": true,
       "keys": [
         {

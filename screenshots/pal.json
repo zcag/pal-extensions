@@ -167,6 +167,7 @@
     "screenshots": {
       "title": "Screenshots",
       "kind": "live",
+      "remember": false,
       "tier": "primary",
       "description": "Capture rows first, then the screenshots folder newest first with thumbnails, sizes and ages.",
       "keys": [
