@@ -386,6 +386,7 @@ describe("keep awake: the row, the bar item and the link", () => {
     expect(await barAction("system", "awake", "until")).toEqual({ keep: true });
     expect(((await h.render("system", "awake")).menu as { view: View }).view.input).toMatchObject({ submit: "start" });
     expect(await barAction("system", "awake", "start", { reason: "open", values: { input: "15:00" } })).toMatchObject({ keep: true, hud: expect.stringMatching(/^Awake until 15:00$/) });
+    expect(await lastAsk()).toMatch(/^-i -t \d+$/);
     pids.push(record()!.pid);
     expect(((await h.render("system", "awake")).menu as { view: View }).view.input).toBeUndefined();
     expect(await barAction("system", "awake", "start", { reason: "open", values: { input: "nope" } })).toMatchObject({ toast: { title: "Not a duration or a time" } });
@@ -393,7 +394,6 @@ describe("keep awake: the row, the bar item and the link", () => {
     expect(record()).toBeUndefined();
     // The item's own `presets` setting is what the digits pick from; left out, the declared ones again.
     expect(await barAction("system", "awake", "preset:0", { reason: "open", settings: { presets: ["10m"] } })).toEqual({ keep: true, hud: "Awake for 10 min" });
-    // Its ask is read here: on a slow runner it lands late, and an unread one is what the next lastAsk would find.
     expect(await lastAsk()).toBe("-di -t 600");
     pids.push(record()!.pid);
     expect(await barAction("system", "awake", "sleep")).toEqual({ keep: true, hud: "Sleep allowed" });
