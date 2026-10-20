@@ -51,7 +51,7 @@
     "category": "productivity",
     "features": [
       "Arithmetic, percentages and number bases: `2^10`, `15% of 240`, `255 to hex`",
-      "Units as people type them: `5 km to miles`, `72 f to c`, `5 ft 3 in to cm`",
+      "Units as people type them: `5 km to miles`, `72 f to c`, `50 lbs` straight to kg",
       "30 currencies by code, symbol or name (`€12 to $`), rates updated daily",
       "Dates and time zones: `next friday`, `days until 25 dec`, `3pm istanbul to new york`",
       "Your own variables: `rent = 42000 try`, then `rent / 12`",

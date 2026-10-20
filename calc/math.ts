@@ -66,14 +66,46 @@ export function rewrite(q: string): string {
 /** `mi / h` back to how people write it. */
 const unitName = (u: string) => u.replace(/\s*\/\s*/g, "/").replace(/^mi\/h$/, "mph").replace(/^degC$/, "°C").replace(/^degF$/, "°F");
 
-export async function evaluate(q: string): Promise<MathResult | undefined> {
-  const m = await mathjs();
-  let r: any;
+/** A quantity's other system: what it converts to when no `to` is typed (`50 lbs`, `180 cm`, `100 mph`). */
+const COUNTERPART: [string, string][] = [
+  ["lb", "kg"], ["kg", "lb"], ["oz", "g"], ["g", "oz"], ["stone", "kg"],
+  ["mi", "km"], ["km", "mi"], ["ft", "m"], ["m", "ft"], ["in", "cm"], ["cm", "in"], ["yd", "m"],
+  ["mi/h", "km/h"], ["km/h", "mi/h"], ["degF", "degC"], ["degC", "degF"],
+  ["gal", "l"], ["l", "gal"], ["floz", "ml"], ["ml", "floz"], ["cup", "ml"],
+  ["acre", "hectare"], ["hectare", "acre"], ["m2", "sqft"], ["sqft", "m2"],
+];
+
+const same = (m: MathJsInstance, a: string, b: string) => {
   try {
-    r = m.evaluate(rewrite(q));
+    return m.unit(1, a).equals(m.unit(1, b));
   } catch {
-    return;
+    return false;
   }
+};
+
+async function run(q: string): Promise<[MathJsInstance, any]> {
+  const m = await mathjs();
+  try {
+    return [m, m.evaluate(rewrite(q))];
+  } catch {
+    return [m, undefined];
+  }
+}
+
+export async function evaluate(q: string): Promise<MathResult | undefined> {
+  return result(...(await run(q)));
+}
+
+/** A quantity typed without a `to`, in its counterpart from the other system (`50 lbs` in kg). */
+export async function counterpart(q: string): Promise<MathResult | undefined> {
+  if (/\bto\b/i.test(rewrite(q))) return;
+  const [m, r] = await run(q);
+  if (!m.isUnit(r) || r.value === null || r.equalBase(m.unit(MONEY))) return;
+  const to = COUNTERPART.find(([from]) => same(m, r.formatUnits(), from))?.[1];
+  return to ? result(m, r.to(to)) : undefined;
+}
+
+function result(m: MathJsInstance, r: any): MathResult | undefined {
   if (r === undefined || r === null || typeof r === "function") return;
   if (typeof r === "number") return Number.isFinite(r) ? { kind: "number", value: r } : undefined;
   if (typeof r === "bigint") return { kind: "number", value: Number(r) };

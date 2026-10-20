@@ -23,7 +23,7 @@ stay undisturbed. Anything else can be typed into the palette itself.
 | percent | `15% of 240`, `20% off 80`, `240 + 15%` | `36`, `64`, `276` |
 | bases | `0xff`, `255 to hex`, `255 in binary` | `255` (with a `0b11111111` row), `0xff`, `0b11111111` |
 | fractions | `1/3`, `0.375` | `0.3333333333` with a `1/3` row, `0.375` with a `3/8` row |
-| units | `5 km to miles`, `72 f to c`, `12 gb to mb`, `5 ft 3 in to cm` | `3.10686 miles`, `22.2222 °C`, `12,000 MB`, `160.02 cm` |
+| units | `5 km to miles`, `72 f to c`, `12 gb to mb`, `5 ft 3 in to cm`, `50 lbs` (no `to`: the other system) | `3.10686 miles`, `22.2222 °C`, `12,000 MB`, `160.02 cm`, `22.6796 kg` |
 | currency | `12 usd to try`, `€12 to $`, `1k usd`, `usd try` | the amount in the target currency, at the ECB's rate of the day |
 | mixed currencies | `50 usd + 20 try`, `$1.5k - 200 eur to eur` | worked out in the first currency's terms at the day's rates, shown in the home currency (or the target) and in that first one |
 | thousands | `210k / 12`, `2k + 500`, `1.5m usd`, `$1.5k` | `k` is thousands anywhere; `m` and `b` are millions and billions before a currency (a bare `5m` is metres) |

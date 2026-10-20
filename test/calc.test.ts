@@ -165,6 +165,13 @@ describe("units", () => {
     expect(await first("5 ft 3 in to cm")).toBe("160.02 cm");
     expect(await first("hex(255)")).toBe("0xff");
   });
+  test("a quantity without a `to` answers in the other system; a sum keeps its unit first", async () => {
+    expect((await calc("50 lbs")).map((r) => [r.name, r.subtitle])).toEqual([["22.6796 kg", "50 lbs to kg"]]);
+    expect(await first("180 cm")).toBe("70.8661 in");
+    expect(await first("100 mph")).toBe("160.934 km/h");
+    expect((await calc("1.5 kg + 300 g")).map((r) => r.name)).toEqual(["1.8 kg", "3.96832 lb"]);
+    expect(await first("12 gb")).toBe("12 GB");
+  });
 });
 
 describe("currency", () => {

@@ -10,7 +10,7 @@ import { hint as hintRow, now, settings, type Action, type Detail, type Extensio
 import { carry, code, ensureRates, hasCurrency, homeCurrency, isCurrency, money, NAMES, parse as parseCurrency, rate, SOURCE } from "./currency.ts";
 import { dates, isUnix } from "./dates.ts";
 import { normalizeNumbers, num, raw as rawNum } from "./format.ts";
-import { evaluate, fraction, inBase, MONEY, toBase } from "./math.ts";
+import { counterpart, evaluate, fraction, inBase, MONEY, toBase } from "./math.ts";
 import type { Row } from "./row.ts";
 import { expand, parseVars, usesVar } from "./vars.ts";
 
@@ -114,7 +114,12 @@ async function arithmetic(q: string, s: Settings, locale: string): Promise<Row[]
   if (r.kind === "text") return [{ id: "result", name: r.text, subtitle: expr, raw: r.text }];
   if (r.kind === "unit") {
     const p = Math.min(s.precision, 6);
-    return [{ id: "result", name: `${num(r.value, p, locale)} ${r.unit}`, subtitle: expr, raw: `${rawNum(r.value, p)} ${r.unit}` }];
+    const row = (id: string, v: typeof r, subtitle: string): Row => ({ id, name: `${num(v.value, p, locale)} ${v.unit}`, subtitle, raw: `${rawNum(v.value, p)} ${v.unit}` });
+    const c = await counterpart(q);
+    if (c?.kind !== "unit") return [row("result", r, expr)];
+    const converted = row("result", c, `${expr} to ${c.unit}`);
+    // `50 lbs` alone answers in kg; a sum (`1.5 kg + 300 g`) keeps its own unit first.
+    return /^\s*[\d.,]+\s*[^\d\s+\-*\/^()]+$/.test(q) ? [converted] : [row("result", r, expr), { ...converted, id: "counterpart" }];
   }
   const rows: Row[] = [{ id: "result", name: num(r.value, s.precision, locale), subtitle: expr, raw: rawNum(r.value, s.precision) }];
   // Other bases for a number typed as one (`0xff`) or a bare integer (`255`); not for every integer result.
