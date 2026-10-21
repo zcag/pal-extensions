@@ -26,6 +26,7 @@ export type Target = { until: number | null; how: "for" | "until" | "forever" };
 export const TOOL: string | null = process.env.PAL_AWAKE_TOOL || (process.platform === "darwin" ? "caffeinate" : Bun.which("systemd-inhibit") ?? null);
 /** The tool gets this long to die at once (a refused inhibit); alive past it is a run. */
 export const SETTLE_MS = 150;
+export const EXEC_GRACE_MS = 5000;
 const FOREVER = new Set(["forever", "inf", "infinite", "infinity", "∞", "always", "indefinitely", "on", "0"]);
 
 /**
@@ -95,11 +96,13 @@ export function summary(a: Pick<Awake, "until" | "display" | "app">, now: number
  * command line is the tool's (`command` is what `ps` says, `undefined`
  * for no such process) and the deadline has not passed; gone otherwise.
  * `stale` says the process is still there past its deadline (the tool is
- * about to exit; the caller kills it rather than wait).
+ * about to exit; the caller kills it rather than wait). Within
+ * `EXEC_GRACE_MS` of its start any live process on the pid will do: the
+ * child may not have exec'd the tool yet, and `ps` still names its parent.
  */
 export function reconcile(a: Awake | null, command: string | undefined, now: number, tool = TOOL ?? "caffeinate"): { awake: Awake | null; stale: boolean } {
   if (!a) return { awake: null, stale: false };
-  if (!command?.includes(basename(tool))) return { awake: null, stale: false };
+  if (!command || (!command.includes(basename(tool)) && now - a.started >= EXEC_GRACE_MS)) return { awake: null, stale: false };
   if (a.until !== null && a.until <= now) return { awake: null, stale: true };
   return { awake: a, stale: false };
 }

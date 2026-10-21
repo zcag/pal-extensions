@@ -207,10 +207,11 @@ describe("keep awake: the spellings and the texts", () => {
     expect(summary(run({ display: false, until: null, app: "Xcode" }), NOW)).toBe("while Xcode runs");
   });
 
-  test("reconcile: no record, no such process, another process on the pid, a run past its end (stale: the caller kills it), a live one", () => {
+  test("reconcile: no record, no such process, another process on the pid (unless the run just started: not exec'd yet), a run past its end (stale: the caller kills it), a live one", () => {
     expect(reconcile(null, "caffeinate -di -t 100", NOW, "caffeinate")).toEqual({ awake: null, stale: false });
     expect(reconcile(run(), undefined, NOW, "caffeinate")).toEqual({ awake: null, stale: false });
     expect(reconcile(run(), "/usr/bin/bun run host.ts", NOW, "caffeinate")).toEqual({ awake: null, stale: false });
+    expect(reconcile(run({ started: NOW - 100 }), "/usr/bin/bun run host.ts", NOW, "caffeinate").awake).not.toBeNull();
     expect(reconcile(run({ until: NOW - 1 }), "caffeinate -di -t 100", NOW, "caffeinate")).toEqual({ awake: null, stale: true });
     expect(reconcile(run(), "caffeinate -di -t 100", NOW, "caffeinate")).toEqual({ awake: run(), stale: false });
     expect(reconcile(run({ until: null }), "/bin/sh /tmp/x/caffeinate -i", NOW, "caffeinate")).toEqual({ awake: run({ until: null }), stale: false });
