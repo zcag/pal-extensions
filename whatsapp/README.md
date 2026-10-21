@@ -59,13 +59,13 @@ Marked rows copy together, one per line (several vCards make one
 zero and red while a direct chat is among them by its rules (`quiet`, `dm` under Settings > Bar). A
 message updates it within a second: the item keeps OpenWA's socket.io
 stream (`/events`) open and refreshes on each message event. It also
-refreshes every 120 s, when the panel shows, after a wake and when the
-network is back, and it does not take the stream's word for it: a
+refreshes every 30 s (reading a chat on the phone sends no event, so
+this is what drops the count then), when the panel shows, after a wake
+and when the network is back, and after a mark read, unread or send from
+a palette. It does not take the stream's word for it: a
 subscribe or ping still unanswered 30 s later, the gateway dropping it,
 a wake or a network change reconnects, and a poll that finds an unread
-message no event announced marks the stream deaf. While the stream is
-down or deaf the item refreshes every 30 s instead. Reading a chat on
-the phone sends no event, so the count drops at the next refresh.
+message no event announced marks the stream deaf and reconnects.
 The popover lists them, direct messages then groups, each with the
 picture, the newest message and the time, and a cursor the arrows move
 and a click sets: `Enter` opens the chat, `Space` previews it (the

@@ -202,7 +202,7 @@
       "title": "Unread",
       "description": "The number of unread chats as a badge, hidden at zero, red while a direct chat waits; the popover lists them with the picture, the newest message and the time, opens, marks read and (send on) replies from the keys.",
       "refresh": {
-        "every": 120,
+        "every": 30,
         "on": [
           "show",
           "wake",

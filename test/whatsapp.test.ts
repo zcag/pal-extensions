@@ -179,7 +179,7 @@ describe("whatsapp", () => {
       ["search", "Search WhatsApp", false, true, undefined, undefined, undefined, "lazy"],
       ["contacts", "Contacts", false, false, true, 3600, "catalog", undefined],
     ]);
-    expect(loaded.bar.map((b) => [b.id, b.refresh?.every])).toEqual([["unread", 120]]);
+    expect(loaded.bar.map((b) => [b.id, b.refresh?.every])).toEqual([["unread", 30]]);
     expect(Object.keys(loaded.manifest.links ?? {})).toEqual(["open", "search"]);
     expect(loaded.manifest.settings!.map((s) => [s.id, s.kind, s.default])).toEqual([["base_url", "text", "http://wp.lan"], ["api_key", "secret", ""], ["session", "text", "main"], ["send", "boolean", false], ["open", "select", "auto"]]);
     for (const p of Object.values(loaded.manifest.palettes ?? {})) for (const k of p.keys ?? []) expect(["cmd+i", "cmd+r", "cmd+k", "cmd+backspace"]).not.toContain(k.keys);
@@ -274,8 +274,11 @@ describe("whatsapp", () => {
     host.changeSettings(X, { settings: settings() });
   });
 
-  test("mark read and unread against the mock, over the marked rows too; the list is fetched again after", async () => {
+  test("mark read and unread against the mock, over the marked rows too; the list is fetched again after and the bar told", async () => {
+    const refreshes = () => host.coreCalls.filter((c) => c.method === "bar.refresh" && (c.params as { extension: string }).extension === X).length;
+    const n = refreshes();
     expect(await host.pick(X, "chats", MARA, "read")).toEqual({ keep: true, toast: { title: "Marked read", message: "Mara Lind" } });
+    expect(refreshes()).toBe(n + 1);
     expect(mock.read).toEqual([MARA]);
     expect(mock.chat(MARA)!.unread).toBe(0);
     expect(await host.pick(X, "unread", HIKE, "read", { ids: [HIKE, TOMAS] })).toEqual({ keep: true, toast: { title: "Marked read", message: "2 chats" } });
@@ -403,9 +406,10 @@ describe("whatsapp", () => {
     const item = await host.render(X, "unread", { reason: "cli" });
     expect(item).toMatchObject({ icon: "\u{f05a3}", badge: 3, tooltip: "3 chats unread: 2 direct messages, 1 group", states: { unread: 3, direct: 2 } });
     expect(mock.calls(/\/chats$/)).toHaveLength(before + 1);
+    // The poll fetches (its period is the cache's); the palette shares what it got.
     await host.render(X, "unread", { reason: "every" });
     await list("unread");
-    expect(mock.calls(/\/chats$/)).toHaveLength(before + 1);
+    expect(mock.calls(/\/chats$/)).toHaveLength(before + 2);
     const view = checkView(viewOf(item));
     expect(view).toMatchObject({ id: "unread", keys: "actions", title: "3 chats unread" });
     const stacks = nodes(view.tree).filter((n): n is Extract<ViewNode, { type: "stack" }> => n.type === "stack" && !!n.action?.startsWith("focus:"));
@@ -508,7 +512,7 @@ describe("whatsapp", () => {
     expect(await host.request<unknown>("link", { extension: X, route: "search", params: { q: "cabin" } })).toEqual({ push: { extension: X, palette: "search", query: "cabin" } });
   });
 
-  test("the stream: subscribed for the session's messages, an event refreshes the bar at once; dropped by the gateway it subscribes again; a poll finding a message no event carried reconnects and polls every 30 s until one comes; an unanswered ping reconnects", async () => {
+  test("the stream: subscribed for the session's messages, an event refreshes the bar at once; dropped by the gateway it subscribes again; a poll finding a message no event carried reconnects; an unanswered ping reconnects", async () => {
     const refreshes = () => host.coreCalls.filter((c) => c.method === "bar.refresh" && (c.params as { extension: string }).extension === X).length;
     await host.render(X, "unread", { reason: "cli" });
     await host.until(() => mock.subscribed.length > 0, 3000, "a subscribe");
@@ -529,11 +533,8 @@ describe("whatsapp", () => {
     try {
       await host.render(X, "unread", { reason: "cli" });
       await host.until(() => mock.subscribed.length === 3, 3000, "a reconnect");
-      n = refreshes();
-      await host.advance(30_000);
-      await host.until(() => refreshes() > n + 1, 3000, "the fallback poll");
-      mock.emit("message.received", { timestamp: m(0) });
-      await host.advanceUntil(300, () => refreshes() > n + 2, "a refresh");
+      // Its catch-up; then the tick only pings (the 30 s poll is the host's).
+      await host.advance(300);
       n = refreshes();
       await host.advance(30_000);
       expect(refreshes()).toBe(n);

@@ -1,13 +1,12 @@
 // The bar's push: OpenWA's socket.io stream (`/events`, the key as
 // `auth.apiKey`), subscribed to the session's message events, so a
-// message refreshes the bar within a second instead of at the next 120 s
+// message refreshes the bar within a second instead of at the next 30 s
 // poll. The poll stays and the stream is never trusted on its word: a
 // subscribe or a ping still unanswered at the next tick reconnects, the gateway
 // dropping us reconnects after RETRY_MS (socket.io gives up on that one by
 // itself), a wake or a network change reconnects, and a poll that finds a
 // newer unread message than any event carried marks it deaf and
-// reconnects. While it is down, or deaf until an event comes again, the
-// bar refreshes every TICK_MS.
+// reconnects once (not again until an event comes).
 import { bar, errorMessage } from "@zcag/pal";
 import { io, type Socket } from "socket.io-client";
 import { base, conf, log, sessionId, sessionName } from "./api.ts";
@@ -69,9 +68,8 @@ function refused(s: Socket, why: string) {
   retry = setTimeout(() => s.connect(), RETRY_MS);
 }
 
-/** The tick: the fallback refresh while the stream cannot be trusted, and a ping; whatever the last tick asked and got no answer to reconnects. */
+/** The tick: a ping; whatever the last tick asked and got no answer to reconnects. */
 function beat() {
-  if (!healthy()) bar.refresh("unread", "whatsapp").catch(() => {});
   if (!socket?.connected) return;
   if (awaiting) return reconnect(`no answer to the ${awaiting}`);
   if (!upSince) return;

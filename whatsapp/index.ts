@@ -189,6 +189,9 @@ async function latestOf(c: Chat): Promise<string | undefined> {
   return incoming?.id;
 }
 
+/** A write from a palette: the chat list is stale, and the bar, which no `keep` re-renders from here, is told. */
+const changed = () => { dropChats(); bar.refresh("unread").catch(() => {}); };
+
 async function pickChat(c: Chat, action: string | undefined, ctx?: Ctx): Promise<Effect> {
   const ids = idsOf(c.id, ctx);
   const n = ids.length;
@@ -196,14 +199,14 @@ async function pickChat(c: Chat, action: string | undefined, ctx?: Ctx): Promise
     case "read": {
       const refused: string[] = [];
       for (const id of ids) { try { await markChatRead(id); } catch (e) { refused.push((await chat(id)).name); log(`read ${id}: ${errorMessage(e)}`); } }
-      dropChats();
+      changed();
       if (refused.length) return failed("mark read", refused.join(", "));
       return toast("Marked read", n > 1 ? plural(n, "chat") : c.name);
     }
     case "unread": {
       const refused: string[] = [];
       for (const id of ids) { try { await markChatUnread(id); } catch (e) { refused.push((await chat(id)).name); log(`unread ${id}: ${errorMessage(e)}`); } }
-      dropChats();
+      changed();
       if (refused.length) return failed("mark unread", refused.join(", "));
       return toast("Marked unread", n > 1 ? plural(n, "chat") : c.name);
     }
@@ -218,7 +221,7 @@ async function pickChat(c: Chat, action: string | undefined, ctx?: Ctx): Promise
         if (quote && c.latestId && !c.latestFromMe) await apiReply(c.id, c.latestId, text);
         else await sendText(c.id, text);
       } catch (e) { return { form: messageForm(c, { text: errorMessage(e) }, text, quote) }; }
-      dropChats();
+      changed();
       return toast("Sent", `${c.name}: ${truncate(text, 60)}`);
     }
     case "react": {
@@ -394,11 +397,11 @@ async function barState(list: Chat[]): Promise<BarState> {
 }
 
 async function unreadItem(ctx: BarCtx): Promise<BarItem> {
-  // The panel showing fires both this render and the palettes' relists: a list under CHATS_FRESH_MS serves all. Only a push from the CLI or `bar.refresh` insists.
+  // The panel showing fires both this render and the palettes' relists: a list under CHATS_FRESH_MS serves all. The poll, a push from the CLI and `bar.refresh` insist.
   let list: Chat[];
   if (ctx.reason === "wake" || ctx.reason === "network") live.wake();
   live.start();
-  try { list = await chats(ctx.reason === "cli" || ctx.reason === "update"); } catch (e) {
+  try { list = await chats(ctx.reason === "every" || ctx.reason === "cli" || ctx.reason === "update"); } catch (e) {
     if (e instanceof NoKey) return { hidden: true, states: { unread: null, direct: null } };
     throw e;
   }
@@ -467,7 +470,7 @@ async function unreadAction(action: string, ctx?: BarCtx): Promise<Effect> {
       if (!ids.length) return { keep: true };
       const refused: string[] = [];
       for (const id of ids) { try { await markChatRead(id); } catch (e) { refused.push(st.rows.find((r) => r.id === id)?.name ?? id); log(`read ${id}: ${errorMessage(e)}`); } }
-      dropChats();
+      changed();
       if (refused.length) return failed("mark read", refused.join(", "));
       return { keep: true, hud: ids.length > 1 ? `Marked ${ids.length} read` : `${st.rows.find((r) => r.id === ids[0])?.name ?? "Chat"}: read` };
     }
