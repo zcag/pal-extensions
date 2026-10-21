@@ -563,6 +563,8 @@ describe("over the wire against the mock bridge", () => {
 
   test("an open light view follows the stream: a change pushes its tree again by the target's id; a closed one gets nothing", async () => {
     host.viewShown(E, { palette: "light" }, "light:hall-spot");
+    // The notification and a request reach the worker in order; the mock's event does not wait for either.
+    await list("lights");
     mock.change("light-6", { on: { on: true }, dimming: { brightness: 25 } });
     const u = await host.nextViewUpdate(E, { palette: "light" }, (x) => x.id === "light:hall-spot" && JSON.stringify(x.spec).includes('"25%"'));
     expect(u).toMatchObject({ extension: E, palette: "light", id: "light:hall-spot", spec: { id: "light:hall-spot", keys: "actions" } });
