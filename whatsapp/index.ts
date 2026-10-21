@@ -12,6 +12,7 @@
 import { bar, eachId, errorMessage, failed, hint, ignoreStore, imageData, preview, settings, toast, truncate, type Accessory, type Action, type Arg, type BarCtx, type BarItem, type Ctx, type Detail, type Effect, type Extension, type Form, type Item, type LinkParams, type Metadata } from "@zcag/pal";
 import { ApiError, NoKey, RateLimited, SessionError, Unreachable, base, conf, log, markChatRead, markChatUnread, react as apiReact, reply as apiReply, reset as resetApi, sendText } from "./api.ts";
 import { PANE_MSGS, REACTIONS, RUN_MSGS, chat, chatLink, clock, contacts, conversation, conversationMarkdown, dropChats, isGroupId, loadChats, oneLine, currentOpener as opener, phoneOf, prettyPhone, resetData, search, vcard, type Chat, type Hit, type Person } from "./data.ts";
+import * as live from "./live.ts";
 import { RECENT_ROWS, actions as barActions, initialIcon, render as renderBar, type BarRow, type BarState } from "./view.ts";
 
 /** Glyphs from the bundled Nerd Font's `md-` set: whatsapp, account-group, magnify, information, alert, check-all, message-text, reply, emoticon-outline, content-copy, open-in-new, card-account-details, phone. */
@@ -20,7 +21,7 @@ const SEARCH_WAIT_MS = 300;
 const SETTINGS_URL = "pal://settings/extensions";
 
 // New settings may mean another gateway, another key or another session: nothing cached applies.
-settings.onChange(() => { resetApi(); resetData(); }, "whatsapp");
+settings.onChange(() => { resetApi(); resetData(); live.start(); }, "whatsapp");
 
 const canSend = () => conf().send === true;
 
@@ -395,10 +396,13 @@ async function barState(list: Chat[]): Promise<BarState> {
 async function unreadItem(ctx: BarCtx): Promise<BarItem> {
   // The panel showing fires both this render and the palettes' relists: a list under CHATS_FRESH_MS serves all. Only a push from the CLI or `bar.refresh` insists.
   let list: Chat[];
+  if (ctx.reason === "wake" || ctx.reason === "network") live.wake();
+  live.start();
   try { list = await chats(ctx.reason === "cli" || ctx.reason === "update"); } catch (e) {
     if (e instanceof NoKey) return { hidden: true, states: { unread: null, direct: null } };
     throw e;
   }
+  live.check(list);
   const unread = list.filter(counts);
   const direct = unread.filter((c) => !c.group).length, groups = unread.length - direct;
   const menu = { view: renderBar(await barState(list)) };

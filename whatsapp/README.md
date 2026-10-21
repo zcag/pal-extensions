@@ -56,8 +56,16 @@ Marked rows copy together, one per line (several vCards make one
 ## The bar item
 
 `whatsapp/unread`: the number of unread chats as the badge, hidden at
-zero and red while a direct chat is among them by its rules (`quiet`, `dm` under Settings > Bar); every 120 s
-and when the panel shows, after a wake and when the network is back.
+zero and red while a direct chat is among them by its rules (`quiet`, `dm` under Settings > Bar). A
+message updates it within a second: the item keeps OpenWA's socket.io
+stream (`/events`) open and refreshes on each message event. It also
+refreshes every 120 s, when the panel shows, after a wake and when the
+network is back, and it does not take the stream's word for it: a
+subscribe or ping still unanswered 30 s later, the gateway dropping it,
+a wake or a network change reconnects, and a poll that finds an unread
+message no event announced marks the stream deaf. While the stream is
+down or deaf the item refreshes every 30 s instead. Reading a chat on
+the phone sends no event, so the count drops at the next refresh.
 The popover lists them, direct messages then groups, each with the
 picture, the newest message and the time, and a cursor the arrows move
 and a click sets: `Enter` opens the chat, `Space` previews it (the
@@ -74,7 +82,9 @@ chats instead.
 ## What it reads, and what it writes
 
 Everything goes to the gateway's HTTP API with the `api_key` as
-`x-api-key`; nothing else sees the chats. Read: `GET /api/sessions`
+`x-api-key`, and its socket.io `/events` namespace with it as
+`auth.apiKey` (subscribed to `message.received`, `.sent`, `.revoked` and
+`.edited`; only an event's time is read); nothing else sees the chats. Read: `GET /api/sessions`
 (once, to resolve the session's UUID from its name; kept in storage),
 `/chats` (the list, live from WhatsApp), `/messages/<chat>/history`
 (the newest messages of the unread chats and the pane's twenty, live)

@@ -11,7 +11,12 @@
 // 401; `limited` answers 429 with Retry-After 1; `searchDown` answers the
 // 503 the owner's wsearch gave on 2026-09-17; `status` other than `ready`
 // makes the chat list answer 409 as the live gateway does while it waits
-// for a QR scan. The people and messages are invented.
+// for a QR scan. `/socket.io/` speaks just enough of socket.io v4 over a
+// websocket for the `/events` stream: the key checked on connect, the
+// subscribe and ping acks (its own pings an hour apart: nothing here
+// sends them), `emit` pushes an event to the subscribed,
+// `drop` disconnects them as the gateway does. The people and messages
+// are invented.
 import { now } from "../.pal/sdk/src/clock.ts";
 
 export type MockChat = { id: string; name: string; group: boolean; unread: number; at: number; last?: string | null; phone?: string; picture?: boolean };
@@ -91,11 +96,47 @@ export class WhatsAppMock {
   contactGate: Promise<void> | undefined;
   /** The chat list served: a test may swap it. */
   chats: MockChat[] = chats.map((c) => ({ ...c }));
-  readonly server: ReturnType<typeof Bun.serve>;
+  readonly server: ReturnType<typeof Bun.serve<undefined>>;
+  /** Every subscribe the stream answered, in order. */
+  readonly subscribed: { sessionId: string; events: string[] }[] = [];
+  /** The stream left open but its pings unanswered: a wedged gateway. */
+  wedged = false;
+  private streams = new Set<Bun.ServerWebSocket<undefined>>();
 
   constructor() {
-    this.server = Bun.serve({ port: 0, fetch: (req) => this.handle(req) });
+    this.server = Bun.serve<undefined>({
+      port: 0,
+      fetch: (req, server) => (new URL(req.url).pathname === "/socket.io/" && server.upgrade(req) ? undefined : this.handle(req)),
+      websocket: {
+        open: (ws) => { ws.send(`0${JSON.stringify({ sid: "e", upgrades: [], pingInterval: 3_600_000, pingTimeout: 20000, maxPayload: 1e6 })}`); },
+        message: (ws, raw) => this.stream(ws, String(raw)),
+        close: (ws) => { this.streams.delete(ws); },
+      },
+    });
   }
+  private stream(ws: Bun.ServerWebSocket<undefined>, p: string) {
+    const NS = "/events,";
+    if (p.startsWith(`40${NS}`)) {
+      const auth = JSON.parse(p.slice(2 + NS.length) || "{}");
+      if (auth.apiKey !== KEY) { ws.send(`42${NS}${JSON.stringify(["message", { type: "error", code: "UNAUTHORIZED", message: "Authentication failed" }])}`); ws.send(`41${NS}`); return; }
+      ws.send(`40${NS}${JSON.stringify({ sid: "s" })}`);
+      return;
+    }
+    const m = p.match(/^42\/events,(\d+)(.*)$/);
+    if (!m) return;
+    const [, ack, body] = m;
+    const msg = JSON.parse(body)[1] as { type: string; sessionId: string; events: string[] };
+    if (msg.type === "ping" && this.wedged) return;
+    let reply: object = { type: "pong" };
+    if (msg.type === "subscribe") { this.subscribed.push({ sessionId: msg.sessionId, events: msg.events }); this.streams.add(ws); reply = { type: "subscribed", sessionId: msg.sessionId, events: msg.events }; }
+    ws.send(`43${NS}${ack}${JSON.stringify([reply])}`);
+  }
+  /** An event to every subscribed stream, as the gateway's `emitToRooms` sends it. */
+  emit(event: string, data: object) {
+    for (const ws of this.streams) ws.send(`42/events,${JSON.stringify(["message", { type: "event", payload: { event, sessionId: SESSION_ID, data } }])}`);
+  }
+  /** The gateway disconnecting every stream (a revoked key, a restart's namespace teardown). */
+  drop() { for (const ws of this.streams) ws.send("41/events,"); this.streams.clear(); }
   get url() { return `http://127.0.0.1:${this.server.port}`; }
   stop() { this.server.stop(true); }
   calls(path: RegExp | string) { return this.seen.filter((s) => (typeof path === "string" ? s.path === path : path.test(s.path))); }

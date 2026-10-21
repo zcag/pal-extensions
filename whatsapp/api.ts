@@ -11,7 +11,7 @@
 import { clock, settings, storage } from "@zcag/pal";
 
 export type Conf = { base_url?: string; api_key?: string; session?: string; send?: boolean; open?: "auto" | "app" | "web" };
-export const conf = (): Conf => settings.get<Conf>();
+export const conf = (): Conf => settings.get<Conf>("whatsapp");
 
 export const DEFAULT_URL = "http://wp.lan";
 export const base = (): string => (conf().base_url?.trim() || DEFAULT_URL).replace(/\/+$/, "");

@@ -508,6 +508,43 @@ describe("whatsapp", () => {
     expect(await host.request<unknown>("link", { extension: X, route: "search", params: { q: "cabin" } })).toEqual({ push: { extension: X, palette: "search", query: "cabin" } });
   });
 
+  test("the stream: subscribed for the session's messages, an event refreshes the bar at once; dropped by the gateway it subscribes again; a poll finding a message no event carried reconnects and polls every 30 s until one comes; an unanswered ping reconnects", async () => {
+    const refreshes = () => host.coreCalls.filter((c) => c.method === "bar.refresh" && (c.params as { extension: string }).extension === X).length;
+    await host.render(X, "unread", { reason: "cli" });
+    await host.until(() => mock.subscribed.length > 0, 3000, "a subscribe");
+    expect(mock.subscribed[0]).toEqual({ sessionId: SESSION_ID, events: ["message.received", "message.sent", "message.revoked", "message.edited"] });
+    // The catch-up refresh after subscribing, then one per burst of events.
+    await host.advanceUntil(300, () => refreshes() > 0, "the catch-up");
+    let n = refreshes();
+    mock.emit("message.received", { timestamp: m(0) });
+    mock.emit("message.received", { timestamp: m(0) });
+    await host.advanceUntil(300, () => refreshes() > n, "a refresh");
+    await host.advance(300);
+    expect(refreshes()).toBe(n + 1);
+    mock.drop();
+    await host.advanceUntil(30_000, () => mock.subscribed.length === 2, "a subscribe again");
+    await host.advance(20_000);
+    const was = mock.chats;
+    mock.chats = was.map((c) => (c.id === TOMAS ? { ...c, unread: 2, at: Math.floor((host.now() - 16_000) / 1000) } : c));
+    try {
+      await host.render(X, "unread", { reason: "cli" });
+      await host.until(() => mock.subscribed.length === 3, 3000, "a reconnect");
+      n = refreshes();
+      await host.advance(30_000);
+      await host.until(() => refreshes() > n + 1, 3000, "the fallback poll");
+      mock.emit("message.received", { timestamp: m(0) });
+      await host.advanceUntil(300, () => refreshes() > n + 2, "a refresh");
+      n = refreshes();
+      await host.advance(30_000);
+      expect(refreshes()).toBe(n);
+      // Wedged: the ping one tick sent is unanswered at the next, which reconnects.
+      mock.wedged = true;
+      await host.advance(30_000);
+      await host.advance(30_000);
+      await host.until(() => mock.subscribed.length === 4, 3000, "a reconnect");
+    } finally { mock.wedged = false; mock.chats = was; await host.render(X, "unread", { reason: "cli" }); }
+  });
+
   test("a 429 is refused locally until Retry-After, then the next call goes through", async () => {
     mock.limited = true;
     try {
