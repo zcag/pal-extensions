@@ -10,7 +10,7 @@
 // reaction), the bar item and its popover keys, the links, a 401, a 429,
 // a session that is not ready, an unreachable gateway, no key.
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
-import { chatLink, conversationMarkdown, mediaLabel, msgOf, msgOfDb, opener, pictureExpiry, pictureFresh, prettyPhone, REACTIONS, vcard } from "../whatsapp/data.ts";
+import { chatLink, conversationMarkdown, MAX_PICTURE, mediaLabel, msgOf, msgOfDb, opener, pictureExpiry, pictureFresh, prettyPhone, REACTIONS, vcard } from "../whatsapp/data.ts";
 import { initial, initialIcon, render, type BarState } from "../whatsapp/view.ts";
 import type { Item, View, ViewNode } from "../.pal/sdk/src/protocol.ts";
 import { checkView } from "../.pal/sdk/src/view.ts";
@@ -58,6 +58,12 @@ describe("whatsapp helpers", () => {
     expect(msgOf({ ...live, isGroup: false, author: undefined, from: "x@lid", chatId: "x@lid", body: "", type: "image" }, undefined, () => "", "Mara Lind")).toMatchObject({ who: "Mara Lind", text: "[photo]" });
     expect(msgOfDb({ ...db, direction: "outgoing" }, names, "Weekend hike", true)).toMatchObject({ id: "m1", who: "You", quoted: "before nine" });
     expect(msgOfDb({ ...db, chatName: undefined, author: "905551112233@c.us" }, names, "Weekend hike", true).who).toBe("Ola Berg");
+    // A picture whose bytes the archive kept rides as a data url; a document's, or one over the cap, does not.
+    const photo = { ...db, type: "image", body: "", metadata: { media: { mimetype: "image/jpeg", data: "/9j/4AAQ" } } };
+    expect(msgOfDb(photo, names, "Weekend hike", true)).toMatchObject({ text: "[photo]", image: "data:image/jpeg;base64,/9j/4AAQ" });
+    expect(msgOf({ ...live, type: "image", body: "" }, photo, names, "Weekend hike").image).toBe("data:image/jpeg;base64,/9j/4AAQ");
+    expect(msgOfDb({ ...photo, metadata: { media: { mimetype: "application/pdf", data: "JVBE" } } }, names, "Weekend hike", true).image).toBeUndefined();
+    expect(msgOfDb({ ...photo, metadata: { media: { mimetype: "image/jpeg", data: "x".repeat(MAX_PICTURE + 1) } } }, names, "Weekend hike", true).image).toBeUndefined();
   });
 
   test("conversationMarkdown: the sender in bold with the time, a quote as a blockquote, media in italics, markup escaped", () => {
@@ -66,6 +72,7 @@ describe("whatsapp helpers", () => {
       { id: "a", at, fromMe: false, who: "Mara *Lind*", text: "see #4471 <now>", type: "text" },
       { id: "b", at, fromMe: true, who: "You", text: "ok", type: "text", quoted: "see #4471\n<now>" },
       { id: "c", at, fromMe: false, who: "Mara", text: "[photo] the cabin", type: "image" },
+      { id: "d", at, fromMe: false, who: "Mara", text: "[photo] the *lake*", type: "image", image: "data:image/jpeg;base64,/9j/" },
     ]);
     const paragraphs = md.split("\n\n");
     expect(paragraphs[0]).toMatch(/^\*\*Mara \\\*Lind\\\*\*\* · /);
@@ -73,6 +80,7 @@ describe("whatsapp helpers", () => {
     expect(paragraphs[2]).toMatch(/^\*\*You\*\* · .+\n> see \\#4471 \\<now\\>$/);
     expect(paragraphs[3]).toBe("ok");
     expect(paragraphs[5]).toBe("_[photo]_ the cabin");
+    expect(paragraphs.slice(7)).toEqual(["![photo](data:image/jpeg;base64,/9j/)", "the \\*lake\\*"]);
   });
 
   test("links: the app and the web client, a group at the top, the opener by setting and platform, the vCard, the phone spelling", () => {

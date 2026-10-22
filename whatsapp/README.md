@@ -25,8 +25,9 @@ are right; for the rest the gateway's own one-line summary stands
 (media messages have none, so the line is empty). The pane (`⌘I`, or rest
 on the row) is the last twenty messages as a conversation: the sender in
 bold ("You" for yours) with the time, a quoted reply as a blockquote
-under it, a photo, a voice message, a document or a sticker named in
-brackets, then the chat's facts (kind, unread, the phone, when the newest
+under it, a photo or a sticker drawn inline when the gateway's archive
+kept its bytes (up to about 2 MB), and otherwise, like a voice message
+or a document, named in brackets; then the chat's facts (kind, unread, the phone, when the newest
 message came) and a link into the web client.
 
 | action | shortcut | notes |

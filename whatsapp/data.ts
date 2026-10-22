@@ -38,6 +38,8 @@ export type Msg = {
   type: string;
   /** What the message replied to, when the archive knows it. */
   quoted?: string;
+  /** The picture as a data url, when the archive kept its bytes. */
+  image?: string;
 };
 
 export type Person = { id: string; name: string; phone: string };
@@ -66,6 +68,8 @@ export const PICTURE_TTL_MS = 24 * 3600_000;
 const PICTURE_MARGIN_MS = 24 * 3600_000;
 export const CONTACTS_TTL_MS = 3600_000;
 export const SEARCH_LIMIT = 40;
+/** A picture the pane draws inline, at most this much base64 (about 2 MB of file); a bigger one stays a label. */
+export const MAX_PICTURE = 3_000_000;
 
 const s2ms = (s: number) => Math.round(s * 1000);
 export const isGroupId = (id: string) => id.endsWith("@g.us");
@@ -91,13 +95,21 @@ export function mediaLabel(type: string, body: string): string {
   return text ? `[${label}] ${text}` : `[${label}]`;
 }
 
+/** The archive row's picture as a data url: an image or sticker whose bytes it kept, under `MAX_PICTURE`. */
+export function pictureOf(d: DbMessage | undefined): string | undefined {
+  const m = d?.metadata?.media;
+  if (!m?.data || !m.mimetype?.startsWith("image/") || m.data.length > MAX_PICTURE) return undefined;
+  return `data:${m.mimetype.split(";")[0]};base64,${m.data}`;
+}
+
 /** One message of a conversation from the live shape, the archive's row for it (names, quotes) when at hand, and a resolver for a sender's id. */
 export function msgOf(m: LiveMessage, db: DbMessage | undefined, nameOf: (jid: string) => string, chatName: string): Msg {
   const sender = m.author || (m.isGroup ? undefined : m.from);
   const who = m.fromMe ? "You" : db?.chatName?.trim() || (sender ? nameOf(sender) : "") || (m.isGroup ? "" : chatName) || "Unknown";
   const text = mediaLabel(m.type, m.body ?? "") || (db?.metadata?.media?.filename ? `[document] ${db.metadata.media.filename}` : "");
   const quoted = db?.metadata?.quotedMessage?.body?.trim();
-  return { id: m.id, at: s2ms(m.timestamp), fromMe: !!m.fromMe, who, text: text || "(no text)", type: m.type, ...(quoted && { quoted }) };
+  const image = pictureOf(db);
+  return { id: m.id, at: s2ms(m.timestamp), fromMe: !!m.fromMe, who, text: text || "(no text)", type: m.type, ...(quoted && { quoted }), ...(image && { image }) };
 }
 
 /** The archive's row as a message (a chat the live history cannot reach, or the search's hit opened). */
@@ -106,7 +118,8 @@ export function msgOfDb(d: DbMessage, nameOf: (jid: string) => string, chatName:
   const sender = d.author || (group ? undefined : d.from);
   const who = fromMe ? "You" : d.chatName?.trim() || (sender ? nameOf(sender) : "") || (group ? "" : chatName) || "Unknown";
   const quoted = d.metadata?.quotedMessage?.body?.trim();
-  return { id: d.waMessageId || d.id, at: s2ms(d.timestamp), fromMe, who, text: mediaLabel(d.type, d.body ?? "") || "(no text)", type: d.type, ...(quoted && { quoted }) };
+  const image = pictureOf(d);
+  return { id: d.waMessageId || d.id, at: s2ms(d.timestamp), fromMe, who, text: mediaLabel(d.type, d.body ?? "") || "(no text)", type: d.type, ...(quoted && { quoted }), ...(image && { image }) };
 }
 
 /** WhatsApp's own quick reactions, in its order. */
@@ -116,13 +129,14 @@ export { oneLine };
 /** A moment as the SDK writes it: the clock today, the day before it otherwise. */
 export const clock = (ms: number) => when(ms);
 
-/** The pane: one paragraph per message, `**who** · time`, the quoted reply under it as a blockquote, then the text (a media label in italics), markup escaped for marked. */
+/** The pane: one paragraph per message, `**who** · time`, the quoted reply under it as a blockquote, then the text (a media label in italics, or the picture itself with its caption under it), markup escaped for marked. */
 export function conversationMarkdown(msgs: Msg[]): string {
   return msgs.map((m) => {
     const head = `**${mdEscape(m.who)}** · ${clock(m.at)}`;
     const quoted = m.quoted ? `\n> ${mdEscape(oneLine(m.quoted))}` : "";
     const media = /^\[([^\]]+)\]\s?([\s\S]*)$/.exec(m.text);
-    const body = media ? `_[${media[1]}]_${media[2] ? ` ${mdEscape(media[2])}` : ""}` : mdEscape(m.text);
+    const caption = media?.[2] ? mdEscape(media[2]) : "";
+    const body = !media ? mdEscape(m.text) : m.image ? `![${media[1]}](${m.image})${caption ? `\n\n${caption}` : ""}` : `_[${media[1]}]_${caption ? ` ${caption}` : ""}`;
     return `${head}${quoted}\n\n${body.trim()}`;
   }).join("\n\n");
 }
