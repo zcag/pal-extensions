@@ -5,6 +5,13 @@ A live palette: listed again on every show, so tab titles are root
 results and typing part of one at the root finds it. Enter selects the tab
 in its browser and raises the window.
 
+While a browser is the app in front (Chrome, Chromium, Brave, Edge,
+Vivaldi, Arc, Safari, Firefox: the manifest's `front`), tabs that have
+the typed word come first at the root, ahead of anything else, an exact
+name included. A tab that only collects the letters does not, so the
+root still answers what no tab has. Settings' "App in front" switch, on
+the palette, turns it off.
+
 The row is the tab's title (the url without its scheme when there is
 none), the host is the subtitle, the favicon comes from the url; a tab
 without a web url (`chrome://settings`) gets the browser's icon. On the

@@ -56,6 +56,7 @@
     "features": [
       "Tabs from Chrome, Safari and Firefox, and any Chromium browser with remote debugging on",
       "Tab titles show up in the main search, so typing a page's name finds it",
+      "While a browser is in front, its tabs come first in the main search",
       "Filters for All, Playing sound and This window",
       "Close (`cmd+w`), mute (`cmd+m`), copy the address (`cmd+c`) or a markdown link (`cmd+shift+c`)",
       "Firefox tabs can be listed and focused, but not closed or muted"
@@ -124,6 +125,17 @@
       "kind": "live",
       "remember": false,
       "lazy": true,
+      "front": [
+        "com.google.Chrome",
+        "com.google.Chrome.canary",
+        "org.chromium.Chromium",
+        "com.brave.Browser",
+        "com.microsoft.edgemac",
+        "com.vivaldi.Vivaldi",
+        "company.thebrowser.Browser",
+        "com.apple.Safari",
+        "org.mozilla.firefox"
+      ],
       "description": "Open tabs across Chrome, Safari and Firefox.",
       "keys": [
         {
