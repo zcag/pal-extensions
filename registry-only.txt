@@ -7,6 +7,7 @@
 # "What is bundled"). Bundling is decided in pal, by adding the name to its
 # app/bundled.txt.
 appletv
+atc
 calendar
 diff
 docker

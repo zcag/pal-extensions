@@ -1,0 +1,494 @@
+{
+  "name": "atc",
+  "title": "atc",
+  "description": "Every Claude Code session on every machine an atc server lists, in the panel and on the bar: which ones need you, a chat to read and answer each, permission prompts allowed or refused, new sessions in any folder on any machine, earlier conversations resumed, and what each session made.",
+  "keywords": [
+    "claude",
+    "cc",
+    "agents"
+  ],
+  "version": "0.1.0",
+  "icon": {
+    "tile": {
+      "glyph": "󰐷",
+      "bg": "orange"
+    }
+  },
+  "author": "pal",
+  "repo": "bundled",
+  "license": "MIT",
+  "settings": [
+    {
+      "kind": "text",
+      "id": "url",
+      "label": "atc server",
+      "description": "The address of your atc server. Empty uses the one atc login saved on this machine.",
+      "placeholder": "https://atc.example.internal",
+      "default": ""
+    },
+    {
+      "kind": "secret",
+      "id": "token",
+      "label": "Token",
+      "description": "What atc token prints on the server. Empty uses the one atc login saved; a server that trusts your tailnet needs none. Kept in the OS keychain.",
+      "default": ""
+    },
+    {
+      "kind": "select",
+      "id": "open",
+      "label": "Open a session in",
+      "description": "Where Open in a terminal and o go. Auto runs atc attach in a terminal when the atc command is on this machine, and opens atc's web page otherwise.",
+      "options": [
+        {
+          "id": "auto",
+          "title": "Auto"
+        },
+        {
+          "id": "terminal",
+          "title": "A terminal (atc attach)"
+        },
+        {
+          "id": "browser",
+          "title": "atc's web page"
+        }
+      ],
+      "default": "auto"
+    },
+    {
+      "kind": "select",
+      "id": "terminal",
+      "label": "Terminal",
+      "description": "Which terminal atc attach opens in; Auto takes the first one installed.",
+      "options": [
+        {
+          "id": "auto",
+          "title": "Auto"
+        },
+        {
+          "id": "kitty",
+          "title": "kitty"
+        },
+        {
+          "id": "Ghostty",
+          "title": "Ghostty"
+        },
+        {
+          "id": "iTerm2",
+          "title": "iTerm2"
+        },
+        {
+          "id": "Terminal",
+          "title": "Terminal"
+        },
+        {
+          "id": "Alacritty",
+          "title": "Alacritty"
+        }
+      ],
+      "default": "auto"
+    }
+  ],
+  "palettes": {
+    "sessions": {
+      "title": "Sessions",
+      "description": "Every session atc lists, the ones that need you first: the machine, folder and branch, what it is doing or asking to run, the context it holds; the pane is your last message and its last reply.",
+      "kind": "live",
+      "lazy": true,
+      "tier": "primary",
+      "remember": false,
+      "keys": [
+        {
+          "keys": "enter",
+          "title": "Open the chat (Tab, a message, Enter sends it first)"
+        },
+        {
+          "keys": "cmd+y",
+          "title": "Allow what it asks to run"
+        },
+        {
+          "keys": "cmd+.",
+          "title": "Say no, or interrupt a working turn"
+        },
+        {
+          "keys": "cmd+o",
+          "title": "Open in a terminal (atc attach)"
+        },
+        {
+          "keys": "cmd+shift+o",
+          "title": "Open in atc's web page"
+        },
+        {
+          "keys": "cmd+u",
+          "title": "Outputs: the servers, files and links it made"
+        },
+        {
+          "keys": "cmd+shift+r",
+          "title": "Resume a stopped session"
+        },
+        {
+          "keys": "cmd+shift+p",
+          "title": "Pin or unpin"
+        },
+        {
+          "keys": "cmd+shift+e",
+          "title": "Rename"
+        },
+        {
+          "keys": "cmd+c",
+          "title": "Copy the resume command"
+        },
+        {
+          "keys": "cmd+d",
+          "title": "Stop the session (asks first)"
+        }
+      ]
+    },
+    "chat": {
+      "title": "Chat",
+      "description": "One session as a chat that follows it live: the conversation, what it is doing now, a permission prompt with its two keys, and a message field. Opened bare, the session that needs you most.",
+      "kind": "view",
+      "keys": [
+        {
+          "keys": "enter",
+          "title": "Send the message (a stopped session is resumed first)"
+        },
+        {
+          "keys": "cmd+y",
+          "title": "Allow"
+        },
+        {
+          "keys": "cmd+.",
+          "title": "Say no, or interrupt"
+        },
+        {
+          "keys": "cmd+shift+v",
+          "title": "Attach the clipboard: text into the message, a picture or files uploaded with it"
+        },
+        {
+          "keys": "cmd+o",
+          "title": "Open in a terminal"
+        },
+        {
+          "keys": "cmd+u",
+          "title": "Outputs"
+        },
+        {
+          "keys": "cmd+shift+c",
+          "title": "Copy the last reply"
+        },
+        {
+          "keys": "cmd+[",
+          "title": "Older messages"
+        }
+      ]
+    },
+    "new": {
+      "title": "New Session",
+      "description": "Start Claude Code in a folder on any machine atc lists: the folders you used lately, then those under atc's roots; Tab to type the first message and a name.",
+      "kind": "live",
+      "lazy": true,
+      "keys": [
+        {
+          "keys": "enter",
+          "title": "Start a session there"
+        },
+        {
+          "keys": "cmd+enter",
+          "title": "Start it in a new git worktree"
+        }
+      ]
+    },
+    "history": {
+      "title": "Earlier Conversations",
+      "description": "Past conversations on every machine, newest first, found by title, folder or what you asked: read one, or resume it in the background.",
+      "kind": "list",
+      "lazy": true,
+      "ttl": 300,
+      "keys": [
+        {
+          "keys": "enter",
+          "title": "Read it (a message typed after Tab resumes it)"
+        },
+        {
+          "keys": "cmd+enter",
+          "title": "Resume"
+        },
+        {
+          "keys": "cmd+c",
+          "title": "Copy the resume command"
+        }
+      ]
+    },
+    "outputs": {
+      "title": "Outputs",
+      "description": "What your running sessions made: the servers they started, the files they wrote or read, the links they gave.",
+      "kind": "live",
+      "lazy": true,
+      "keys": [
+        {
+          "keys": "enter",
+          "title": "Open"
+        },
+        {
+          "keys": "cmd+c",
+          "title": "Copy the address or path"
+        }
+      ]
+    }
+  },
+  "states": {
+    "needs_you": {
+      "description": "Sessions waiting on you to allow something or answer",
+      "kind": "number"
+    },
+    "your_turn": {
+      "description": "Sessions that finished their turn",
+      "kind": "number"
+    },
+    "working": {
+      "description": "Sessions working",
+      "kind": "number"
+    }
+  },
+  "bar": {
+    "sessions": {
+      "title": "Sessions",
+      "description": "A count per state in its colour (red needs you, amber your turn, blue working), an alarm while one needs you; the popover lists them by state on every machine, opens a chat, allows or refuses a prompt, starts a new one.",
+      "refresh": {
+        "every": 30,
+        "on": [
+          "show",
+          "wake",
+          "network"
+        ]
+      },
+      "mocks": {
+        "needs": {
+          "title": "One needs you",
+          "item": {
+            "icon": "󰐷",
+            "segments": [
+              {
+                "id": "needs",
+                "text": "1",
+                "color": "red"
+              },
+              {
+                "id": "turn",
+                "text": "2",
+                "color": "amber"
+              },
+              {
+                "id": "working",
+                "text": "3",
+                "color": "blue"
+              }
+            ],
+            "tooltip": "1 needs you, 2 your turn, 3 working"
+          }
+        },
+        "working": {
+          "title": "All working",
+          "item": {
+            "icon": "󰐷",
+            "segments": [
+              {
+                "id": "working",
+                "text": "2",
+                "color": "blue"
+              }
+            ],
+            "tooltip": "2 working"
+          }
+        },
+        "quiet": {
+          "title": "Nothing running",
+          "item": {
+            "hidden": true,
+            "empty": {
+              "icon": "󰐷",
+              "tooltip": "Nothing running"
+            }
+          }
+        }
+      },
+      "rules": [
+        {
+          "id": "needs",
+          "when": "atc.needs_you > 0",
+          "description": "A session waits on you.",
+          "urgent": true
+        }
+      ],
+      "keys": [
+        {
+          "keys": "enter",
+          "title": "Open the row's chat (r too)"
+        },
+        {
+          "keys": "y",
+          "title": "Allow what it asks to run"
+        },
+        {
+          "keys": "i",
+          "title": "Say no, or interrupt a working turn"
+        },
+        {
+          "keys": "o",
+          "title": "Open in a terminal"
+        },
+        {
+          "keys": "w",
+          "title": "Open in atc's web page"
+        },
+        {
+          "keys": "u",
+          "title": "Outputs"
+        },
+        {
+          "keys": "x",
+          "title": "Stop the session (asks first)"
+        },
+        {
+          "keys": "n",
+          "title": "New session"
+        },
+        {
+          "keys": "h",
+          "title": "Earlier conversations"
+        },
+        {
+          "keys": "p",
+          "title": "Open Sessions in pal"
+        },
+        {
+          "keys": "up",
+          "title": "Move the cursor (down, j, k too; a click sets it)"
+        }
+      ]
+    }
+  },
+  "links": {
+    "open": {
+      "description": "Open a session's chat",
+      "params": {
+        "session": {
+          "description": "A session id, its background id, or words of its title; absent, the one that needs you most"
+        }
+      }
+    },
+    "send": {
+      "description": "Send a message to a session",
+      "params": {
+        "session": {
+          "description": "A session id, its background id, or words of its title",
+          "required": true
+        },
+        "text": {
+          "description": "The message"
+        },
+        "file": {
+          "description": "A file to upload with it (repeat for several)",
+          "type": "string[]"
+        }
+      }
+    },
+    "new": {
+      "description": "Start a session",
+      "params": {
+        "dir": {
+          "description": "The folder, absolute or under ~",
+          "required": true
+        },
+        "prompt": {
+          "description": "The first message"
+        },
+        "name": {
+          "description": "A name for it"
+        },
+        "host": {
+          "description": "The machine, when atc lists several"
+        },
+        "worktree": {
+          "description": "In a new git worktree",
+          "type": "boolean"
+        }
+      }
+    }
+  },
+  "store": {
+    "tagline": "Your Claude Code sessions on every machine, through atc",
+    "category": "integration",
+    "features": [
+      "Every session on every machine your atc server lists, the ones that need you first, with what each is doing or asking to run",
+      "A chat per session that follows it live: read the conversation, type a message, `cmd+y` allows a prompt, `cmd+.` says no or interrupts",
+      "A bar item counting sessions by state, an alarm while one needs you; its popover answers them without opening pal",
+      "Start Claude in a folder on any machine, or a new worktree, with the first message typed in the bar",
+      "Earlier conversations from every machine, read or resumed in the background",
+      "The servers, files and links a session made, one Enter from open; the clipboard attached to a message with `cmd+shift+v`",
+      "Uses the server and token atc login already saved, so a machine with the atc command needs no setup"
+    ],
+    "permissions": [
+      "network",
+      "token"
+    ],
+    "platforms": [
+      "macos",
+      "linux"
+    ],
+    "screenshots": [
+      {
+        "file": "1-list.png",
+        "caption": "Every session on every machine atc lists: the ones that need you first, with what each is doing or asking to run"
+      },
+      {
+        "file": "2-detail.png",
+        "caption": "The pane: what it asks, your last message and its last reply; the machine, folder, model and context below"
+      },
+      {
+        "file": "3-chat.png",
+        "caption": "Enter opens the chat: the conversation live, the command it asks to run with cmd+y to allow and cmd+. to say no, a field to reply"
+      },
+      {
+        "file": "4-new.png",
+        "caption": "New Session: a folder on any machine, the first message typed after Tab"
+      },
+      {
+        "file": "5-actions.png",
+        "caption": "⌘K on a session: allow, say no, open it in a terminal or atc's page, its outputs, pin, park, rename, stop"
+      },
+      {
+        "file": "bar-menubar.png",
+        "caption": "On the menu bar: how many sessions need you, are your turn and are working, an alarm while one needs you",
+        "kind": "bar"
+      },
+      {
+        "file": "bar-popover.png",
+        "caption": "A click opens the popover: every session by state on every machine; Enter opens its chat, y allows, i says no",
+        "kind": "bar",
+        "box": [
+          418,
+          64,
+          840,
+          960
+        ]
+      },
+      {
+        "file": "bar-popover-chat.png",
+        "caption": "The chat in the popover: what it asks and the conversation, answered without opening pal",
+        "kind": "bar",
+        "box": [
+          418,
+          64,
+          840,
+          960
+        ]
+      },
+      {
+        "file": "bar-sketchybar.png",
+        "caption": "On sketchybar: the three counts in red, amber and blue",
+        "kind": "bar"
+      }
+    ]
+  }
+}
