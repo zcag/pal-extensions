@@ -20,7 +20,7 @@ import { render as renderChat } from "./chat.ts";
 import { KEY, sendKeys } from "./keys.ts";
 import * as live from "./live.ts";
 import * as term from "./terminal.ts";
-import { ASK, GLYPH, STATE, activity, allows, askOf, at, current, folder, interruptTitle, interrupts, keyOf, ordered, render as renderPopover, sendable, short, since, subtitle, tokens, type PopoverState } from "./view.ts";
+import { ASK, MARK, STATE, activity, allows, askOf, at, current, folder, interruptTitle, interrupts, keyOf, ordered, render as renderPopover, sendable, short, since, subtitle, tokens, type PopoverState } from "./view.ts";
 
 const EXT = "atc", ITEM = "sessions";
 /** Two reads within this share one fetch (the bar and a palette ask together); the stream keeps the list fresher anyway. */
@@ -562,11 +562,11 @@ function popoverState(): PopoverState {
 
 export function barItem(list: Session[], problem?: string): BarItem {
   const menu = { view: renderPopover(popoverState()) };
-  if (problem && !list.length) return { hidden: true, ...(server().url && { empty: { icon: GLYPH, tooltip: problem, menu } }) };
+  if (problem && !list.length) return { hidden: true, ...(server().url && { empty: { icon: MARK, tooltip: problem, menu } }) };
   const shown = list.filter((s) => !s.parked && s.state !== "past");
   const n = (st: string) => shown.filter((s) => s.state === st).length;
   const needs = n("needs-you"), turn = n("your-turn"), working = n("working");
-  if (!needs && !turn && !working) return { hidden: true, empty: { icon: GLYPH, tooltip: "Nothing running", menu } };
+  if (!needs && !turn && !working) return { hidden: true, empty: { icon: MARK, tooltip: "Nothing running", menu } };
   const segments = [
     ...(needs ? [{ id: "needs", text: String(needs), color: "red" as const, tooltip: `${needs} need${needs === 1 ? "s" : ""} you` }] : []),
     ...(turn ? [{ id: "turn", text: String(turn), color: "amber" as const, tooltip: `${turn} your turn` }] : []),
@@ -574,7 +574,7 @@ export function barItem(list: Session[], problem?: string): BarItem {
   ];
   const words = [needs && `${needs} need${needs === 1 ? "s" : ""} you`, turn && `${turn} your turn`, working && `${working} working`].filter(Boolean);
   const lead = shown.find((s) => s.state === "needs-you");
-  return { icon: GLYPH, segments, ...(problem && { stale: true }), tooltip: `${words.join(", ")}${lead ? `\n${lead.title}: ${askOf(lead) === "run" ? activity(lead.activity) || "asks to run a tool" : ASK[askOf(lead)].heading.toLowerCase()}` : ""}`, menu };
+  return { icon: MARK, segments, ...(problem && { stale: true }), tooltip: `${words.join(", ")}${lead ? `\n${lead.title}: ${askOf(lead) === "run" ? activity(lead.activity) || "asks to run a tool" : ASK[askOf(lead)].heading.toLowerCase()}` : ""}`, menu };
 }
 
 /** The counts as states (`atc/needs_you`, `atc/your_turn`, `atc/working`), for a rule or a state of the user's to compose. */

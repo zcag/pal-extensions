@@ -20,8 +20,8 @@ export const STATE: Record<State, { title: string; tag: string; color: TagColor 
 };
 /** nf-cod-claude. */
 export const CLAUDE = "\u{ec82}";
-/** nf-md-radar: atc's own mark on the bar and the tile. */
-export const GLYPH = "\u{f0437}";
+/** atc's own mark (its web/icon.svg without the backdrop) as a 72 px PNG: the bar's icon, a template so the menu bar tints it. */
+export const MARK = { image: "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAEgAAABICAMAAABiM0N1AAABHVBMVEUAAAD/ZmbvWFj/QED0WVnxVFvyVFvyVFvxVFvzUV3yU1nyVFvxU1vyVVz/SUnyU1ryVFv/VVXyVFzyU1vyVFvyVFvzVVvyVFuPmaOLlaeKlKaLlKeMlKeLlKiOjqqAgL+LlaeLlKeLlaeMlaeAgICLlKiLlaeKlKeLlaeImaqLlqeLlaeAmbOLlKeQkKaLlaeqqqqLlaeLlaeMlaeMlaiJlaiLlaeLlaeLlaeLlaeMlKWMk6aLlqaLlaeLlaaSkqSPlqWHlqWHl6eMmKqLlaeKlaf///+MlqaKlaqLlqiLlaeLlqiLlaiJl6WLlaeLlKeJlqqNlKiMlaeLlKfyVFzyVFvzVFvyV17zVVXyVFvzU1ryWVnvUlryVFuLlaew9jNLAAAAXXRSTlMABSAEF5fw75UWKOPiJwfZ1wZkYrCuzdIZY4GIfE8JBIv551QCrP5i9x7Qggq9F8oD9KuoWyn2zvXZHyin44QOIhEgKqlgAVAYYYByzzbG7ScmcTdh1eEmFe6TFB8mzDrZAAABXUlEQVRYw+3Y51ICMRAH8BNUUEHBQvHEE8WOep4FewNOsGAFG8n7P4YztnNGbrM7ySAf8n+A34dMdpNdw9Bpe7oCgaACprunl7FQuE/W6R9gH4lE5ZzBIfaVWFwKGmY/GZGCRj1oTApKeFBCCkp6UFJD/wWl0uOmIBOZSSFkTWU5ItMzAig3y3GZm4ehNMdmYRGEltAQX4agPN7hKxC0SoDWIMhex0MOeEYbeGgThLa2sU7Bhi9kZgfn7O6JSmT/AHFOh0fHiKLNpU4EOdWNTUMa6iTI/lu0Z3k6VCy17EiFskuDzn1bpGNRoCLQak0KVALaYraCh2ywY1fxEPxAXuAh+Mm+JJzRFQRdE6Ay4NRcAuQ6vs7NLelCWqbP1692R621SrXFZ/T+wdX9qAMgZYOfslH013D8KAXFY99OXW5cN6KRT6fxJLuKeA6HGHt5fVOwHQk2myqWLDptyTvp3wxbpPoI1AAAAABJRU5ErkJggg==", template: true };
 
 /** A run of `ms` as the row's age wants it, from an ISO time. */
 export const at = (iso?: string) => (iso ? Date.parse(iso) || 0 : 0);
@@ -101,7 +101,7 @@ function sessionRow(s: Session, focused: boolean, st: PopoverState, hosts: boole
 function empty(problem?: string): ViewNode {
   return column(
     [
-      { type: "tile", key: "tile", width: 48, height: 48, text: GLYPH, color: "neutral", fill: "soft" },
+      { type: "image", key: "mark", src: MARK.image, width: 40, height: 40 },
       text(problem ? "atc is out of reach" : "No sessions", { style: "title", size: "lg" }),
       text(problem ?? "Nothing is running on any machine atc lists. n starts one.", { style: "muted", size: "sm", align: "center" }),
     ],
