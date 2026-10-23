@@ -5,14 +5,17 @@
 // markdown drawn through the SDK's `md`, a tool call one compact row
 // (its name and what it ran). Under the last entry, what the session is
 // doing now: a working line, or for a permission prompt a card with the
-// command and the two keys. The search row is the message field the whole
+// command and the two keys; a finished turn's long reply summed up in a
+// card (atc's status line and a line per topic), since the panel opens at
+// the end of the reply. Its published pages ride in the header as badges
+// a click opens. The search row is the message field the whole
 // time, so typing and Enter sends; the keys are modifier combos for that
 // reason. Files attached for the next message ride as badges over it.
 // The tree is cut at a node budget from the newest entry back, so a long
 // conversation shows its end and says how much is above.
 import { POPOVER_W, ago, column, keyHint, md, row, text, truncate, type Action, type View, type ViewNode } from "@zcag/pal";
 import type { Message, Session } from "./api.ts";
-import { ASK, CLAUDE, STATE, activity, allows, askOf, folder, interruptTitle, interrupts, sendable, since, tokens } from "./view.ts";
+import { ASK, CLAUDE, STATE, activity, allows, askOf, condensed, folder, interruptTitle, interrupts, sendable, since, summaryOf, tokens } from "./view.ts";
 
 export type ChatState = {
   s: Session;
@@ -29,8 +32,10 @@ export type ChatState = {
 
 /** Of the host's 2000 nodes per tree, what the conversation may use; a single reply may use at most `PER_REPLY`. */
 export const BUDGET = 1600, PER_REPLY = 220;
-/** nf-md-cog for a tool row, nf-md-shield_alert for the prompt card, nf-md-paperclip for an attachment. */
-const COG = "\u{f0493}", SHIELD = "\u{f0ecc}", CLIP = "\u{f03e2}";
+/** nf-md-cog for a tool row, nf-md-shield_alert for the prompt card, nf-md-text_box_check for the summary (a badge draws no glyph). */
+const COG = "\u{f0493}", SHIELD = "\u{f0ecc}", SUMMARY = "\u{f0ea6}";
+/** At most this many of a session's pages in the header, the newest. */
+const PAGES = 3;
 
 const count = (n: ViewNode): number => 1 + ("children" in n && n.children ? n.children.reduce((a, c) => a + count(c), 0) : 0);
 const paragraphs = (t: string) => t.trim().split(/\n{2,}/).map((p) => p.replace(/\s*\n\s*/g, " ").trim()).filter(Boolean);
@@ -46,8 +51,25 @@ function header(st: ChatState): ViewNode[] {
       { type: "badge", key: "state", text: age ? `${STATE[s.state].tag} · ${ago(age, { now: st.now, short: true })}` : STATE[s.state].tag, color: STATE[s.state].color },
     ], { key: "head", gap: 2, minHeight: 28 }),
     text(meta, { key: "meta", size: "xs", color: "muted", width: st.compact ? POPOVER_W : 680 }),
+    ...(pages(s).length ? [row(pages(s).map(({ p, i }) => ({ type: "badge" as const, key: `page${i}`, text: `${truncate(p.title || p.url.replace(/^https?:\/\//, ""), st.compact ? 28 : 48)}`, color: "teal" as const, action: `page:${i}` })), { key: "pages", gap: 1 })] : []),
     { type: "divider", key: "rule-top" },
   ];
+}
+
+/** The pages the header shows, newest first, with their index in `s.pages` (what `page:<i>` opens). */
+const pages = (s: Session) => (s.pages ?? []).map((p, i) => ({ p, i })).reverse().slice(0, PAGES);
+
+/** A finished turn's reply summed up, under it: the status, then a line per topic. */
+function summaryNode(st: ChatState): ViewNode[] {
+  const s = st.s, x = summaryOf(s);
+  if (!condensed(x)) return s.state !== "working" && !x && s.summarizing ? [text("Summarizing the reply…", { key: "summarizing", size: "xs", color: "faint" })] : [];
+  return [row([
+    text(SUMMARY, { style: "glyph", size: "md", color: "accent", width: 20, align: "center" }),
+    column([
+      text(x.status, { key: "status", size: "sm", weight: "semibold" }),
+      ...(x.gist ?? []).map((g, i) => text(`• ${g}`, { key: `g${i}`, size: "xs" })),
+    ], { key: "c", gap: 1, grow: true }),
+  ], { key: "summary", surface: "elevated", radius: true, padding: 2, gap: 2, align: "start", transition: { enter: "fade", exit: "fade" } })];
 }
 
 // The chat's paragraphs carry no `width`: a width clips a text to one line, these wrap in their column.
@@ -119,6 +141,9 @@ export function actions(st: ChatState): Action[] {
     { id: "web", title: "Open in atc's web page", shortcut: "cmd+shift+o" },
     { id: "outputs", title: "Outputs", shortcut: "cmd+u" },
     { id: "copy-reply", title: "Copy the last reply", shortcut: "cmd+shift+c" },
+    ...(summaryOf(s) || s.summarizing ? [{ id: "summarize", title: "Summarize the reply again" }] : []),
+    ...(s.pages?.length ? [{ id: `page:${s.pages.length - 1}`, title: "Open its page", shortcut: "cmd+l" }] : []),
+    ...pages(s).slice(1).map(({ p, i }) => ({ id: `page:${i}`, title: `Open ${truncate(p.title || p.url, 48)}`, hidden: true as const })),
     ...(st.more ? [{ id: "older", title: "Older messages", shortcut: "cmd+[" }] : []),
   ];
 }
@@ -142,8 +167,8 @@ export function render(st: ChatState): View {
   if (cut || st.more) kids.push(text(cut ? `${cut} earlier entries are not drawn; atc's web page has them all` : "Older messages: cmd+[", { key: "earlier", size: "xs", color: "faint", align: "center" }));
   if (st.problem) kids.push(text(st.problem, { key: "problem", size: "sm", color: "destructive" }));
   else if (!body.length) kids.push(text("Nothing said yet", { key: "none", style: "muted", size: "sm", align: "center" }));
-  kids.push(...body, ...now(st));
-  if (st.attached.length) kids.push(row(st.attached.map((p, i) => ({ type: "badge" as const, key: `f${i}`, text: `${CLIP} ${truncate(folder(p).replace(/^\d{6}-/, ""), 28)}`, color: "violet" as const })), { key: "attached", gap: 1 }));
+  kids.push(...body, ...summaryNode(st), ...now(st));
+  if (st.attached.length) kids.push(row(st.attached.map((p, i) => ({ type: "badge" as const, key: `f${i}`, text: truncate(folder(p).replace(/^\d{6}-/, ""), 28), color: "violet" as const })), { key: "attached", gap: 1 }));
   kids.push({ type: "divider", key: "rule" }, hints(st));
   const stopped = s.state === "stopped" || s.state === "past";
   return {

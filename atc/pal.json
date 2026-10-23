@@ -92,7 +92,7 @@
   "palettes": {
     "sessions": {
       "title": "Sessions",
-      "description": "Every session atc lists, the ones that need you first: the machine, folder and branch, what it is doing or asking to run, the context it holds; the pane is your last message and its last reply.",
+      "description": "Every session atc lists, the ones that need you first: the machine, folder and branch, what it is doing or asking to run, or what its turn ended on in one line; the pane leads with atc's summary of the reply, then your last message, the reply itself, its pages and what it spent.",
       "kind": "live",
       "lazy": true,
       "tier": "primary",
@@ -127,6 +127,10 @@
           "title": "Outputs: the servers, files and links it made"
         },
         {
+          "keys": "cmd+l",
+          "title": "Open its published page (several: its outputs)"
+        },
+        {
           "keys": "cmd+shift+r",
           "title": "Resume a stopped session"
         },
@@ -150,7 +154,7 @@
     },
     "chat": {
       "title": "Chat",
-      "description": "One session as a chat that follows it live: the conversation, what it is doing now, a permission prompt with its two keys, and a message field. Opened bare, the session that needs you most.",
+      "description": "One session as a chat that follows it live: the conversation, a finished turn's long reply summed up under it, what it is doing now, a permission prompt with its two keys, its published pages, and a message field. Opened bare, the session that needs you most.",
       "kind": "view",
       "keys": [
         {
@@ -176,6 +180,10 @@
         {
           "keys": "cmd+u",
           "title": "Outputs"
+        },
+        {
+          "keys": "cmd+l",
+          "title": "Open its published page"
         },
         {
           "keys": "cmd+shift+c",
@@ -204,7 +212,7 @@
     },
     "new": {
       "title": "New Session",
-      "description": "Start Claude Code in a folder on any machine atc lists: the folders you used lately, then those under atc's roots; Tab to type the first message and a name.",
+      "description": "Start Claude Code from one of atc's presets (a folder with standing instructions) or in a folder on any machine atc lists: the folders you used lately, then those under atc's roots; Tab to type the first message and a name.",
       "kind": "live",
       "lazy": true,
       "keys": [
@@ -241,7 +249,7 @@
     },
     "outputs": {
       "title": "Outputs",
-      "description": "What your running sessions made: the servers they started, the files they wrote or read, the links they gave.",
+      "description": "What your running sessions made: the pages they published first, with a preview, then the servers they started, the files they wrote or read, the links they gave.",
       "kind": "live",
       "lazy": true,
       "keys": [
@@ -268,12 +276,16 @@
     "working": {
       "description": "Sessions working",
       "kind": "number"
+    },
+    "week_used": {
+      "description": "How much of the plan's weekly limit is used, in percent",
+      "kind": "number"
     }
   },
   "bar": {
     "sessions": {
       "title": "Sessions",
-      "description": "A count per state in its colour (red needs you, amber your turn, blue working), an alarm while one needs you; the popover lists them by state on every machine, opens a chat, allows or refuses a prompt, starts a new one.",
+      "description": "A count per state in its colour (red needs you, amber your turn, blue working), the plan's limit once atc warns about it, an alarm while one needs you; the tooltip says what each finished turn ended on; the popover lists them by state on every machine with the plan's limits, opens a chat, allows or refuses a prompt, starts a new one.",
       "refresh": {
         "every": 30,
         "on": [
@@ -427,11 +439,13 @@
       }
     },
     "new": {
-      "description": "Start a session",
+      "description": "Start a session, in a folder or from a preset",
       "params": {
         "dir": {
-          "description": "The folder, absolute or under ~",
-          "required": true
+          "description": "The folder, absolute or under ~ (or a preset's)"
+        },
+        "preset": {
+          "description": "A preset's name: its folder, name and standing instructions, on its own machine"
         },
         "prompt": {
           "description": "The first message"
@@ -454,12 +468,13 @@
     "category": "integration",
     "features": [
       "Every session on every machine your atc server lists, the ones that need you first, with what each is doing or asking to run",
+      "A finished turn read in one line: atc's summary of the reply on the row, its gist and overview in the pane and the chat, the statuses in the bar's tooltip",
       "A chat per session that follows it live: read the conversation, type a message, `cmd+y` allows a prompt, `cmd+.` says no or interrupts",
       "A session's own terminal inside pal (`cmd+o`): Claude Code's screen live in the panel's colours, to type into, scroll and answer anything",
-      "A bar item counting sessions by state, an alarm while one needs you; its popover answers them without opening pal",
-      "Start Claude in a folder on any machine, or a new worktree, with the first message typed in the bar",
+      "A bar item counting sessions by state, an alarm while one needs you, the plan's limit once it runs high; its popover answers them without opening pal",
+      "Start Claude in a folder on any machine, in a new worktree, or from one of atc's presets, with the first message typed in the bar",
       "Earlier conversations from every machine, read or resumed in the background",
-      "The servers, files and links a session made, one Enter from open; the clipboard attached to a message with `cmd+shift+v`",
+      "The pages a session published, the servers, files and links it made, one Enter from open; what each session spent; the clipboard attached with `cmd+shift+v`",
       "Built on atc (github.com/zcag/atc), a small server for Claude Code's background sessions; a machine where atc login was run needs no setup"
     ],
     "permissions": [
@@ -477,7 +492,7 @@
       },
       {
         "file": "2-detail.png",
-        "caption": "The pane: what it asks, your last message and its last reply; the machine, folder, model and context below"
+        "caption": "The pane: what a finished turn ended on, summed up by atc, then your message and the reply; its page and what it spent below"
       },
       {
         "file": "3-chat.png",
@@ -493,15 +508,15 @@
       },
       {
         "file": "bar-menubar.png",
-        "caption": "On the menu bar: how many sessions need you, are your turn and are working, an alarm while one needs you",
+        "caption": "On the menu bar: how many sessions need you, are your turn and are working, the plan's limit once it runs high, an alarm while one needs you",
         "kind": "bar"
       },
       {
         "file": "bar-popover.png",
-        "caption": "A click opens the popover: every session by state on every machine; Enter opens its chat, y allows, i says no",
+        "caption": "A click opens the popover: every session by state on every machine, what each finished turn ended on, the plan's limits; Enter opens its chat, y allows, i says no",
         "kind": "bar",
         "box": [
-          418,
+          374,
           64,
           840,
           960
@@ -509,10 +524,10 @@
       },
       {
         "file": "bar-popover-chat.png",
-        "caption": "The chat in the popover: what it asks and the conversation, answered without opening pal",
+        "caption": "The chat in the popover: the conversation, its page, and what the turn ended on summed up, answered without opening pal",
         "kind": "bar",
         "box": [
-          418,
+          374,
           64,
           840,
           960

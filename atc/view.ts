@@ -1,14 +1,16 @@
 // The sessions as the bar's popover (`View` in `@zcag/pal`), pure: index.ts
 // hands in what atc listed, the tests and the screenshot fixture made-up
 // ones. A section per state in atc's order (needs you, your turn, working,
-// stopped), a row per session: the machine's tag, the title, the folder and
-// branch with what it is doing or asking under it, the context it holds and
-// the age. The row the keys act on wears the ring; a click moves it, and
-// Enter opens its chat.
+// stopped), a row per session: the machine's tag, the title, then what it
+// is doing or asking, or for a finished turn atc's one-line summary of its
+// reply, with the folder and branch; the context it holds and the age. The
+// row the keys act on wears the ring and, when its turn is done, the
+// summary's lines under it; a click moves the ring, and Enter opens its
+// chat. Under the rows, the plan's limits.
 import { POPOVER_W, ago, column, keyHint, row, text, type Action, type TagColor, type View, type ViewNode } from "@zcag/pal";
-import type { Session, State } from "./api.ts";
+import type { Limits, Session, State, Summary } from "./api.ts";
 
-export type PopoverState = { sessions: Session[]; cursor?: string; now: number; /** A message waiting in the bar, shown as a muted line under the rows (unreachable, not set up). */ problem?: string };
+export type PopoverState = { sessions: Session[]; cursor?: string; now: number; /** A message waiting in the bar, shown as a muted line under the rows (unreachable, not set up). */ problem?: string; limits?: Limits };
 
 export const STATE_ORDER: State[] = ["needs-you", "your-turn", "working", "stopped"];
 export const STATE: Record<State, { title: string; tag: string; color: TagColor }> = {
@@ -68,12 +70,36 @@ export const current = (st: PopoverState): Session | undefined => { const rows =
 /** Several machines in the list: each row names its own. */
 const multiHost = (list: Session[]) => new Set(list.map((s) => s.host)).size > 1;
 
-/** What the row says under its title: the machine, the folder and branch, then what it is doing or asking. */
+/** atc's summary of the reply a session ended its turn on; a working one is past it. */
+export const summaryOf = (s: Session): Summary | undefined => (s.state === "working" ? undefined : s.summary);
+/** A summary that says more than the reply did: a short reply is summed up as itself. */
+export const condensed = (x?: Summary): x is Summary => !!x && x.model !== "verbatim" && !!(x.gist?.length || x.overview?.length);
+const oneLine = (t: string) => t.replace(/[#*_`>]+/g, "").replace(/\s+/g, " ").trim();
+
+/** What a finished turn said, in one line: atc's summary, else the start of the reply while one is written. */
+export function said(s: Session): string | undefined {
+  if (s.state === "working" || s.state === "needs-you") return undefined;
+  const x = summaryOf(s);
+  if (x) return x.status;
+  if (s.lastReply) return s.summarizing ? `${oneLine(s.lastReply).slice(0, 80)}…` : oneLine(s.lastReply);
+  return undefined;
+}
+
+/** What the row says under its title: what it is doing or asking, or what its turn ended on; the machine, the folder and branch. */
 export function subtitle(s: Session, hosts: boolean): string {
   const where = [hosts ? s.host : undefined, folder(s.cwd), s.branch && s.branch !== "HEAD" ? s.branch : undefined].filter(Boolean).join(" · ");
   const doing = s.state === "needs-you" && askOf(s) !== "run" ? ASK[askOf(s)].heading.toLowerCase() : (s.state === "working" || s.state === "needs-you") && activity(s.activity);
-  return doing ? `${where} · ${doing}` : where;
+  if (doing) return `${where} · ${doing}`;
+  const done = said(s);
+  return done ? `${done} · ${where}` : where;
 }
+
+/** A limit's colour: amber from atc's `warning`, red past it. */
+export const limitColor = (severity?: string): TagColor | undefined => (!severity || severity === "normal" ? undefined : severity === "warning" ? "amber" : "red");
+/** The windows worth a glance: the session's and the week's for all models (a model's own week only once it is used). */
+export const windows = (l?: Limits) => (l?.windows ?? []).filter((w) => w.key === "session" || w.key === "weekly_all" || w.percent > 0);
+/** "Current session" as "Session", "This week, all models" as "Week". */
+const SHORT_LIMIT: Record<string, string> = { session: "Session", weekly_all: "Week" };
 
 const OUTER_PAD = 12, AGE_W = 36, GAP = 8;
 const TITLE_W = POPOVER_W - 2 * OUTER_PAD - 8 - 20 - GAP - AGE_W - GAP - 96;
@@ -84,12 +110,15 @@ function header(title: string, n: number, color: TagColor, key: string): ViewNod
 
 function sessionRow(s: Session, focused: boolean, st: PopoverState, hosts: boolean): ViewNode {
   const lead = s.state === "needs-you" && keyOf(s) === keyOf(ordered(st.sessions)[0]);
+  const x = summaryOf(s);
+  const gist = focused && !lead && condensed(x) ? (x.gist ?? []) : [];
   return row(
     [
       text(CLAUDE, { style: "glyph", size: "md", color: s.parked ? "faint" : STATE[s.state].color, width: 20, align: "center" }),
       column([
         text(s.title || folder(s.cwd), lead ? { style: "headline", size: "xl", minWidth: 0 } : { size: "md", weight: focused ? "semibold" : "medium", width: TITLE_W }),
         text(subtitle(s, hosts), { size: "xs", color: "muted", width: TITLE_W }),
+        ...(gist.length ? [column(gist.map((g, i) => text(`• ${g}`, { key: `g${i}`, size: "xs" })), { key: "gist", gap: 0, padding: 1, transition: { enter: "fade", exit: "fade" } })] : []),
       ], { key: "t", gap: lead ? 1 : 0, grow: true }),
       { type: "badge", key: "state", text: s.parked ? "parked" : STATE[s.state].tag, color: s.parked ? "grey" : STATE[s.state].color },
       text(ago(since(s), { now: st.now, short: true }), { style: "mono", size: "xs", color: "muted", width: AGE_W, align: "end" }),
@@ -107,6 +136,22 @@ function empty(problem?: string): ViewNode {
     ],
     { key: "empty", padding: 5, gap: 2, align: "center", justify: "center" },
   );
+}
+
+/** The plan's limits in a line: a short bar per window, coloured once atc warns. */
+function limitsRow(l: Limits, now: number): ViewNode | undefined {
+  const ws = windows(l);
+  if (!ws.length) return undefined;
+  return row(ws.map((w) => {
+    const color = limitColor(w.severity);
+    const reset = w.resetsAt ? ago(Date.parse(w.resetsAt), { now, short: true }) : "";
+    return row([
+      text(SHORT_LIMIT[w.key] ?? w.label.replace(/^This week, /, ""), { size: "xs", color: "muted" }),
+      { type: "progress", key: "bar", value: Math.min(1, w.percent / 100), width: 44, ...(color && { color }) },
+      text(`${Math.round(w.percent)}%`, { size: "xs", style: "mono", ...(color && { color }) }),
+      ...(reset && color ? [text(`resets in ${reset.replace(/^in /, "")}`, { key: "reset", size: "xs", color: "faint" })] : []),
+    ], { key: w.key, gap: 1 });
+  }), { key: "limits", gap: 3, minHeight: 20 });
 }
 
 function hints(s?: Session): ViewNode {
@@ -168,7 +213,10 @@ export function render(st: PopoverState): View {
     }
     if (st.problem) kids.push(text(st.problem, { key: "problem", size: "xs", color: "destructive" }));
   }
-  kids.push({ type: "divider", key: "rule" }, hints(cur));
+  kids.push({ type: "divider", key: "rule" });
+  const limits = st.limits && limitsRow(st.limits, st.now);
+  if (limits) kids.push(limits);
+  kids.push(hints(cur));
   const n = rows.filter((s) => !s.parked).length;
   return { tree: column(kids, { key: "popover", padding: 3, gap: 1 }), actions: actions(st), title: n ? `${n} session${n === 1 ? "" : "s"}` : "atc", id: "sessions", keys: "actions" };
 }

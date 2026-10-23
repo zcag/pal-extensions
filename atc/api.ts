@@ -71,9 +71,26 @@ export type Session = {
   startedAt?: string;
   updated?: string;
   servers?: number[];
+  /** The published pages it linked (atc's `ATC_FEATURED`), newest last. */
+  pages?: Link[];
   pinned?: boolean;
   parked?: boolean;
+  /** Its final reply summed up, once atc's model has read it; only ever for the reply it holds now. */
+  summary?: Summary;
+  /** A summary of the current reply is on its way. */
+  summarizing?: boolean;
 };
+
+/**
+ * A turn's final message at three lengths: `status` one line (often led by
+ * a label, "Done:", "Found:"), `gist` a line per topic, `overview` labelled
+ * lines for a long one. A short reply comes back as itself (`model`
+ * `verbatim`).
+ */
+export type Summary = { reply: string; status: string; gist?: string[]; overview?: string[]; model: string; at: string };
+
+/** A link a session gave; a published page also has its `title` and a preview `image` (a server path). */
+export type Link = { url: string; at: string; title?: string; image?: string; kind?: string };
 
 /** One entry of `GET /api/sessions/{sid}/transcript`: a prompt, a reply, or a tool call with its one-line `detail`. */
 export type Message = { role: "user" | "assistant" | "tool" | string; text?: string; tool?: string; detail?: string; time?: string };
@@ -82,12 +99,20 @@ export type Page = { messages: Message[]; start: number; size: number };
 
 export type Outputs = {
   servers: { url: string; port: number; localOnly?: boolean; running: boolean; seen?: string }[] | null;
-  links: { url: string; at: string }[] | null;
+  /** Published pages (atc's `ATC_FEATURED`), apart from `links`. */
+  featured?: Link[] | null;
+  links: Link[] | null;
   /** A file the session wrote, edited or read; `url` a signed link that serves it for a while. */
   files: { path: string; kind: string; op: string; at: string; size: number; url: string }[] | null;
 };
 
 export type Dir = { path: string; recent?: boolean; git?: boolean };
+/** A named session to start: a folder on a machine, and standing instructions (`brief`, a file) it is given. */
+export type Preset = { name: string; dir: string; brief?: string; host?: string };
+/** The plan's limits: a window per kind (the session's five hours, the week), how much is used and when it resets. */
+export type Limits = { plan?: string; windows: { key: string; label: string; percent: number; resetsAt?: string; severity?: string }[]; error?: string };
+/** What a session spent: tokens, the cost at API prices, its subagents', how long Claude worked. */
+export type Usage = { total: number; cost: number; turns: number; toolCalls: number; activeSeconds: number; subagents?: { count: number; total: number; cost: number } };
 export type Me = { host: string; home: string; hosts: string[]; peers?: { name: string; error?: string }[] };
 
 // ---- requests --------------------------------------------------------------------
@@ -143,8 +168,13 @@ export const transcript = (sid: string, before?: number) => request<Page>("GET",
 export const outputs = (sid: string) => request<Outputs>("GET", `/api/sessions/${enc(sid)}/outputs`);
 export const dirs = (host?: string) => request<Dir[]>("GET", "/api/dirs", { host });
 /** A new background session in `dir` on `host` (the server's own when absent); its background id. */
-export const start = async (o: { dir: string; prompt?: string; name?: string; worktree?: boolean; host?: string }) =>
-  (await request<{ id: string }>("POST", "/api/sessions", { host: o.host }, { dir: o.dir, prompt: o.prompt ?? "", name: o.name ?? "", worktree: !!o.worktree })).id;
+export const start = async (o: { dir?: string; prompt?: string; name?: string; worktree?: boolean; host?: string; preset?: string }) =>
+  (await request<{ id: string }>("POST", "/api/sessions", { host: o.host }, { dir: o.dir ?? "", prompt: o.prompt ?? "", name: o.name ?? "", worktree: !!o.worktree, ...(o.preset && { preset: o.preset }) })).id;
+export const presets = () => request<Preset[] | null>("GET", "/api/presets");
+/** Summarize the session's final reply again; the new one arrives on the list. */
+export const summarize = (sid: string) => request<unknown>("POST", `/api/sessions/${enc(sid)}/summary`);
+export const usage = (sid: string) => request<Usage>("GET", `/api/sessions/${enc(sid)}/usage`);
+export const limits = () => request<Limits>("GET", "/api/usage/limits");
 export const resume = async (sid: string) => (await request<{ id: string }>("POST", `/api/sessions/${enc(sid)}/resume`)).id;
 /** The text pasted into the session's prompt and submitted, as if typed there. */
 export const send = (id: string, text: string) => request<unknown>("POST", `/api/sessions/${enc(id)}/send`, undefined, { text });
@@ -159,6 +189,16 @@ export async function upload(sid: string, file: string): Promise<string> {
   const form = new FormData();
   form.set("file", f, file.slice(file.lastIndexOf("/") + 1));
   return (await request<{ path: string }>("POST", `/api/sessions/${enc(sid)}/upload`, undefined, form)).path;
+}
+
+/** A page's preview (`Link.image`, served by atc with the token) as a `data:` url a row can show; undefined when there is none. */
+export async function image(path: string): Promise<string | undefined> {
+  try {
+    const r = await fetch(absolute(path), { headers: headers(), signal: AbortSignal.timeout(HTTP_MS), tls: tls() });
+    const type = r.headers.get("content-type") ?? "";
+    if (!r.ok || !type.startsWith("image/")) return undefined;
+    return `data:${type};base64,${Buffer.from(await r.arrayBuffer()).toString("base64")}`;
+  } catch { return undefined; }
 }
 
 /** The session's page in atc's web app. */

@@ -29,13 +29,16 @@ trusts your tailnet takes no token. A server behind a private CA (Caddy's
 ## Palettes
 
 **Sessions** (`atc-sessions`): every session, the ones that need you first,
-then your turn, working, stopped, parked last. The row is the title, then the
-machine (when atc lists several), folder, branch and what it is doing or
-asking; the state, the context it holds and the age on the right. The pane is
-what it asks, your last message and its last reply, then the machine, folder,
-branch, model, context, permission mode and times. Filters: All, Needs you,
-Running, Pinned. Tab on a row types a message; Enter sends it and opens the
-chat.
+then your turn, working, stopped, parked last. The row is the title, then
+what it is doing or asking, or for a finished turn what it ended on in one
+line (below), with the machine (when atc lists several), folder and branch;
+the state, the context it holds and the age on the right. The pane is what it
+asks, or atc's summary of its reply (the status, a line per topic, the
+overview by kind), then your last message and the reply itself; the machine,
+folder, branch, model, context, permission mode, times, its published pages
+and what it spent (tokens, the cost at API prices, how long Claude worked).
+Filters: All, Needs you, Running, Pinned. Tab on a row types a message; Enter
+sends it and opens the chat.
 
 **Chat** (`atc-chat`): one session as a chat that follows it live. The
 conversation (prompts, replies drawn as markdown, tool calls one line each),
@@ -53,6 +56,7 @@ root row, a hotkey), it shows the session that needs you most.
 | `cmd+o` | Open its terminal in pal (Terminal, below) |
 | `cmd+shift+o` | Open in atc's web page |
 | `cmd+u` | Outputs |
+| `cmd+l` | Open its published page |
 | `cmd+shift+c` | Copy the last reply |
 | `cmd+[` | Older messages |
 
@@ -67,8 +71,10 @@ its own folder: the extension holds the websocket to atc and relays the
 bytes both ways. A hidden terminal keeps its connection for a minute.
 `./xterm.sh` vendors xterm.js into `surface/vendor/`, pinned and checked.
 
-**New Session** (`atc-new`): the folders you used lately on every machine,
-then those under atc's roots. Tab types the first message and a name; Enter
+**New Session** (`atc-new`): atc's presets first (a folder with standing
+instructions, `presets.json` in atc's config folder; started on their own
+machine), then the folders you used lately on every machine, then those under
+atc's roots. Tab types the first message and a name; Enter
 starts the session there and opens its chat, `cmd+enter` starts it in a new git
 worktree. **Another folder…** is a form for any folder on any machine.
 
@@ -76,9 +82,24 @@ worktree. **Another folder…** is a form for any folder on any machine.
 machine, newest first, found by title, folder or branch. Enter reads one (a
 message typed after Tab resumes it), `cmd+enter` resumes it.
 
-**Outputs** (`atc-outputs`): what the running sessions made: the servers they
-started, the files they wrote or read (opened through atc's signed links), the
+**Outputs** (`atc-outputs`): what the running sessions made: the pages they
+published first (links matching atc's `ATC_FEATURED`, by their title, with
+the page's preview), then the servers they the files they wrote or read (opened through atc's signed links), the
 links they gave. From a session's row or chat it lists that session's alone.
+
+## What a turn ended on
+
+When a session finishes a turn, atc has a model read its final reply and sum
+it up at three lengths: a status line ("Done: the changelog, two entries need
+your call"), a line per topic, and for a long reply an overview by kind
+("Found:", "Open:"). The extension shows it wherever the session does: the
+row's subtitle, the popover row (the ring's row adds the lines), the bar's
+tooltip, the top of the pane, and a card under the reply in the chat, since
+the panel opens at the reply's end. A summary is only ever for the reply the
+session holds now, so a working session shows none; until it arrives the
+start of the reply stands in, and "Summarize the reply again" asks for a new
+one. A short reply is its own summary. A server with summaries turned off
+(`ATC_SUMMARY=off`) sends none, and the rows show the reply's start.
 
 ## How a prompt is answered
 
@@ -97,9 +118,12 @@ is read here and answered in its terminal.
 ## The bar item
 
 `sessions`: a count per state in its colour, red needs you, amber your turn,
-blue working; an alarm while one needs you (the `needs` rule); hidden with
-nothing running. The tooltip names the session that needs you and what it
-asks. The popover lists every session by state:
+blue working, and the plan's fullest limit (a gauge and its percent) once
+atc warns about it; an alarm while one needs you (the `needs` rule); hidden
+with nothing running. The tooltip names the session that needs you and what
+it asks, and what the finished turns ended on. The popover lists every
+session by state, the plan's limits (the session's five hours and the week)
+under them:
 
 | key | what |
 | --- | --- |
@@ -116,7 +140,9 @@ asks. The popover lists every session by state:
 
 It follows atc's event stream (`/api/events`), so a session that starts to
 need you shows within a couple of seconds; a render every 30 s is the safety
-net. It publishes `atc/needs_you`, `atc/your_turn` and `atc/working`.
+net. It publishes `atc/needs_you`, `atc/your_turn`, `atc/working` and
+`atc/week_used` (the week's share of the plan, in percent; asked every two
+minutes).
 
 ## Links
 
@@ -124,7 +150,7 @@ net. It publishes `atc/needs_you`, `atc/your_turn` and `atc/working`.
 | --- | --- |
 | `pal://atc/open` | `session` (an id, a background id or words of its title; absent: the one that needs you most) |
 | `pal://atc/send` | `session`, `text`, `file` (repeat for several; uploaded and named in the message) |
-| `pal://atc/new` | `dir`, `prompt`, `name`, `host`, `worktree` |
+| `pal://atc/new` | `dir` or `preset`, `prompt`, `name`, `host`, `worktree` |
 
 ## Settings
 

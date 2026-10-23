@@ -1,11 +1,12 @@
 // atc: view.ts's popover and chat.ts's chat from made-up sessions (the
 // order, what each kind of ask offers, the field, the node budget), then
 // the extension through the harness against atc-mock.ts: the sessions
-// palette and its pane, the chat (send, resume first, allow and say no
+// palette and its pane with a finished turn's summary, the chat (send, resume first, allow and say no
 // through the terminal's websocket, the clipboard), the bar item and its
-// popover keys, the event stream redrawing the bar, new sessions on either
-// machine, earlier conversations, outputs, the links, a refused token and
-// no server at all.
+// popover keys and the plan's limits, the event stream redrawing the bar,
+// new sessions on either machine or from a preset, earlier conversations,
+// outputs with the published pages, the links, a refused token and no
+// server at all.
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import { mkdtempSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -15,7 +16,7 @@ import { render as renderPopover, ordered, type PopoverState } from "../atc/view
 import type { Item, View, ViewNode } from "../.pal/sdk/src/protocol.ts";
 import { checkView } from "../.pal/sdk/src/view.ts";
 import { Host } from "../.pal/host/test/harness.ts";
-import { AtcMock, GREETING, CHANGELOG, MIGRATE, PARKED, PARSER, PLAN, RELEASE, SPIKE, T0, TERMINAL, TOKEN, initial, transcripts } from "./atc-mock.ts";
+import { AtcMock, GREETING, CHANGELOG, MIGRATE, PAGE_URL, PARKED, PARSER, PLAN, RELEASE, SPIKE, T0, TERMINAL, TOKEN, initial, limits, transcripts } from "./atc-mock.ts";
 
 const X = "atc";
 // No `atc login` of this machine's leaks in: the fallback reads an empty folder.
@@ -35,7 +36,14 @@ describe("atc views", () => {
   test("popover: needs you, your turn, working, stopped, then parked; the machine named on every row; keys by what the cursor's session asks", () => {
     expect(ordered(initial()).map((s) => s.sessionId)).toEqual([PARSER, RELEASE, PLAN, CHANGELOG, TERMINAL, MIGRATE, SPIKE, PARKED]);
     const v = pop();
-    expect(texts(v)).toEqual(expect.arrayContaining(["Needs you", "Your turn", "Working", "Stopped", "Parked", "studio · parser · fix-flaky-parser · Bash: go test ./parser/... -count=20", "laptop · ~"]));
+    expect(texts(v)).toEqual(expect.arrayContaining(["Needs you", "Your turn", "Working", "Stopped", "Parked", "studio · parser · fix-flaky-parser · Bash: go test ./parser/... -count=20", "Done: the notes are sorted by date. · laptop · ~"]));
+    // A finished turn reads as its summary; the ring's row adds a line per topic; the plan's limits under the rows, the week amber.
+    expect(texts(v)).toContain("Done: 2.4 changelog written, two entries need your call · studio · app · release-2.4");
+    expect(texts(v)).not.toContain("• Changelog has 14 entries under Added, Changed and Fixed");
+    expect(texts(pop({ cursor: CHANGELOG }))).toContain("• Changelog has 14 entries under Added, Changed and Fixed");
+    const meters = texts(pop({ limits }));
+    expect(meters).toEqual(expect.arrayContaining(["Session", "31%", "Week", "82%", "resets in 2d"]));
+    expect(meters).not.toContain("Opus");
     expect(keycaps(v)).toEqual(["enter", "y", "i", "n", "p"]);
     expect(ids(v)).toEqual(["chat", "allow", "interrupt", "terminal", "attach", "web", "outputs", "pin", "park", "stop", "new", "history", "pal"]);
     expect(v.actions.find((a) => a.id === "interrupt")!.title).toBe("Say no");
@@ -61,6 +69,12 @@ describe("atc views", () => {
     expect(ids(terminal)).toEqual(["web", "outputs", "copy-reply"]);
     expect(chat({ s: by(SPIKE) }).input!.placeholder).toBe("Message (resumes it first)");
     expect(texts(chat({ s: by(MIGRATE) }))).toContain("Working · Edit: internal/db/migrate.go");
+    // A finished turn's summary as a card under the reply; its page a badge in the header that opens it; one still summed up says so.
+    const done = chat({ s: by(CHANGELOG), messages: transcripts[CHANGELOG] });
+    expect(texts(done)).toEqual(expect.arrayContaining(["Done: 2.4 changelog written, two entries need your call", "• Two entries unclear: the export flag and the old API"]));
+    expect(nodes(done.tree).find((n) => n.type === "badge" && n.text.includes("2.4 changelog draft"))).toMatchObject({ action: "page:0" });
+    expect(ids(done)).toEqual(expect.arrayContaining(["summarize", "page:0"]));
+    expect(texts(chat({ s: by(PARKED) }))).toContain("Summarizing the reply…");
     const att = chat({ s: by(CHANGELOG), attached: ["/home/ana/.cache/atc/uploads/x/101500-shot.png"] });
     expect(nodes(att.tree).some((n) => n.type === "badge" && n.text.endsWith("shot.png"))).toBe(true);
     expect(ids(att)).toContain("detach");
@@ -115,6 +129,17 @@ describe("atc", () => {
     expect(d.markdown).toContain("**Asks to run** `Bash: go test ./parser/... -count=20`");
     expect(d.metadata).toEqual(expect.arrayContaining([{ label: "Machine", value: "studio" }, { label: "Context", value: "92k tokens" }]));
     expect((await host.detail(X, "sessions", RELEASE)).markdown).toContain("**Asks you a question**");
+    // The pane leads with the summary (gist, then the overview by kind), the page a link, what the session spent.
+    const done = await host.detail(X, "sessions", CHANGELOG);
+    expect(done.markdown).toStartWith("### Done: 2.4 changelog written, two entries need your call\n\n- Changelog has 14 entries");
+    expect(done.markdown).toContain("- **Open:** whether the export flag counts as a breaking change");
+    expect(done.metadata).toEqual(expect.arrayContaining([{ label: "Page", link: { text: "2.4 changelog draft", href: PAGE_URL } }, { label: "Usage", value: "18.4M tokens · ~$6.60 at API prices" }, { label: "Claude worked", value: "41m over 3 turns" }]));
+    const row = rows.find((r) => r.id === CHANGELOG)!;
+    expect(row.subtitle).toBe("Done: 2.4 changelog written, two entries need your call · studio · app · release-2.4");
+    expect(await host.pick(X, "sessions", CHANGELOG, "pages")).toEqual({ open: PAGE_URL });
+    expect(await host.pick(X, "sessions", CHANGELOG, "summarize")).toMatchObject({ hud: "Summarizing the reply again" });
+    expect(mock.posted(`/api/sessions/${CHANGELOG}/summary`)).toHaveLength(1);
+    mock.sessions = initial();
   });
 
   test("chat: Enter pushes it (sending what was typed first); the view; a message sent, a stopped one resumed first, the field reopened empty", async () => {
@@ -166,27 +191,31 @@ describe("atc", () => {
   test("bar: a count per state, the lead's ask in the tooltip, the states published; the popover's keys; the stream redraws it", async () => {
     mock.sessions = initial();
     const item = await host.render(X, "sessions", { reason: "every" });
-    expect(item.segments!.map((s) => [s.id, s.text, s.color])).toEqual([["needs", "3", "red"], ["turn", "2", "amber"], ["working", "1", "blue"]]);
-    expect(item.tooltip).toBe("3 need you, 2 your turn, 1 working\nFix the flaky parser test: Bash: go test ./parser/... -count=20");
+    // The week's limit joins once atc warns about it; the tooltip names what the finished turns said.
+    expect(item.segments!.map((s) => [s.id, s.text, s.color])).toEqual([["needs", "3", "red"], ["turn", "2", "amber"], ["working", "1", "blue"], ["limit", "82%", "amber"]]);
+    expect(item.tooltip).toBe("3 need you, 2 your turn, 1 working\nFix the flaky parser test: Bash: go test ./parser/... -count=20\nWrite the changelog: Done: 2.4 changelog written, two entries need your call\nnotes: Done: the notes are sorted by date.\nThis week, all models: 82% used");
     expect(await host.barAction(X, "sessions", "down", ctx)).toHaveProperty("view");
     expect(await host.barAction(X, "sessions", "chat", ctx)).toMatchObject({ push: { palette: "chat", args: { session: RELEASE } } });
     expect(await host.barAction(X, "sessions", "new", ctx)).toEqual({ push: { extension: X, palette: "new" } });
     await host.until(() => mock.streaming > 0);
     mock.sessions = mock.sessions.map((s) => (s.state === "needs-you" ? { ...s, state: "working" as const } : s));
     mock.emit();
-    const next = await host.nextUpdate(X, "sessions", (i) => i.segments?.length === 2);
-    expect(next.segments!.map((s) => s.id)).toEqual(["turn", "working"]);
+    const next = await host.nextUpdate(X, "sessions", (i) => !i.segments?.some((s) => s.id === "needs"));
+    expect(next.segments!.map((s) => s.id)).toEqual(["turn", "working", "limit"]);
   });
 
   test("new: the folders of both machines with the first message in the bar; a start on the peer names it; another folder through a form", async () => {
     const rows = await host.list(X, "new");
-    expect(rows.map((r) => [r.name, r.subtitle])).toEqual([["~/proj/api", "studio · recent · git"], ["~/proj/parser", "studio · recent · git"], ["~/scratch", "studio"], ["~/proj/app", "laptop · recent · git"], ["Another folder…", "Any folder, on any machine"]]);
+    expect(rows.map((r) => [r.name, r.subtitle])).toEqual([["reviewer", "preset · studio · ~/proj/app · briefed by review.md"], ["ops", "preset · laptop · ~/proj/infra"], ["~/proj/api", "studio · recent · git"], ["~/proj/parser", "studio · recent · git"], ["~/scratch", "studio"], ["~/proj/app", "laptop · recent · git"], ["Another folder…", "Any folder, on any machine"]]);
     const go = await host.pick(X, "new", "laptop\t/Users/ana/proj/app", "worktree", { values: { prompt: "bump the version", name: "release" } });
     expect(go).toMatchObject({ push: { palette: "chat", title: "release" } });
     expect(mock.calls.filter((c) => c.method === "POST").at(-1)).toEqual({ method: "POST", path: "/api/sessions?host=laptop", body: { dir: "/Users/ana/proj/app", prompt: "bump the version", name: "release", worktree: true } });
     await host.pick(X, "new", "studio\t/home/ana/scratch", "start", { values: { prompt: "", name: "" } });
     expect(mock.calls.filter((c) => c.method === "POST").at(-1)!.path).toBe("/api/sessions");
     expect((await host.pick(X, "new", "other")).form!.fields.map((f) => f.id)).toEqual(["host", "dir", "prompt", "name", "worktree"]);
+    // A preset is started on its own machine by name; atc fills in the folder and the brief.
+    expect(await host.pick(X, "new", rows[1].id, "start", { values: { prompt: "check the runners" } })).toMatchObject({ push: { palette: "chat", title: "ops" } });
+    expect(mock.calls.filter((c) => c.method === "POST").at(-1)).toEqual({ method: "POST", path: "/api/sessions?host=laptop", body: { dir: "", prompt: "check the runners", name: "", worktree: false, preset: "ops" } });
     expect((await host.pick(X, "new", "other", "create", { values: { dir: "proj" } })).form!.errors).toEqual({ dir: "A full path, or one under ~" });
   });
 
@@ -198,6 +227,9 @@ describe("atc", () => {
     expect(o.map((r) => [r.name, r.subtitle])).toEqual([["http://studio:5173", "server"], ["migrate.go", "edited · ~/proj/api/internal/db/migrate.go"], ["https://www.postgresql.org/docs/current/sql-copy.html", "link"]]);
     expect(await host.pick(X, "outputs", o[1].id)).toEqual({ open: [`${mock.url}/api/sessions/x/o/tok/home/ana/proj/api/internal/db/migrate.go`] });
     expect(await host.pick(X, "outputs", o[1].id, "copy")).toEqual({ copy: "/home/ana/proj/api/internal/db/migrate.go" });
+    // Published pages lead the whole list, their preview fetched with the token.
+    const all = await host.list(X, "outputs");
+    expect(all[0]).toMatchObject({ name: "2.4 changelog draft", subtitle: "page · notes.example/changelog-2-4 · Write the changelog", url: PAGE_URL, icon: { image: expect.stringMatching(/^data:image\/png;base64,/) } });
   });
 
   test("links: send with a file uploaded and named in the message, open by words of the title, new", async () => {
@@ -207,6 +239,8 @@ describe("atc", () => {
     expect(mock.posted("/api/sessions/ad516e84/send").at(-1)!.body).toEqual({ text: `this one @/home/ana/.cache/atc/uploads/${CHANGELOG}/101500-shot.png` });
     expect(await link("open", { session: "postgres" })).toMatchObject({ push: { args: { session: MIGRATE } } });
     expect(await link("new", { dir: "~/proj/api", prompt: "add an index" })).toMatchObject({ push: { palette: "chat" } });
+    expect(await link("new", { preset: "ops" })).toMatchObject({ push: { palette: "chat", title: "ops" } });
+    expect(mock.calls.filter((c) => c.method === "POST").at(-1)!.path).toBe("/api/sessions?host=laptop");
   });
 
   test("a refused token and no server at all say so in the palette and keep the bar quiet", async () => {

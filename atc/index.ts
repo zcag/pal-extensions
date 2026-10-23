@@ -5,9 +5,10 @@
 // working, or it stopped. From pal a session is read and answered as a
 // chat, a permission prompt allowed or refused, a turn interrupted, a new
 // session started in any folder on any machine, an earlier conversation
-// found and resumed, and what a session made (servers, files, links)
-// opened. atc's event stream (live.ts) keeps the bar and an open chat
-// current within a couple of seconds.
+// found and resumed, and what a session made (servers, files, links,
+// published pages) opened. A finished turn reads as atc's summary of its
+// reply wherever the session shows. atc's event stream (live.ts) keeps the
+// bar and an open chat current within a couple of seconds.
 //
 // The server comes from the settings, else from `atc login` on this
 // machine (api.ts). Sending a message is `POST /send`, which pastes it into
@@ -15,12 +16,12 @@
 // session's terminal (keys.ts); a stopped session is resumed first.
 import { bar, clipboard, errorMessage, failed, hint, home, mdEscape, now, state, terminal, toast, truncate, view as liveView, when, type Accessory, type Action, type Arg, type BarCtx, type BarItem, type Ctx, type Detail, type Effect, type Extension, type Item, type LinkParams, type Metadata, type View } from "@zcag/pal";
 import * as api from "./api.ts";
-import { ApiError, NotSetUp, conf, server, type Message, type Session } from "./api.ts";
+import { ApiError, NotSetUp, conf, server, type Limits, type Message, type Session, type Usage } from "./api.ts";
 import { render as renderChat } from "./chat.ts";
 import { KEY, sendKeys } from "./keys.ts";
 import * as live from "./live.ts";
 import * as term from "./terminal.ts";
-import { ASK, MARK, STATE, activity, allows, askOf, at, current, folder, interruptTitle, interrupts, keyOf, ordered, render as renderPopover, sendable, short, since, subtitle, tokens, type PopoverState } from "./view.ts";
+import { ASK, MARK, STATE, activity, allows, askOf, at, condensed, current, folder, interruptTitle, interrupts, keyOf, limitColor, ordered, render as renderPopover, said, sendable, short, since, subtitle, summaryOf, tokens, windows, type PopoverState } from "./view.ts";
 
 const EXT = "atc", ITEM = "sessions";
 /** Two reads within this share one fetch (the bar and a palette ask together); the stream keeps the list fresher anyway. */
@@ -29,6 +30,8 @@ const LIST_TTL_MS = 1500;
 export const RESUME_POLL_MS = 1000, RESUME_WAIT_MS = 30_000;
 /** After a send the field closes and opens again empty this long after (the panel clears a field only when it closes). */
 const REOPEN_MS = 60;
+/** The plan's limits and a session's usage change slowly; asked again after this. */
+const LIMITS_TTL_MS = 120_000, USAGE_TTL_MS = 60_000;
 
 // ---- the list ---------------------------------------------------------------------
 
@@ -140,7 +143,14 @@ async function act(s: Session, action: string, values?: Record<string, unknown>)
       try { await ready(s); } catch (e) { return failed("resume it", e); }
       return chatPush(s.sessionId, s.title);
     }
+    case "summarize": {
+      try { await api.summarize(s.sessionId); } catch (e) { return failed("summarize it", e); }
+      live.restart();
+      return { keep: true, hud: "Summarizing the reply again" };
+    }
+    case "pages": return s.pages?.length === 1 ? { open: s.pages[0].url } : { push: { extension: EXT, palette: "outputs", args: { session: s.sessionId }, title: truncate(s.title, 32) } };
   }
+  if (action.startsWith("page:")) { const p = s.pages?.[Number(action.slice(5))]; return p ? { open: p.url } : toast("No such page", undefined, "failure"); }
   return undefined;
 }
 
@@ -332,6 +342,8 @@ function rowActions(s: Session): Action[] {
     ...(s.state === "stopped" ? [{ id: "resume", title: "Resume", shortcut: "cmd+shift+r" }] : []),
     { id: "web", title: "Open in atc's web page", shortcut: "cmd+shift+o" },
     { id: "outputs", title: "Outputs", shortcut: "cmd+u" },
+    ...(s.pages?.length ? [{ id: "pages", title: s.pages.length === 1 ? "Open its page" : "Its pages", shortcut: "cmd+l" }] : []),
+    ...(summaryOf(s) || s.summarizing ? [{ id: "summarize", title: "Summarize the reply again" }] : []),
     { id: s.pinned ? "unpin" : "pin", title: s.pinned ? "Unpin" : "Pin", shortcut: "cmd+shift+p", multi: true as const },
     { id: s.parked ? "unpark" : "park", title: s.parked ? "Unpark" : "Park", multi: true as const },
     { id: "rename", title: "Rename", shortcut: "cmd+shift+e" },
@@ -376,6 +388,20 @@ async function list(ctx?: Ctx): Promise<Item[]> {
   return rows.length ? rows.map((s) => item(s, hosts)) : [hint("none", ctx?.filter && ctx.filter !== "all" ? "Nothing here" : "No sessions", "New Session starts one")];
 }
 
+/** A session's usage, asked once a minute at most; undefined when atc has none for it (or is slow). */
+const usages = new Map<string, { at: number; u?: Usage }>();
+async function usageOf(sid: string): Promise<Usage | undefined> {
+  const c = usages.get(sid);
+  if (c && now() - c.at < USAGE_TTL_MS) return c.u;
+  const u = await api.usage(sid).catch(() => undefined);
+  usages.set(sid, { at: now(), u });
+  return u;
+}
+const dollars = (n: number) => (n >= 100 ? `$${Math.round(n)}` : `$${n.toFixed(2)}`);
+const span = (secs: number) => (secs >= 3600 ? `${Math.floor(secs / 3600)}h ${Math.round((secs % 3600) / 60)}m` : `${Math.max(1, Math.round(secs / 60))}m`);
+/** "Found: the cause" with its label in bold. */
+const labelled = (l: string) => { const m = l.match(/^([^:]{1,16}):\s+(.*)$/); return m ? `**${mdEscape(m[1])}:** ${mdEscape(m[2])}` : mdEscape(l); };
+
 async function detail(id: string): Promise<Detail> {
   const s = find(await sessions().catch(() => []), id);
   if (!s) return { markdown: "atc no longer lists this session." };
@@ -383,8 +409,16 @@ async function detail(id: string): Promise<Detail> {
   const doing = activity(s.activity);
   if (s.state === "needs-you") md.push(askOf(s) === "run" ? `**Asks to run** \`${mdEscape(doing || "a tool")}\`` : `**${ASK[askOf(s)].heading}**`);
   else if (s.state === "working" && doing) md.push(`*Working:* ${mdEscape(doing)}`);
+  const x = summaryOf(s);
+  if (condensed(x)) {
+    md.push(`### ${mdEscape(x.status)}`);
+    if (x.gist?.length) md.push(x.gist.map((g) => `- ${mdEscape(g)}`).join("\n"));
+    if (x.overview?.length) md.push(`**Overview**\n\n${x.overview.map((l) => `- ${labelled(l)}`).join("\n")}`);
+    md.push("---");
+  } else if (!x && s.summarizing && s.state !== "working") md.push("*Summarizing the reply…*");
   if (s.lastPrompt) md.push(`**You**\n\n${mdEscape(s.lastPrompt)}`);
   if (s.lastReply) md.push(`**Claude**\n\n${s.lastReply}`);
+  const u = await usageOf(s.sessionId);
   const meta: Metadata[] = [
     { label: "State", tags: [{ text: s.parked ? "parked" : STATE[s.state].tag, color: s.parked ? "grey" : STATE[s.state].color }] },
     ...(s.host ? [{ label: "Machine", value: s.host }] : []),
@@ -396,6 +430,9 @@ async function detail(id: string): Promise<Detail> {
     ...(s.startedAt ? [{ label: "Started", value: when(at(s.startedAt)) }] : []),
     ...(s.updated ? [{ label: "Last activity", value: when(at(s.updated)) }] : []),
     ...(s.servers?.length ? [{ label: "Serving", value: s.servers.map((p) => `:${p}`).join(" ") }] : []),
+    ...[...(s.pages ?? [])].reverse().map((p) => ({ label: "Page", link: { text: truncate(p.title || p.url.replace(/^https?:\/\//, ""), 60), href: p.url } })),
+    ...(u?.total ? [{ label: "Usage", value: `${tokens(u.total)} tokens · ~${dollars(u.cost + (u.subagents?.cost ?? 0))} at API prices` }] : []),
+    ...(u?.activeSeconds ? [{ label: "Claude worked", value: `${span(u.activeSeconds)} over ${u.turns} turn${u.turns === 1 ? "" : "s"}` }] : []),
     { label: "Kind", value: s.kind === "interactive" ? "in a terminal" : s.kind },
     { label: "Session", value: s.sessionId },
   ];
@@ -421,13 +458,27 @@ async function pick(id: string, action?: string, ctx?: Ctx): Promise<Effect> {
 
 const NEW_ARGS: Arg[] = [{ id: "prompt", placeholder: "First message" }, { id: "name", placeholder: "Name" }];
 
+/** nf-md-robot_outline: a preset is a session with standing instructions, an agent of its own. */
+const PRESET = "\u{f167a}";
+
 async function folders(): Promise<Item[]> {
   let me: api.Me;
   try { me = await api.me(); } catch (e) { return [hint("problem", problemOf(e))]; }
   const hosts = me.hosts?.length ? me.hosts : [me.host];
-  const all = await Promise.all(hosts.map(async (h) => ({ h, dirs: await api.dirs(h === me.host ? undefined : h).catch(() => [] as api.Dir[]) })));
+  const [all, presets] = await Promise.all([
+    Promise.all(hosts.map(async (h) => ({ h, dirs: await api.dirs(h === me.host ? undefined : h).catch(() => [] as api.Dir[]) }))),
+    api.presets().catch(() => null),
+  ]);
   const many = hosts.length > 1;
-  const rows: Item[] = [];
+  const rows: Item[] = (presets ?? []).map((p) => ({
+    id: `preset\t${p.host ?? ""}\t${p.name}`,
+    name: p.name,
+    subtitle: ["preset", many ? p.host : undefined, short(p.dir), p.brief ? `briefed by ${folder(p.brief)}` : undefined].filter(Boolean).join(" · "),
+    icon: PRESET,
+    keywords: [p.host ?? "", folder(p.dir), "preset"].filter(Boolean),
+    args: [NEW_ARGS[0]],
+    actions: [{ id: "start", title: `Start ${p.name}` }],
+  }));
   for (const { h, dirs } of all) {
     for (const d of dirs) {
       rows.push({
@@ -461,11 +512,11 @@ function newForm(hosts: string[], values?: Record<string, unknown>, errors?: Rec
   } };
 }
 
-async function startOne(o: { host?: string; dir: string; prompt?: string; name?: string; worktree?: boolean }, me?: api.Me): Promise<Effect> {
+async function startOne(o: { host?: string; dir?: string; prompt?: string; name?: string; worktree?: boolean; preset?: string }, me?: api.Me): Promise<Effect> {
   let id: string;
   try { id = await api.start({ ...o, host: o.host && o.host !== me?.host ? o.host : undefined }); } catch (e) { return failed("start it", e); }
   live.restart();
-  return chatPush(id, o.name || folder(o.dir));
+  return chatPush(id, o.name || o.preset || folder(o.dir ?? ""));
 }
 
 async function newPick(id: string, action?: string, ctx?: Ctx): Promise<Effect> {
@@ -478,6 +529,7 @@ async function newPick(id: string, action?: string, ctx?: Ctx): Promise<Effect> 
     if (!dir.startsWith("/") && !dir.startsWith("~")) return newForm(me?.hosts ?? [], v, { dir: "A full path, or one under ~" });
     return startOne({ host: v.host ? String(v.host) : undefined, dir, prompt: String(v.prompt ?? ""), name: String(v.name ?? ""), worktree: !!v.worktree }, me);
   }
+  if (id.startsWith("preset\t")) { const [, host, preset] = id.split("\t"); return startOne({ host: host || undefined, preset, prompt: String(v.prompt ?? "") }, me); }
   const [host, dir] = id.split("\t");
   return startOne({ host, dir, prompt: String(v.prompt ?? ""), name: String(v.name ?? ""), worktree: action === "worktree" }, me);
 }
@@ -523,20 +575,31 @@ async function historyPick(id: string, action?: string, ctx?: Ctx): Promise<Effe
 
 // ---- outputs ---------------------------------------------------------------------------------
 
+/** Page previews by their server path, fetched once. */
+const previews = new Map<string, Promise<string | undefined>>();
+const preview = (path?: string) => (path ? (previews.get(path) ?? previews.set(path, api.image(path)).get(path)!) : Promise.resolve(undefined));
+/** nf-md-web. */
+const PAGE = "\u{f059f}";
+
 async function outputsList(ctx?: Ctx): Promise<Item[]> {
   const only = (ctx?.args as { session?: string } | undefined)?.session;
   let list: Session[];
   try { list = await sessions(); } catch (e) { return [hint("problem", problemOf(e))]; }
   const which = only ? list.filter((s) => s.sessionId === only) : ordered(list).filter((s) => !s.parked && s.state !== "stopped");
   const got = await Promise.all(which.map(async (s) => ({ s, o: await api.outputs(s.sessionId).catch(() => undefined) })));
-  const rows: Item[] = [];
+  const rows: Item[] = [], published: Item[] = [];
   for (const { s, o } of got) {
     if (!o) continue;
     const from = only ? "" : ` · ${truncate(s.title, 40)}`;
+    const pages = [...(o.featured ?? [])].reverse();
+    const shots = await Promise.all(pages.map((l) => preview(l.image)));
+    pages.forEach((l, i) => published.push({ id: `page\t${l.url}`, name: l.title || l.url, subtitle: `page · ${l.url.replace(/^https?:\/\//, "")}${from}`, icon: shots[i] ? { image: shots[i]! } : PAGE, url: l.url, accessories: [{ date: at(l.at) }], actions: [{ id: "open", title: "Open" }, { id: "copy", title: "Copy link", shortcut: "cmd+c" }] }));
     for (const v of o.servers ?? []) if (v.running) rows.push({ id: `srv\t${v.url}`, name: v.url, subtitle: `server${from}`, icon: "\u{f048b}", url: v.url, accessories: [{ tag: "running", color: "green" }], actions: [{ id: "open", title: "Open" }, { id: "copy", title: "Copy address", shortcut: "cmd+c" }] });
     for (const f of (o.files ?? []).slice(0, 30)) rows.push({ id: `file\t${api.absolute(f.url)}\t${f.path}`, name: folder(f.path), subtitle: `${f.op} · ${short(f.path)}${from}`, icon: f.kind === "image" ? "\u{f02e9}" : "\u{f0214}", accessories: [{ date: at(f.at) }], actions: [{ id: "open", title: "Open" }, { id: "copy", title: "Copy path", shortcut: "cmd+c" }] });
     for (const l of (o.links ?? []).slice(0, 20)) rows.push({ id: `link\t${l.url}`, name: l.url, subtitle: `link${from}`, url: l.url, accessories: [{ date: at(l.at) }], actions: [{ id: "open", title: "Open" }, { id: "copy", title: "Copy link", shortcut: "cmd+c" }] });
   }
+  // Published pages lead, from every session.
+  rows.unshift(...published);
   return rows.length ? rows : [hint("none", "Nothing yet", only ? "This session has started no server and written or linked nothing" : "No running session has made anything yet")];
 }
 
@@ -552,33 +615,58 @@ function outputsPick(id: string, action?: string, ctx?: Ctx): Effect {
 let cursor: string | undefined;
 let lastList: Session[] = [];
 let lastProblem: string | undefined;
+let lastLimits: Limits | undefined, limitsAt = 0;
+
+async function limits(): Promise<Limits | undefined> {
+  if (now() - limitsAt < LIMITS_TTL_MS) return lastLimits;
+  limitsAt = now();
+  const l = await api.limits().catch(() => undefined);
+  if (l && !l.error) lastLimits = l;
+  return lastLimits;
+}
 
 function popoverState(): PopoverState {
-  const st: PopoverState = { sessions: lastList, cursor, now: now(), problem: lastProblem };
+  const st: PopoverState = { sessions: lastList, cursor, now: now(), problem: lastProblem, limits: lastLimits };
   const c = current(st);
   cursor = c && keyOf(c);
   return st;
 }
 
-export function barItem(list: Session[], problem?: string): BarItem {
+/** nf-md-gauge. */
+const GAUGE = "\u{f029a}";
+/** At most this many finished turns named in the tooltip. */
+const TOOLTIP_TURNS = 3;
+
+export function barItem(list: Session[], problem?: string, l?: Limits): BarItem {
   const menu = { view: renderPopover(popoverState()) };
   if (problem && !list.length) return { hidden: true, ...(server().url && { empty: { icon: MARK, tooltip: problem, menu } }) };
   const shown = list.filter((s) => !s.parked && s.state !== "past");
   const n = (st: string) => shown.filter((s) => s.state === st).length;
   const needs = n("needs-you"), turn = n("your-turn"), working = n("working");
   if (!needs && !turn && !working) return { hidden: true, empty: { icon: MARK, tooltip: "Nothing running", menu } };
-  const segments = [
+  const segments: NonNullable<BarItem["segments"]> = [
     ...(needs ? [{ id: "needs", text: String(needs), color: "red" as const, tooltip: `${needs} need${needs === 1 ? "s" : ""} you` }] : []),
     ...(turn ? [{ id: "turn", text: String(turn), color: "amber" as const, tooltip: `${turn} your turn` }] : []),
     ...(working ? [{ id: "working", text: String(working), color: "blue" as const, tooltip: `${working} working` }] : []),
   ];
+  // The plan's limit joins only once atc warns about it, the fullest window.
+  const tight = windows(l).filter((w) => limitColor(w.severity)).sort((a, b) => b.percent - a.percent)[0];
+  if (tight) segments.push({ id: "limit", icon: GAUGE, text: `${Math.round(tight.percent)}%`, color: limitColor(tight.severity)!, tooltip: `${tight.label}: ${Math.round(tight.percent)}% used` });
   const words = [needs && `${needs} need${needs === 1 ? "s" : ""} you`, turn && `${turn} your turn`, working && `${working} working`].filter(Boolean);
   const lead = shown.find((s) => s.state === "needs-you");
-  return { icon: MARK, segments, ...(problem && { stale: true }), tooltip: `${words.join(", ")}${lead ? `\n${lead.title}: ${askOf(lead) === "run" ? activity(lead.activity) || "asks to run a tool" : ASK[askOf(lead)].heading.toLowerCase()}` : ""}`, menu };
+  const lines = [
+    words.join(", "),
+    ...(lead ? [`${lead.title}: ${askOf(lead) === "run" ? activity(lead.activity) || "asks to run a tool" : ASK[askOf(lead)].heading.toLowerCase()}`] : []),
+    ...ordered(shown).filter((s) => s.state === "your-turn" && said(s)).slice(0, TOOLTIP_TURNS).map((s) => `${s.title}: ${said(s)}`),
+    ...(tight ? [`${tight.label}: ${Math.round(tight.percent)}% used`] : []),
+  ];
+  return { icon: MARK, segments, ...(problem && { stale: true }), tooltip: lines.join("\n"), menu };
 }
 
-/** The counts as states (`atc/needs_you`, `atc/your_turn`, `atc/working`), for a rule or a state of the user's to compose. */
-function publish(list: Session[]) {
+/** The counts as states (`atc/needs_you`, `atc/your_turn`, `atc/working`) and the week's share of the plan (`atc/week_used`), for a rule or a state of the user's to compose. */
+function publish(list: Session[], l?: Limits) {
+  const week = l?.windows.find((w) => w.key === "weekly_all");
+  if (week) state.set("week_used", Math.round(week.percent), EXT).catch(() => {});
   const n = (st: string) => list.filter((s) => !s.parked && s.state === st).length;
   state.set("needs_you", n("needs-you"), EXT).catch(() => {});
   state.set("your_turn", n("your-turn"), EXT).catch(() => {});
@@ -589,8 +677,9 @@ async function renderBar(ctx?: BarCtx): Promise<BarItem> {
   hookViews();
   if (ctx?.reason === "wake" || ctx?.reason === "network") live.restart();
   try { lastList = await sessions(ctx?.reason === "every" || ctx?.reason === "open" || ctx?.reason === "wake"); lastProblem = undefined; } catch (e) { lastProblem = problemOf(e); if (e instanceof NotSetUp) lastList = []; }
-  publish(lastList);
-  return barItem(lastList, lastProblem);
+  if (!lastProblem) await limits();
+  publish(lastList, lastLimits);
+  return barItem(lastList, lastProblem, lastLimits);
 }
 
 async function popoverAction(action: string, ctx: BarCtx): Promise<Effect> {
@@ -635,7 +724,10 @@ async function link(route: string, params: LinkParams): Promise<Effect | void> {
     }
     case "new": {
       const me = await api.me().catch(() => undefined);
-      return startOne({ host: params.host ? String(params.host) : undefined, dir: String(params.dir), prompt: String(params.prompt ?? ""), name: String(params.name ?? ""), worktree: !!params.worktree }, me);
+      if (!params.dir && !params.preset) throw new Error("dir or preset is required");
+      // A preset lives on its own machine's atc, which the start is sent to.
+      const preset = params.preset && !params.host ? (await api.presets().catch(() => null))?.find((p) => p.name === String(params.preset)) : undefined;
+      return startOne({ host: params.host ? String(params.host) : preset?.host, dir: params.dir ? String(params.dir) : undefined, preset: params.preset ? String(params.preset) : undefined, prompt: String(params.prompt ?? ""), name: String(params.name ?? ""), worktree: !!params.worktree }, me);
     }
   }
 }
