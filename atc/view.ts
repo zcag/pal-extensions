@@ -53,6 +53,9 @@ export const allows = (s: Session) => s.state === "needs-you" && !!s.id && s.att
 export const interrupts = (s: Session) => !!s.id && s.attachable && (s.state === "needs-you" || s.state === "working");
 export const interruptTitle = (s: Session) => (s.state === "needs-you" ? ASK[askOf(s)].refuse : "Interrupt");
 
+/** A message can go in, and its terminal opens here: a background session (live, or resumed first when stopped) or a past conversation; one started in a terminal is typed into only there. */
+export const sendable = (s: Session) => !!s.id || s.state === "stopped" || s.state === "past";
+
 /** The key a session goes by in rows and actions: the conversation id, which every session has. */
 export const keyOf = (s: Session) => s.sessionId;
 
@@ -132,7 +135,8 @@ export function actions(st: PopoverState): Action[] {
     { id: "chat", title: "Open the chat", shortcut: ["enter", "r"] },
     ...(allows(s) ? [{ id: "allow", title: ASK[askOf(s)].allow!, shortcut: ["y", "cmd+y"] }] : []),
     ...(interrupts(s) ? [{ id: "interrupt", title: interruptTitle(s), shortcut: ["i", "cmd+."] }] : []),
-    ...(s.attachable ? [{ id: "terminal", title: "Open in a terminal", shortcut: ["o", "cmd+o"] }] : []),
+    ...(sendable(s) ? [{ id: "terminal", title: "Open its terminal in pal", shortcut: ["o", "cmd+o"] }] : []),
+    ...(s.attachable ? [{ id: "attach", title: "Open in a terminal app (atc attach)", shortcut: "a" }] : []),
     { id: "web", title: "Open in atc's web page", shortcut: ["w", "cmd+shift+o"] },
     { id: "outputs", title: "Outputs", shortcut: "u" },
     { id: s.pinned ? "unpin" : "pin", title: s.pinned ? "Unpin" : "Pin", multi: true as const },

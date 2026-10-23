@@ -15,7 +15,7 @@ import { render as renderPopover, ordered, type PopoverState } from "../atc/view
 import type { Item, View, ViewNode } from "../.pal/sdk/src/protocol.ts";
 import { checkView } from "../.pal/sdk/src/view.ts";
 import { Host } from "../.pal/host/test/harness.ts";
-import { AtcMock, CHANGELOG, MIGRATE, PARKED, PARSER, PLAN, RELEASE, SPIKE, T0, TERMINAL, TOKEN, initial, transcripts } from "./atc-mock.ts";
+import { AtcMock, GREETING, CHANGELOG, MIGRATE, PARKED, PARSER, PLAN, RELEASE, SPIKE, T0, TERMINAL, TOKEN, initial, transcripts } from "./atc-mock.ts";
 
 const X = "atc";
 // No `atc login` of this machine's leaks in: the fallback reads an empty folder.
@@ -37,11 +37,10 @@ describe("atc views", () => {
     const v = pop();
     expect(texts(v)).toEqual(expect.arrayContaining(["Needs you", "Your turn", "Working", "Stopped", "Parked", "studio · parser · fix-flaky-parser · Bash: go test ./parser/... -count=20", "laptop · ~"]));
     expect(keycaps(v)).toEqual(["enter", "y", "i", "n", "p"]);
-    expect(ids(v)).toEqual(["chat", "allow", "interrupt", "terminal", "web", "outputs", "pin", "park", "stop", "new", "history", "pal"]);
+    expect(ids(v)).toEqual(["chat", "allow", "interrupt", "terminal", "attach", "web", "outputs", "pin", "park", "stop", "new", "history", "pal"]);
     expect(v.actions.find((a) => a.id === "interrupt")!.title).toBe("Say no");
     // A question has no allow (Enter would pick its first answer unread); a plan's allow approves it; a terminal session has neither.
     expect(ids(pop({ cursor: RELEASE }))).not.toContain("allow");
-    expect(v.actions.length).toBeGreaterThan(0);
     const plan = pop({ cursor: PLAN });
     expect(plan.actions.find((a) => a.id === "allow")!.title).toBe("Approve the plan");
     expect(plan.actions.find((a) => a.id === "interrupt")!.title).toBe("Keep planning");
@@ -55,7 +54,7 @@ describe("atc views", () => {
     expect(keycaps(run)).toEqual(expect.arrayContaining(["cmd+y", "cmd+."]));
     expect(run.input).toEqual({ placeholder: "Message", submit: "send" });
     const question = chat({ s: by(RELEASE) });
-    expect(texts(question)).toEqual(expect.arrayContaining(["Asks you a question", "Answer it where its options show: cmd+o opens the terminal"]));
+    expect(texts(question)).toEqual(expect.arrayContaining(["Asks you a question", "Answer it where its options show: cmd+o opens its terminal"]));
     expect(ids(question)).not.toContain("allow");
     const terminal = chat({ s: by(TERMINAL) });
     expect(terminal.input).toBeUndefined();
@@ -87,12 +86,13 @@ describe("atc", () => {
   });
   afterAll(() => { host.kill(); mock.stop(); });
 
-  test("meta: five palettes, the bar item, three links, the settings; no warnings", () => {
+  test("meta: six palettes, the bar item, three links, the settings; no warnings", () => {
     const loaded = host.loaded().find((l) => l.extension === X)!;
     expect(loaded.warnings).toEqual([]);
     expect(loaded.palettes.map((p) => [p.name, p.title, p.live, p.input, p.lazy, p.tier])).toEqual([
       ["sessions", "Sessions", true, false, true, "primary"],
       ["chat", "Chat", false, true, undefined, undefined],
+      ["terminal", "Terminal", false, true, undefined, undefined],
       ["new", "New Session", true, false, true, undefined],
       ["history", "Earlier Conversations", false, false, true, undefined],
       ["outputs", "Outputs", true, false, true, undefined],
@@ -148,6 +148,19 @@ describe("atc", () => {
     await host.until(() => !!mock.keys["7a2e3b51"]);
     expect(await host.after(no, 300)).toMatchObject({ hud: "Question dismissed" });
     expect(mock.keys["7a2e3b51"]).toEqual(["\x1b"]);
+  });
+
+  test("terminal: a page view; its open joins the session's terminal, the output posted as base64, typing written as bytes; a terminal session refused", async () => {
+    expect((await host.request<View>("view", { extension: X, palette: "terminal", args: { session: CHANGELOG } })).tree).toEqual({ type: "surface", src: "surface/index.html" });
+    const args = { session: CHANGELOG };
+    expect(await host.surfaceSend(X, "terminal", { op: "open", cols: 100, rows: 30 }, args)).toEqual({ title: "Write the changelog", fresh: true });
+    await host.until(() => host.surfacePosts(X, "terminal").length > 0);
+    expect(Buffer.from((host.surfacePosts(X, "terminal")[0].data as { b64: string }).b64, "base64").toString()).toBe(GREETING);
+    expect(await host.surfaceSend(X, "terminal", { op: "open", cols: 100, rows: 30 }, args)).toEqual({ title: "Write the changelog", fresh: false });
+    await host.surfaceSend(X, "terminal", { op: "input", data: "hi\r" }, args);
+    await host.until(() => mock.keys["ad516e84"]?.join("") === "hi\r");
+    await host.surfaceSend(X, "terminal", { op: "close" }, args);
+    await expect(host.surfaceSend(X, "terminal", { op: "open", cols: 100, rows: 30 }, { session: TERMINAL })).rejects.toThrow("It runs in its own terminal");
   });
 
   test("bar: a count per state, the lead's ask in the tooltip, the states published; the popover's keys; the stream redraws it", async () => {

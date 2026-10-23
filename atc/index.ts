@@ -16,10 +16,11 @@
 import { bar, clipboard, errorMessage, failed, hint, home, mdEscape, now, state, terminal, toast, truncate, view as liveView, when, type Accessory, type Action, type Arg, type BarCtx, type BarItem, type Ctx, type Detail, type Effect, type Extension, type Item, type LinkParams, type Metadata, type View } from "@zcag/pal";
 import * as api from "./api.ts";
 import { ApiError, NotSetUp, conf, server, type Message, type Session } from "./api.ts";
-import { render as renderChat, sendable } from "./chat.ts";
+import { render as renderChat } from "./chat.ts";
 import { KEY, sendKeys } from "./keys.ts";
 import * as live from "./live.ts";
-import { ASK, GLYPH, STATE, activity, allows, askOf, at, current, folder, interruptTitle, interrupts, keyOf, ordered, render as renderPopover, short, since, subtitle, tokens, type PopoverState } from "./view.ts";
+import * as term from "./terminal.ts";
+import { ASK, GLYPH, STATE, activity, allows, askOf, at, current, folder, interruptTitle, interrupts, keyOf, ordered, render as renderPopover, sendable, short, since, subtitle, tokens, type PopoverState } from "./view.ts";
 
 const EXT = "atc", ITEM = "sessions";
 /** Two reads within this share one fetch (the bar and a palette ask together); the stream keeps the list fresher anyway. */
@@ -104,7 +105,8 @@ async function act(s: Session, action: string, values?: Record<string, unknown>)
   switch (action) {
     case "allow": return allows(s) ? keys(s, KEY.enter, ASK[askOf(s)].allowed!) : toast("Nothing to allow", ASK[askOf(s)].allow ? "It is not asking for anything" : "A question is answered where its options show", "failure");
     case "interrupt": return interrupts(s) ? keys(s, KEY.escape, s.state === "needs-you" ? ASK[askOf(s)].refused : "Interrupted") : toast("Nothing to interrupt", undefined, "failure");
-    case "terminal": return openIn(s, "terminal");
+    case "terminal": return sendable(s) ? { push: { extension: EXT, palette: "terminal", args: { session: s.sessionId }, title: truncate(s.title, 32) } } : toast("It runs in its own terminal", "A session started in a terminal is typed into there", "failure");
+    case "attach": return openIn(s, "terminal");
     case "web": return openIn(s, "browser");
     case "outputs": return { push: { extension: EXT, palette: "outputs", args: { session: s.sessionId }, title: truncate(s.title, 32) } };
     case "copy-id": return { copy: s.sessionId };
@@ -256,6 +258,64 @@ function hookViews() {
   liveView.onHidden((ev) => { if (ev.palette === "chat" && ev.id && !liveView.open().some((o) => o.id === ev.id)) chats.delete(ev.id); }, EXT);
 }
 
+// ---- the terminal ---------------------------------------------------------------------------
+
+/** A terminal opened bare (its root row, a hotkey) shows the session that needs you most; its page's messages carry no args, so the choice is kept. */
+let bareTerminal: string | undefined;
+/** A hidden terminal page keeps its socket this long, so showing the panel again is instant; then it closes. */
+export const TERMINAL_KEEP_MS = 60_000;
+const closing = new Map<string, ReturnType<typeof setTimeout>>();
+
+async function terminalView(ctx?: Ctx): Promise<View> {
+  hookTerminal();
+  const key = (ctx?.args as { session?: string } | undefined)?.session;
+  const list = await sessions().catch(() => [] as Session[]);
+  const s = key ? find(list, key) : urgent(list.filter(sendable));
+  if (!key) bareTerminal = s?.sessionId;
+  return {
+    id: key ?? s?.sessionId ?? "none",
+    title: truncate(s?.title || "Terminal", 48),
+    tree: { type: "surface", src: "surface/index.html" },
+    actions: [
+      { id: "escape", title: "Send Escape (interrupt, say no; ctrl+[ too)", shortcut: "cmd+." },
+      { id: "fit", title: "Fit the terminal to this window", shortcut: "cmd+shift+f" },
+    ],
+  };
+}
+
+async function terminalMessage(raw: unknown, ctx?: Ctx): Promise<unknown> {
+  const m = raw as { op: string; cols?: number; rows?: number; data?: string; claim?: boolean };
+  const key = (ctx?.args as { session?: string } | undefined)?.session ?? bareTerminal;
+  if (!key) throw new Error("No session to open: nothing is running");
+  switch (m.op) {
+    case "open": {
+      clearTimeout(closing.get(key));
+      const s = find(await sessions(), key) ?? (await api.history("", 200).catch(() => [] as Session[])).find((x) => x.sessionId === key);
+      if (!s) throw new Error("atc no longer lists this session");
+      if (!sendable(s)) throw new Error("It runs in its own terminal: a session started in a terminal is typed into there");
+      const fresh = await term.connect(key, await ready(s), m.cols ?? 120, m.rows ?? 40);
+      return { title: truncate(s.title || folder(s.cwd), 48), fresh };
+    }
+    case "input": term.input(key, m.data ?? ""); return;
+    case "resize": term.resize(key, m.cols ?? 120, m.rows ?? 40, m.claim); return;
+    case "hidden": term.hidden(key); return;
+    case "close": term.close(key); return;
+  }
+}
+
+let terminalHooked = false;
+function hookTerminal() {
+  if (terminalHooked) return;
+  terminalHooked = true;
+  liveView.onHidden((ev) => {
+    if (ev.palette !== "terminal" || !ev.id) return;
+    const key = ev.id;
+    term.hidden(key);
+    clearTimeout(closing.get(key));
+    closing.set(key, setTimeout(() => { closing.delete(key); if (!liveView.open().some((o) => o.palette === "terminal" && o.id === key)) term.close(key); }, TERMINAL_KEEP_MS));
+  }, EXT);
+}
+
 // ---- the sessions palette ---------------------------------------------------------------
 
 const ARGS: Arg[] = [{ id: "text", placeholder: "Message" }];
@@ -267,7 +327,8 @@ function rowActions(s: Session): Action[] {
     { id: "chat", title: sendable(s) ? "Open the chat (sends what is typed first)" : "Open the chat" },
     ...(allows(s) ? [{ id: "allow", title: ASK[askOf(s)].allow!, shortcut: "cmd+y" }] : []),
     ...(interrupts(s) ? [{ id: "interrupt", title: interruptTitle(s), shortcut: "cmd+." }] : []),
-    ...(live ? [{ id: "terminal", title: "Open in a terminal", shortcut: "cmd+o" }] : []),
+    ...(sendable(s) ? [{ id: "terminal", title: "Open its terminal in pal", shortcut: "cmd+o" }] : []),
+    ...(live ? [{ id: "attach", title: "Open in a terminal app (atc attach)", shortcut: "cmd+shift+t" }] : []),
     ...(s.state === "stopped" ? [{ id: "resume", title: "Resume", shortcut: "cmd+shift+r" }] : []),
     { id: "web", title: "Open in atc's web page", shortcut: "cmd+shift+o" },
     { id: "outputs", title: "Outputs", shortcut: "cmd+u" },
@@ -602,6 +663,12 @@ export default {
       view: (ctx) => { hookViews(); return chatView((ctx?.args as { session?: string } | undefined)?.session, ctx?.compact); },
       pick: (id, action, ctx) => chatPick(id, action ?? "send", ctx),
     },
+    terminal: {
+      title: "Terminal",
+      view: terminalView,
+      onMessage: terminalMessage,
+      pick: () => ({ keep: true }),
+    },
     new: { title: "New Session", live: true, placeholder: "A folder on any machine", list: folders, pick: newPick },
     history: { title: "Earlier Conversations", placeholder: "Find a conversation by title, folder or what you asked", list: historyList, pick: historyPick, multi: true },
     outputs: { title: "Outputs", live: true, multi: true, placeholder: "Servers, files and links your sessions made", list: (_q, ctx) => outputsList(ctx), pick: outputsPick },
@@ -609,5 +676,5 @@ export default {
   bar: {
     [ITEM]: { render: renderBar, onAction: popoverAction },
   },
-  dispose: () => live.stop(),
+  dispose: () => { live.stop(); term.closeAll(); for (const t of closing.values()) clearTimeout(t); },
 } satisfies Extension;

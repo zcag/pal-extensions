@@ -7,13 +7,16 @@
 // resume, send, stop, remove, rename/pin/park, upload) are recorded and
 // change the list as atc would. `/api/events` streams the list on connect
 // and again on `emit()`; `/api/sessions/{id}/attach` is the terminal's
-// websocket, which says the size it has and records what is written. A
+// websocket, which says the size it has, greets a viewer that is not
+// hidden with a screenful, and records what is written. A
 // token other than `t-test` is a 401. The sessions and their work are
 // invented.
 import { now } from "../.pal/sdk/src/clock.ts";
 import type { Dir, Message, Outputs, Session } from "../atc/api.ts";
 
 export const TOKEN = "t-test";
+/** What a visible viewer of a terminal is sent first. */
+export const GREETING = "\x1b[2J\x1b[H> the parser test is green 20 of 20\r\n";
 /** "Now" on the SDK's clock (`PAL_NOW` when the fixture pins it), so ages read the same every run. */
 export const T0 = Math.floor(now() / 60_000) * 60_000;
 export const iso = (minsAgo: number) => new Date(T0 - minsAgo * 60_000).toISOString();
@@ -64,7 +67,7 @@ export const dirs: Record<string, Dir[]> = {
   laptop: [{ path: "/Users/ana/proj/app", recent: true, git: true }],
 };
 
-type Sock = { data: { id: string }; send: (d: string | Uint8Array) => void; close: () => void };
+type Sock = { data: { id: string; hidden: boolean }; send: (d: string | Uint8Array) => void; close: () => void };
 
 export class AtcMock {
   sessions = initial();
@@ -83,19 +86,22 @@ export class AtcMock {
 
   constructor(port = 0) {
     const self = this;
-    this.server = Bun.serve<{ id: string }, never>({
+    this.server = Bun.serve<{ id: string; hidden: boolean }, never>({
       port,
       async fetch(req, srv) {
         const u = new URL(req.url);
         const auth = req.headers.get("authorization");
         if (auth !== `Bearer ${TOKEN}`) return new Response("unauthorized", { status: 401 });
         const attach = u.pathname.match(/^\/api\/sessions\/([^/]+)\/attach$/);
-        if (attach) return srv.upgrade(req, { data: { id: attach[1] } }) ? undefined : new Response("upgrade failed", { status: 400 });
+        if (attach) return srv.upgrade(req, { data: { id: attach[1], hidden: u.searchParams.has("hidden") } }) ? undefined : new Response("upgrade failed", { status: 400 });
         if (self.failWith) return new Response("broken", { status: self.failWith });
         return self.route(req, u);
       },
       websocket: {
-        open(ws: Sock) { ws.send(JSON.stringify({ type: "size", cols: self.size.cols, rows: self.size.rows, viewers: 2 })); },
+        open(ws: Sock) {
+          ws.send(JSON.stringify({ type: "size", cols: self.size.cols, rows: self.size.rows, viewers: 2 }));
+          if (!ws.data.hidden) ws.send(new TextEncoder().encode(GREETING));
+        },
         message(ws: Sock, msg: string | Uint8Array) {
           if (typeof msg === "string") { const c = JSON.parse(msg); if (c.type === "resize") self.resized.push({ cols: c.cols, rows: c.rows }); return; }
           (self.keys[ws.data.id] ??= []).push(new TextDecoder().decode(msg));

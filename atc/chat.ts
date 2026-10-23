@@ -12,7 +12,7 @@
 // conversation shows its end and says how much is above.
 import { POPOVER_W, ago, column, keyHint, md, row, text, truncate, type Action, type View, type ViewNode } from "@zcag/pal";
 import type { Message, Session } from "./api.ts";
-import { ASK, CLAUDE, STATE, activity, allows, askOf, folder, interruptTitle, interrupts, since, tokens } from "./view.ts";
+import { ASK, CLAUDE, STATE, activity, allows, askOf, folder, interruptTitle, interrupts, sendable, since, tokens } from "./view.ts";
 
 export type ChatState = {
   s: Session;
@@ -82,7 +82,7 @@ function now(st: ChatState): ViewNode[] {
     const keys: ViewNode[] = [];
     if (allows(s)) keys.push(...keyHint("cmd+y", ASK[ask].allow!.toLowerCase(), { action: "allow" }));
     if (interrupts(s)) keys.push(...keyHint("cmd+.", interruptTitle(s).toLowerCase(), { action: "interrupt" }));
-    const where = !s.id || !s.attachable ? "A terminal session: answer it in its terminal" : ask === "question" ? "Answer it where its options show: cmd+o opens the terminal" : undefined;
+    const where = !s.id || !s.attachable ? "A terminal session: answer it in its terminal" : ask === "question" ? "Answer it where its options show: cmd+o opens its terminal" : undefined;
     return [row([
       text(SHIELD, { style: "glyph", size: "lg", color: "red", width: 24, align: "center" }),
       column([
@@ -97,15 +97,12 @@ function now(st: ChatState): ViewNode[] {
   return [];
 }
 
-/** A message can go in: a background session (live, or resumed first when stopped) or a past conversation; a terminal session is typed into only there. */
-export const sendable = (s: Session) => !!s.id || s.state === "stopped" || s.state === "past";
-
 export function hints(st: ChatState): ViewNode {
   const s = st.s, kids: ViewNode[] = sendable(s) ? [...keyHint("enter", "send")] : [text("A terminal session: reply in its terminal", { key: "where", size: "xs", color: "muted" })];
   // A prompt's own keys are on its card; a working turn's interrupt is here.
   if (s.state === "working" && interrupts(s)) kids.push(...keyHint("cmd+.", "interrupt"));
   if (sendable(s)) kids.push(...keyHint("cmd+shift+v", "attach"));
-  if (s.attachable) kids.push(...keyHint("cmd+o", "terminal"));
+  if (sendable(s)) kids.push(...keyHint("cmd+o", "terminal"));
   return row(kids, { key: "hints", gap: 1, minHeight: 22 });
 }
 
@@ -117,7 +114,8 @@ export function actions(st: ChatState): Action[] {
     ...(interrupts(s) ? [{ id: "interrupt", title: interruptTitle(s), shortcut: "cmd+." }] : []),
     ...(sendable(s) ? [{ id: "attach-clipboard", title: "Attach what is on the clipboard", shortcut: "cmd+shift+v" }] : []),
     ...(st.attached.length ? [{ id: "detach", title: "Drop the attachments", shortcut: "cmd+shift+backspace" }] : []),
-    ...(s.attachable ? [{ id: "terminal", title: "Open in a terminal", shortcut: "cmd+o" }] : []),
+    ...(sendable(s) ? [{ id: "terminal", title: "Open its terminal in pal", shortcut: "cmd+o" }] : []),
+    ...(s.attachable ? [{ id: "attach", title: "Open in a terminal app (atc attach)" }] : []),
     { id: "web", title: "Open in atc's web page", shortcut: "cmd+shift+o" },
     { id: "outputs", title: "Outputs", shortcut: "cmd+u" },
     { id: "copy-reply", title: "Copy the last reply", shortcut: "cmd+shift+c" },

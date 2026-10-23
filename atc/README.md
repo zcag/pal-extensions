@@ -41,11 +41,22 @@ root row, a hotkey), it shows the session that needs you most.
 | `cmd+y` | Allow what it asks to run, or approve its plan |
 | `cmd+.` | Say no, keep planning, dismiss a question, or interrupt a working turn |
 | `cmd+shift+v` | Attach the clipboard: text goes into the message, a picture or files are uploaded and named in it |
-| `cmd+o` | Open in a terminal (`atc attach`) |
+| `cmd+o` | Open its terminal in pal (Terminal, below) |
 | `cmd+shift+o` | Open in atc's web page |
 | `cmd+u` | Outputs |
 | `cmd+shift+c` | Copy the last reply |
 | `cmd+[` | Older messages |
+
+**Terminal** (`atc-terminal`): the session's own terminal inside pal,
+Claude Code's screen as `atc attach` shows it, drawn by xterm.js in the
+panel's colours: type into it, scroll it, answer any prompt there,
+questions included. A stopped session is resumed first. Escape leaves the
+level as everywhere in pal, so the Escape Claude Code wants is `ctrl+[`
+(what a terminal sends for it anyway) or `cmd+.`; `cmd+shift+f` makes this
+window the one whose size the terminal takes. The page reaches nothing but
+its own folder: the extension holds the websocket to atc and relays the
+bytes both ways. A hidden terminal keeps its connection for a minute.
+`./xterm.sh` vendors xterm.js into `surface/vendor/`, pinned and checked.
 
 **New Session** (`atc-new`): the folders you used lately on every machine,
 then those under atc's roots. Tab types the first message and a name; Enter
@@ -71,7 +82,7 @@ another screen is not resized, and write Enter or Escape.
 What a session asks decides what is offered. A permission prompt and a plan
 take both keys. A question (`AskUserQuestion`) takes only Escape: Enter would
 pick its first answer unread, so it is answered where its options show
-(`cmd+o`). A session open in a terminal (not one of atc's background sessions)
+(`cmd+o`, its terminal in pal). A session open in a terminal (not one of atc's background sessions)
 is read here and answered in its terminal.
 
 ## The bar item
@@ -86,7 +97,8 @@ asks. The popover lists every session by state:
 | `enter`, `r` | Open its chat in the popover |
 | `y` | Allow (or approve the plan) |
 | `i` | Say no, or interrupt |
-| `o` / `w` | Open in a terminal / atc's web page |
+| `o` | Open its terminal (in the popover) |
+| `a` / `w` | Open in a terminal app (`atc attach`) / atc's web page |
 | `u` | Outputs |
 | `x` | Stop the session (asks first) |
 | `n` | New session |
@@ -111,5 +123,5 @@ net. It publishes `atc/needs_you`, `atc/your_turn` and `atc/working`.
 | --- | --- | --- |
 | `url` | empty | the atc server; empty uses `atc login`'s |
 | `token` | empty | its token (keychain); empty uses `atc login`'s, or none |
-| `open` | Auto | where Open goes: Auto runs `atc attach` in a terminal when the atc command is here, else atc's web page |
+| `open` | Auto | where Open in a terminal app goes: Auto runs `atc attach` in a terminal when the atc command is here, else atc's web page |
 | `terminal` | Auto | which terminal `atc attach` opens in |

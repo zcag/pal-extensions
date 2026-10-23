@@ -37,7 +37,7 @@
       "kind": "select",
       "id": "open",
       "label": "Open a session in",
-      "description": "Where Open in a terminal and o go. Auto runs atc attach in a terminal when the atc command is on this machine, and opens atc's web page otherwise.",
+      "description": "Where Open in a terminal app goes. Auto runs atc attach in a terminal when the atc command is on this machine, and opens atc's web page otherwise.",
       "options": [
         {
           "id": "auto",
@@ -111,7 +111,11 @@
         },
         {
           "keys": "cmd+o",
-          "title": "Open in a terminal (atc attach)"
+          "title": "Open its terminal in pal"
+        },
+        {
+          "keys": "cmd+shift+t",
+          "title": "Open in a terminal app (atc attach)"
         },
         {
           "keys": "cmd+shift+o",
@@ -166,7 +170,7 @@
         },
         {
           "keys": "cmd+o",
-          "title": "Open in a terminal"
+          "title": "Open its terminal in pal"
         },
         {
           "keys": "cmd+u",
@@ -179,6 +183,21 @@
         {
           "keys": "cmd+[",
           "title": "Older messages"
+        }
+      ]
+    },
+    "terminal": {
+      "title": "Terminal",
+      "description": "A session's own terminal inside pal, Claude Code's screen as atc attach shows it, in the panel's colours: type into it, scroll it, answer any prompt. A stopped session is resumed first. Opened bare, the session that needs you most.",
+      "kind": "view",
+      "keys": [
+        {
+          "keys": "cmd+.",
+          "title": "Send Escape (ctrl+[ too): interrupt, say no; Escape itself goes back"
+        },
+        {
+          "keys": "cmd+shift+f",
+          "title": "Fit the terminal to this window"
         }
       ]
     },
@@ -335,7 +354,11 @@
         },
         {
           "keys": "o",
-          "title": "Open in a terminal"
+          "title": "Open its terminal (in the popover)"
+        },
+        {
+          "keys": "a",
+          "title": "Open in a terminal app (atc attach)"
         },
         {
           "keys": "w",
@@ -422,6 +445,7 @@
     "features": [
       "Every session on every machine your atc server lists, the ones that need you first, with what each is doing or asking to run",
       "A chat per session that follows it live: read the conversation, type a message, `cmd+y` allows a prompt, `cmd+.` says no or interrupts",
+      "A session's own terminal inside pal (`cmd+o`): Claude Code's screen live in the panel's colours, to type into, scroll and answer anything",
       "A bar item counting sessions by state, an alarm while one needs you; its popover answers them without opening pal",
       "Start Claude in a folder on any machine, or a new worktree, with the first message typed in the bar",
       "Earlier conversations from every machine, read or resumed in the background",
