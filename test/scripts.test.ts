@@ -124,7 +124,12 @@ exit 0
 let host: Host;
 const cmdDir = join(dir, "commands");
 mkdirSync(cmdDir, { recursive: true });
-beforeAll(async () => { host = await Host.bundled({ settings: { scripts: { settings: { config: join(dir, "config.toml"), skip: ["calc"], commands: cmdDir } } } }); });
+beforeAll(async () => {
+  // macOS checks a new executable the first time it runs (0.15-0.3 s each); paid here at once, not inside each test.
+  await Promise.all(commandFiles.map((p) => Bun.spawn([p], { cwd: dir, stdout: "ignore", stderr: "ignore" }).exited));
+  rmSync(join(dir, "quiet.ran"), { force: true });
+  host = await Host.bundled({ settings: { scripts: { settings: { config: join(dir, "config.toml"), skip: ["calc"], commands: cmdDir } } } });
+});
 afterAll(() => { host.kill(); rmSync(dir, { recursive: true, force: true }); });
 
 const names = () => host.loaded().find((l) => l.extension === "scripts")!.palettes.map((p) => p.name).sort();
@@ -249,7 +254,8 @@ describe("script palette", () => {
 
 // ---- script commands ---------------------------------------------------------------------
 
-const cmd = (name: string, header: string, body: string, exec = true) => w(`commands/${name}`, `#!/bin/bash\n${header}\n${body}\n`, exec);
+const commandFiles: string[] = [];
+const cmd = (name: string, header: string, body: string, exec = true) => { w(`commands/${name}`, `#!/bin/bash\n${header}\n${body}\n`, exec); if (exec) commandFiles.push(join(dir, "commands", name)); };
 cmd("deploy.sh", `# @pal.title Deploy site\n# @pal.icon 🚀\n# @pal.mode hud\n# @pal.confirm true\n# @pal.keyword deploy ship\n# @pal.description Push the site to production\n# @pal.args target Environment (staging or prod)\n# @pal.args note Release note (optional)`, `if [ -n "$2" ]; then echo "Deployed to $1 ($2)"; else echo "Deployed to $1"; fi; echo "second line"`);
 cmd("ports.sh", `# @pal.title Listening ports\n# @pal.mode list\n# @pal.icon amber`, `if [ -n "$PAL_PICK" ]; then echo "picked $PAL_PICK"; exit 0; fi\necho '{"id":"5173","name":":5173","subtitle":"node","copy":"5173"}'\necho '{"name":"docs","url":"https://example.com"}'`);
 cmd("lines.sh", `# @pal.title Plain lines\n# @pal.mode list`, `if [ -n "$PAL_PICK" ]; then echo "picked $PAL_PICK"; exit 0; fi\necho "plain line"; echo "another"`);
