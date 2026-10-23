@@ -206,7 +206,7 @@ describe("speedtest", () => {
 
   test("speedtest-cli and fast end in a done view with their figures; the bar estimates while such a tool reports no progress", async () => {
     rmSync(join(bins, "speedtest"));
-    standIn("speedtest-cli", emit(SIVEL_LINES, 0.05));
+    standIn("speedtest-cli", emit(SIVEL_LINES, 0));
     host.changeSettings("speedtest", { settings: { keep: 5, tool: "speedtest-cli" } });
     let v = viewOf(await pick("start"));
     expect(texts(v.tree)[1]).toBe("[speedtest-cli]");
@@ -214,7 +214,8 @@ describe("speedtest", () => {
     let done = await nextTree((t) => t.includes("[done]"));
     expect(texts(done.tree)).toEqual(expect.arrayContaining(["93.1", "29.6", "12.4 ms|latency", "Example Net, Istanbul · Turk Telekom"]));
     hidden();
-    standIn("fast", FAST_CHUNKS.map((c) => `sleep 0.05; printf '%s' '${c.replace(/\x1b/g, "\\033")}'`).join("\n"));
+    // One pause, after the first chunk: the view must see the run mid-download before the rest lands.
+    standIn("fast", FAST_CHUNKS.map((c, i) => `${i === 1 ? "sleep 0.05; " : ""}printf '%s' '${c.replace(/\x1b/g, "\\033")}'`).join("\n"));
     host.changeSettings("speedtest", { settings: { keep: 5, tool: "fast" } });
     v = viewOf(await pick("start"));
     expect(texts(v.tree)[1]).toBe("[fast (Netflix)]");
