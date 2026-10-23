@@ -1,7 +1,7 @@
 {
   "name": "atc",
   "title": "atc",
-  "description": "Every Claude Code session on every machine an atc server lists, in the panel and on the bar: which ones need you, a chat to read and answer each, permission prompts allowed or refused, new sessions in any folder on any machine, earlier conversations resumed, and what each session made.",
+  "description": "Your Claude Code sessions on every machine, through atc (github.com/zcag/atc): see which ones need you, answer them in a live chat or their own terminal, and start, resume or stop them without leaving pal.",
   "keywords": [
     "claude",
     "cc",
@@ -450,7 +450,7 @@
     }
   },
   "store": {
-    "tagline": "Your Claude Code sessions on every machine, through atc",
+    "tagline": "Every Claude Code session on every machine, answered from pal",
     "category": "integration",
     "features": [
       "Every session on every machine your atc server lists, the ones that need you first, with what each is doing or asking to run",
@@ -460,7 +460,7 @@
       "Start Claude in a folder on any machine, or a new worktree, with the first message typed in the bar",
       "Earlier conversations from every machine, read or resumed in the background",
       "The servers, files and links a session made, one Enter from open; the clipboard attached to a message with `cmd+shift+v`",
-      "Uses the server and token atc login already saved, so a machine with the atc command needs no setup"
+      "Built on atc (github.com/zcag/atc), a small server for Claude Code's background sessions; a machine where atc login was run needs no setup"
     ],
     "permissions": [
       "network",

@@ -1,21 +1,30 @@
 # atc
 
-Every Claude Code session on every machine an [atc](https://github.com/zcag/atc)
-server lists, in the panel and on the bar. atc knows each session's state from
-Claude Code's own background service, so nothing here is guessed: a session
-**needs you**, it is **your turn**, it is **working**, or it **stopped**.
+Every Claude Code session you run, on every machine, from pal: which ones
+need you, a live chat and the real terminal for each, and new ones started in
+any folder on any machine.
 
-For the sessions of this machine alone, read from the agents' files and with
-no server, the Sessions extension is the one to use; this one needs atc.
+This is pal's side of **[atc](https://github.com/zcag/atc)**, a small server
+that keeps Claude Code's background sessions running on your machines and
+lists them in one place, with a web page, a terminal client and an Android
+app of its own. atc knows each session's state from Claude Code's own
+background service, so nothing here is guessed: a session **needs you**, it is
+**your turn**, it is **working**, or it **stopped**.
+
+For the sessions of one machine without a server, read from the agents' own
+files, the Sessions extension is the one to use.
 
 ## Setup
 
-None on a machine where `atc login` was run: the server and token it saved
-(`client.json` in atc's config folder, `ATC_CONFIG_DIR` or
-`~/.config/atc`) are used. Otherwise set **atc server** and **Token** under
-Settings › Extensions › atc. A server that trusts your tailnet takes no
-token. A server behind a private CA (Caddy's `tls internal`) works when this
-machine trusts that CA, as a browser would.
+1. Run atc on the machines where your sessions live:
+   [install and run it as a service](https://github.com/zcag/atc#install).
+2. On the machine with pal, `atc login <server> <token>` (or set **atc
+   server** and **Token** under Settings › Extensions › atc).
+
+That is all: the extension uses what `atc login` saved (`client.json` in
+atc's config folder, `ATC_CONFIG_DIR` or `~/.config/atc`). A server that
+trusts your tailnet takes no token. A server behind a private CA (Caddy's
+`tls internal`) works when this machine trusts that CA, as a browser would.
 
 ## Palettes
 
