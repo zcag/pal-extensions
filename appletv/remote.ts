@@ -29,7 +29,7 @@ export type Flash = "up" | "down" | "left" | "right" | "select" | "menu" | "home
 /** A dock app: its square picture and its 5:3 tvOS one. */
 export type DockApp = { id: string; name: string; art: string; wide: string };
 /** A copied link waiting to be played. */
-export type OfferCard = { title: string; by?: string; thumb?: string; app: string };
+export type OfferCard = { title: string; by?: string; thumb?: string; app: string; where: string; start?: string };
 
 export type RemoteState = {
   layout: Layout;
@@ -64,7 +64,7 @@ export type RemoteState = {
   mrp: boolean;
   /** The AirPlay half was never paired: the card says how to add it. */
   noAirplay?: boolean;
-  /** A link was just copied: the banner offers it. */
+  /** A link was just copied, else the browser tab in front plays one: the banner offers it. */
   offer?: OfferCard;
   /**
    * The controls a group hands to another device (docs/design/controls.md):
@@ -234,14 +234,14 @@ function keyboardBanner(st: RemoteState, width: number): ViewNode | undefined {
   ], { key: "keyboard", gap: 2, padding: 2, surface: "#F0B25A26", radius: true, transition: { enter: "slide-down" } });
 }
 
-/** A link was just copied: its picture and title, and the keys that play it or wave it off. */
+/** A link was just copied, or plays in the browser: its picture and title, where it is, and the keys that play it or wave it off. */
 function offerBanner(st: RemoteState, width: number): ViewNode | undefined {
   const o = st.offer;
   if (!o) return undefined;
   return row([
     o.thumb ? { type: "image", key: "offer-thumb", src: o.thumb, width: 48, height: 27, mask: "rounded", alt: o.title } : text(G.play, { style: "glyph", size: "md", color: "accent" }),
-    column([text(o.title, { size: "sm", weight: "semibold", width: width - 190 }), text(["Copied", o.by, o.app].filter(Boolean).join(" · "), { size: "xs", color: "muted", width: width - 190 })], { gap: 0, grow: true }),
-    ...keyHint("l", "play", { action: "play-link" }), ...keyHint("x", "dismiss", { action: "offer:dismiss" }),
+    column([text(o.title, { size: "sm", weight: "semibold", width: width - 190 }), text([o.where, o.by, o.app].filter(Boolean).join(" · "), { size: "xs", color: "muted", width: width - 190 })], { gap: 0, grow: true }),
+    ...keyHint("l", o.start ? `from ${o.start}` : "play", { action: "play-link" }), ...keyHint("x", "dismiss", { action: "offer:dismiss" }),
   ], { key: "offer", gap: 2, padding: 2, surface: "#4F8AE826", radius: true, action: "play-link", transition: { enter: "slide-down" } });
 }
 
@@ -368,7 +368,8 @@ export function actions(st: RemoteState): Action[] {
     { id: "type", title: st.keyboard?.focused ? `Type: ${st.keyboard.title || st.keyboard.prompt || "the field on the TV"}` : "Type on the TV", shortcut: "t" },
     { id: "apps", title: "All apps", shortcut: "a" },
     { id: "now", title: "Now Playing", shortcut: "n" },
-    { id: "play-link", title: st.offer ? `Play “${st.offer.title.length > 40 ? `${st.offer.title.slice(0, 39)}…` : st.offer.title}”` : "Play a link on the TV", shortcut: "l" },
+    { id: "play-link", title: st.offer ? `Play “${st.offer.title.length > 40 ? `${st.offer.title.slice(0, 39)}…` : st.offer.title}”${st.offer.start ? ` from ${st.offer.start}` : ""}` : "Play a link on the TV", shortcut: "l" },
+    ...(st.offer?.start ? [{ id: "play-link:start", title: "Play it from the start", shortcut: "shift+l" } as Action] : []),
     ...(st.offer ? [{ id: "offer:dismiss", title: "Not now", shortcut: "x" } as Action] : []),
     { id: "power", title: powerOf(st)?.on === false ? "Wake up" : "Sleep", shortcut: "p" },
     { id: "screensaver", title: "Screen saver", shortcut: "s" },

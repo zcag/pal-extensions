@@ -90,7 +90,7 @@ const playRows = [
   linkRow("link:c", "The quiet hour: a field recording", "Copied · Fieldnotes · YouTube", thumb("#2c3a1f", "#c9e48a"), "Copied", { accessories: [{ date: NOW - 3 * 3_600_000 }] }),
   linkRow("link:e", "Tidal bores of the world", "Played · Coastline Labs · YouTube", thumb("#1a2f2f", "#5fcfcb"), "Played before", { accessories: [{ date: NOW - 3 * 86_400_000 }] }),
 ];
-const withOffer = renderRemote({ ...base, offer: { title: "How a lighthouse lens works, in nine minutes", by: "Coastline Labs", thumb: thumb("#12324f", "#f2c14e"), app: "YouTube" } });
+const withOffer = renderRemote({ ...base, offer: { title: "How a lighthouse lens works, in nine minutes", by: "Coastline Labs", thumb: thumb("#12324f", "#f2c14e"), app: "YouTube", where: "Copied" } });
 
 const LIVING: Found = { id: "4C:20:B8:11:6E:02", name: "Living Room", address: "192.168.1.40", model: "AppleTV14,1", modelName: "Apple TV 4K (3rd generation)", os: "26.6", companionPort: 49153, airplayPort: 7000 };
 const BEDROOM: Found = { id: "A8:51:AB:3C:09:F1", name: "Bedroom", address: "192.168.1.52", model: "AppleTV11,1", modelName: "Apple TV 4K (2nd generation)", os: "26.6", asleep: true, companionPort: 49153, airplayPort: 7000 };

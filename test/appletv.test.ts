@@ -70,6 +70,10 @@ describe("pure parts", () => {
     const both = renderRemote({ ...base, remote: "Samsung TV" });
     expect(both.actions.find((a) => a.id === "other-remote")).toMatchObject({ shortcut: "o" });
     expect(JSON.stringify(both.tree)).toContain('"action":"other-remote"');
+    // The browser's video in the banner: where it is, l from there, shift+L from the start.
+    const tab = renderRemote({ ...base, offer: { title: "Lens", app: "YouTube", where: "Playing in Google Chrome", start: "12:34" } });
+    expect(JSON.stringify(tab.tree)).toContain("Playing in Google Chrome · YouTube");
+    expect(tab.actions.filter((a) => a.id.startsWith("play-link"))).toEqual([{ id: "play-link", title: "Play “Lens” from 12:34", shortcut: "l" }, { id: "play-link:start", title: "Play it from the start", shortcut: "shift+l" }]);
   });
   test("the setup's trees pass the checks; a PIN step opens the field once the code shows", () => {
     for (const st of [{ phase: "find", scanning: true }, { phase: "find", scanning: false }, { phase: "pin", protocol: "companion", device: LIVING, asking: true, tries: 0 }, { phase: "pin", protocol: "airplay", device: LIVING, asking: false, tries: 1, error: "nope" }, { phase: "checking", device: LIVING }, { phase: "failed", device: LIVING, error: "x", hint: "y" }] as const) {

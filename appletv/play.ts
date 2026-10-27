@@ -29,6 +29,35 @@ let lastSeen: number | undefined;
 const done = new Set<string>();
 
 type Played = { url: string; title?: string; at: number };
+
+/** The video in the browser tab in front, for the remote's banner when nothing was just copied: looked at as the remote draws, at most every few seconds. */
+export type InBrowser = { link: MediaLink; where: string; info?: LinkInfo; thumb?: string };
+export let inBrowser: InBrowser | undefined;
+const LOOK_MS = 3000;
+const tabWhere = (tab?: tabs.OpenTab) => `${tab?.media?.playing ? "Playing" : tab?.media?.position ? "Paused" : "Open"} in ${tab?.browser ?? "the browser"}`;
+let lookedAt = 0;
+
+export async function lookAtBrowser(): Promise<void> {
+  if (Date.now() - lookedAt < LOOK_MS) return;
+  lookedAt = Date.now();
+  const tab = await tabs.active(800).catch(() => undefined);
+  const l = tabLink(tab), was = inBrowser;
+  const same = !!l && !!was && linkKey(was.link) === linkKey(l);
+  inBrowser = l && tab && !done.has(linkKey(l)) ? { link: l, where: tabWhere(tab), ...(same && { info: was.info, thumb: was.thumb }) } : undefined;
+  if (!inBrowser) { if (was) push(); return; }
+  if (!same || was.link.start !== l!.start || was.where !== inBrowser.where) push();
+  if (same) return;
+  const got = await lookup(l!);
+  if (inBrowser?.link === l) { Object.assign(inBrowser, got); push(); }
+}
+
+/** Play the browser's video: where the tab is now (looked at again), or from the start. */
+export async function playBrowser(fromStart: boolean): Promise<Effect> {
+  if (!inBrowser) return { push: { extension: NAME, palette: "play" } };
+  const fresh = tabLink(await tabs.active(800).catch(() => undefined));
+  const l = fresh && linkKey(fresh) === linkKey(inBrowser.link) ? fresh : inBrowser.link;
+  return playLink(l, { fromStart, title: inBrowser.info?.title });
+}
 let history: Played[] | undefined;
 
 async function lookup(link: MediaLink): Promise<{ info?: LinkInfo; thumb?: string }> {
@@ -59,8 +88,10 @@ export async function watchClipboard(): Promise<void> {
 }
 
 export function dismissOffer(): void {
-  if (offer) done.add(linkKey(offer.link));
-  offer = undefined;
+  const l = offer?.link ?? inBrowser?.link;
+  if (l) done.add(linkKey(l));
+  if (offer) offer = undefined;
+  else inBrowser = undefined;
   push();
 }
 
@@ -77,6 +108,7 @@ export async function playLink(l: MediaLink, o: { fromStart?: boolean; title?: s
   if (e) return e;
   done.add(linkKey(l));
   void pauseInBrowser(l);
+  if (inBrowser && linkKey(inBrowser.link) === linkKey(l)) inBrowser = undefined;
   if (offer && linkKey(offer.link) === linkKey(l)) offer = undefined;
   history ??= ((await storage.get("played", NAME)) as Played[] | null) ?? [];
   history = [{ url: l.url, title: what, at: Date.now() }, ...history.filter((h) => h.url !== l.url)].slice(0, 30);
@@ -139,7 +171,7 @@ export async function listPlay(query: string, ctx?: Ctx): Promise<Item[]> {
   const found: { l: MediaLink; where: string; at?: number; section: string }[] = [];
   const add = (l: MediaLink | undefined, where: string, section: string, at?: number) => { if (l && !seen.has(linkKey(l))) { seen.add(linkKey(l)); found.push({ l, where, at, section }); } };
   const tab = await tabs.active(600).catch(() => undefined);
-  const inTab = tabLink(tab), addTab = () => add(inTab, `${tab?.media?.playing ? "Playing" : tab?.media?.position ? "Paused" : "Open"} in ${tab?.browser ?? "the browser"}`, "Browser");
+  const inTab = tabLink(tab), addTab = () => add(inTab, tabWhere(tab), "Browser");
   // The tab partway through a video leads, so the copied same video does not start it over.
   if (inTab?.start) addTab();
   if (offer) add(offer.link, "Just copied", "Copied", offer.at);

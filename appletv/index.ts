@@ -11,8 +11,8 @@ import { SETUP_ROW, accountRow, appRow, commandRows, noTv } from "./rows.ts";
 import { cancelPairing, setupPick, setupView } from "./pairing.ts";
 import { disposeNow, nowPick, nowState } from "./now.ts";
 import { render as renderNow } from "./nowplaying.ts";
-import { OFFER_BAR_MS, disposePlay, dismissOffer, linkPlay, listPlay, offer, offerFresh, offerTitle, pickPlay, playLink, suggestPlay, watchClipboard } from "./play.ts";
-import { LINK_APPS } from "./links.ts";
+import { OFFER_BAR_MS, disposePlay, dismissOffer, inBrowser, linkPlay, listPlay, lookAtBrowser, offer, offerFresh, offerTitle, pickPlay, playBrowser, playLink, suggestPlay, watchClipboard } from "./play.ts";
+import { LINK_APPS, linkLabel, startLabel } from "./links.ts";
 import {
   appLists, appsOf, artOf, cfg, coverArt, current, disposeTv, drop, ensure, frontApp, launch, launches, mute, muteFrom, onOpen, paired, plain, publishControls, push, readServed, registerBar, registerView,
   served, stripArtOf, tv, warm, wideArtOf, withConn, NAME, type BarSettings, type Level,
@@ -59,7 +59,9 @@ async function remoteState(layout: Layout): Promise<RemoteState> {
   base.device = { name: dev.name, modelName: dev.modelName };
   base.others = list.length - 1;
   base.noAirplay = !dev.airplay;
-  if (offer) base.offer = { title: offerTitle()!, by: offer.info?.by, thumb: offer.thumb, app: LINK_APPS[offer.link.kind].name };
+  void lookAtBrowser();
+  if (offer) base.offer = { title: offerTitle()!, by: offer.info?.by, thumb: offer.thumb, app: LINK_APPS[offer.link.kind].name, where: "Copied" };
+  else if (inBrowser) base.offer = { title: inBrowser.info?.title ?? linkLabel(inBrowser.link), by: inBrowser.info?.by, thumb: inBrowser.thumb, app: LINK_APPS[inBrowser.link.kind].name, where: inBrowser.where, start: startLabel(inBrowser.link.start) };
   const c = tv.conn;
   if (!c) return base;
   const now = c.nowPlaying(), front = frontApp();
@@ -135,7 +137,8 @@ async function act(action: string, ctx?: Ctx | BarCtx): Promise<Effect | undefin
     }
     case "type:cancel": typing = false; return undefined;
     case "now": return { push: { extension: NAME, palette: "now" } };
-    case "play-link": return offer ? playLink(offer.link) : { push: { extension: NAME, palette: "play" } };
+    case "play-link": return offer ? playLink(offer.link) : playBrowser(false);
+    case "play-link:start": return offer ? playLink(offer.link, { fromStart: true }) : playBrowser(true);
     case "offer:dismiss": dismissOffer(); return undefined;
     case "apps": return { push: { extension: NAME, palette: "apps" } };
     case "other-remote": return { push: { extension: OTHER.extension, palette: "remote" } };
