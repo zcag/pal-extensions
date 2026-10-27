@@ -58,13 +58,18 @@ describe("pure parts", () => {
   });
   test("the remote's trees pass the host's checks in every state and layout, and a flash lights only its cell", () => {
     const base: RemoteState = { layout: "wide", conn: "up", power: "on", dock: APPS.map((a) => ({ ...a, art: placeholderArt(a.id, a.name), wide: placeholderArt(a.id, a.name) })), skip: 10, mrp: true, device: { name: "Living Room", modelName: "Apple TV 4K" } };
-    for (const st of [base, { ...base, layout: "compact" as const }, { ...base, unpaired: true }, { ...base, conn: "down" as const, error: "No route" }, { ...base, power: "off" as const }, { ...base, keyboard: { focused: true, title: "Search" }, typing: true }, { ...base, now: TV.now, position: 30, volume: 0.4 }]) {
+    for (const st of [base, { ...base, layout: "compact" as const }, { ...base, unpaired: true, remote: "Samsung TV" }, { ...base, conn: "down" as const, error: "No route", remote: "Samsung TV" }, { ...base, power: "off" as const }, { ...base, keyboard: { focused: true, title: "Search" }, typing: true }, { ...base, now: TV.now, position: 30, volume: 0.4 }]) {
       expect(() => checkView(renderRemote(st), "remote")).not.toThrow();
     }
     const lit = JSON.stringify(clickpad({ ...base, flash: "left" }, 176));
     expect(lit).toContain("#4F8AE866");
     expect(lit.match(/#4F8AE866/g)).toHaveLength(1);
     expect(renderRemote({ ...base, keyboard: { focused: true, title: "Search" }, typing: true }).input).toMatchObject({ submit: "type:send", cancel: "type:cancel", placeholder: "Search" });
+    // The Samsung remote is a key away only while that extension is installed.
+    expect(renderRemote(base).actions.map((a) => a.id)).not.toContain("other-remote");
+    const both = renderRemote({ ...base, remote: "Samsung TV" });
+    expect(both.actions.find((a) => a.id === "other-remote")).toMatchObject({ shortcut: "o" });
+    expect(JSON.stringify(both.tree)).toContain('"action":"other-remote"');
   });
   test("the setup's trees pass the checks; a PIN step opens the field once the code shows", () => {
     for (const st of [{ phase: "find", scanning: true }, { phase: "find", scanning: false }, { phase: "pin", protocol: "companion", device: LIVING, asking: true, tries: 0 }, { phase: "pin", protocol: "airplay", device: LIVING, asking: false, tries: 1, error: "nope" }, { phase: "checking", device: LIVING }, { phase: "failed", device: LIVING, error: "x", hint: "y" }] as const) {
@@ -254,6 +259,8 @@ describe("over the host against the stand-in TV", () => {
     expect(await pick("remote", "launch:0")).toMatchObject({ hud: "Opening TV" });
     expect(ops("launch").at(-1)).toEqual({ op: "launch", id: "com.apple.TVWatchList" });
     expect(await pick("remote", "apps")).toEqual({ push: { extension: E, palette: "apps" } });
+    expect(v.actions.map((a) => a.id)).not.toContain("other-remote");
+    expect(await pick("remote", "other-remote")).toEqual({ push: { extension: "samsungtv", palette: "remote" } });
   });
 
   test("typing: refused while the TV shows no field; with one, the banner, then the field, and Enter sets the text", async () => {

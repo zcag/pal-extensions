@@ -54,7 +54,10 @@ holds it for the context menu), Backspace goes back, `h` is the TV button
 Center), `space` plays or pauses, `,` and `.` skip by the `skip` setting,
 `cmd+left`/`cmd+right` previous and next, `-` and `=` the volume, `p` sleep
 or wake, `s` the screen saver, `u` the users, `d` the next paired Apple TV,
-`r` reconnects. Shift and an arrow swipes.
+`r` reconnects. Shift and an arrow swipes. With the Samsung TV extension
+installed (it is in `suggests`), `o` opens the TV's own remote over this
+one (for its settings or its sound) and Escape comes back here; the
+Samsung remote has the same `o` back to this one.
 
 The card shows what plays with its cover and a seek bar a click moves, or
 what the TV is doing (asleep, the screen saver, the app in front). The

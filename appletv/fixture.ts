@@ -40,7 +40,7 @@ const tvApp = { ...APPS[0], art: art(APPS[0]) };
 
 const NOW_PLAYING: NowPlaying = { state: "playing", title: "The Long Quiet", genre: "Drama", app: { id: "com.apple.TVWatchList", name: "TV" }, duration: 7_260, position: 2_874, at: NOW, rate: 1, mediaType: "video", itemId: "lq" };
 const base: RemoteState = {
-  layout: "wide", conn: "up", power: "on", device: { name: "Living Room", modelName: "Apple TV 4K (3rd generation)" }, others: 1,
+  layout: "wide", conn: "up", power: "on", device: { name: "Living Room", modelName: "Apple TV 4K (3rd generation)" }, others: 1, remote: "Samsung TV",
   now: NOW_PLAYING, position: 2_874, art: poster(), app: tvApp, volume: 0.42, dock, skip: 10, mrp: true,
 };
 const remote = renderRemote(base);
