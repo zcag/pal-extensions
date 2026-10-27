@@ -10,7 +10,7 @@
 // pressed (`flash`), and the whole pad tinted toward the direction of a
 // swipe. Nothing here waits on the TV: the extension renders from what
 // the connection last said and pushes a new tree when that changes.
-import { CONTROL_LIT, POPOVER_W, column, controlButton, inputsRow, keyHint, keycap, powerButton, row, text, volumeButton, volumeRow as servedVolumeRow, withControls, type Action, type HexColor, type Served, type TagColor, type View, type ViewNode } from "@zcag/pal";
+import { CONTROL_LIT, POPOVER_W, column, controlButton, inputsRow, outputsRow, keyHint, keycap, powerButton, row, text, volumeButton, volumeRow as servedVolumeRow, withControls, type Action, type HexColor, type Served, type TagColor, type View, type ViewNode } from "@zcag/pal";
 import type { Keyboard, NowPlaying, Power, Swipe } from "./types.ts";
 
 /** Nerd Font glyphs (Material Design) the remote is drawn with. */
@@ -72,7 +72,7 @@ export type RemoteState = {
    * the group's server is gone. Unset: the Apple TV's own, from `volume`
    * and `power` above.
    */
-  served?: { volume?: Served<"volume"> | null; power?: Served<"power"> | null; inputs?: Served<"inputs"> | null };
+  served?: { volume?: Served<"volume"> | null; power?: Served<"power"> | null; inputs?: Served<"inputs"> | null; outputs?: Served<"outputs"> | null };
 };
 
 /** The Apple TV's own key, as its controls are published under. */
@@ -280,8 +280,9 @@ function volumeRow(st: RemoteState, width: number): ViewNode | undefined {
   return servedVolumeRow(v, width, { device: st.device?.name });
 }
 
-/** The TV's inputs, when a group has a device that serves them. */
+/** The TV's inputs and where its sound plays, when a group has a device that serves them. */
 const inputsOf = (st: RemoteState, width: number) => inputsRow(st.served?.inputs, width);
+const outputsOf = (st: RemoteState, width: number) => outputsRow(st.served?.outputs, width);
 
 function header(st: RemoteState): ViewNode {
   const badges: ViewNode[] = [];
@@ -334,6 +335,17 @@ function trouble(st: RemoteState): ViewNode {
 const otherRemote = (st: RemoteState): Action[] => (st.remote ? [{ id: "other-remote", title: `${st.remote} remote`, shortcut: "o" }] : []);
 const otherHint = (st: RemoteState): ViewNode[] => (st.remote ? keyHint("o", st.remote, { action: "other-remote" }) : []);
 
+/** While a group serves where the sound plays: `b` the next output, each by name in ⌘K, shift+S reconnects when the server offers it. */
+function soundActions(st: RemoteState): Action[] {
+  const o = st.served?.outputs;
+  if (!o?.list?.length) return [];
+  return [
+    { id: "outputs:next", title: "Next sound output", shortcut: "b" },
+    ...(o.reconnect && o.current ? [{ id: "controls:outputs:reconnect", title: "Reconnect sound", shortcut: "shift+s" } as Action] : []),
+    ...o.list.map((x): Action => ({ id: `controls:outputs:set:${x.id}`, title: `Sound to ${x.name}`, hidden: true })),
+  ];
+}
+
 /** Every action the remote answers to; the first listed is Enter. */
 export function actions(st: RemoteState): Action[] {
   if (st.unpaired) return [{ id: "setup", title: "Set up an Apple TV" }, ...otherRemote(st)];
@@ -363,6 +375,7 @@ export function actions(st: RemoteState): Action[] {
     { id: "accounts", title: "Switch user", shortcut: "u" },
     ...(st.others ? [{ id: "device", title: "Switch Apple TV", shortcut: "d" } as Action] : []),
     ...otherRemote(st),
+    ...soundActions(st),
     { id: "copy", title: "Copy what is playing", shortcut: "cmd+c" },
     { id: "reconnect", title: "Reconnect", shortcut: "r" },
     { id: "setup", title: "Set up or pair another Apple TV", shortcut: "cmd+," },
@@ -390,7 +403,8 @@ export function render(st: RemoteState): View {
     tree = column([
       nowCard(st, W, 56),
       ...[offerBanner(st, W), keyboardBanner(st, W)].filter((x): x is ViewNode => !!x),
-      row([clickpad(st, 148), column([buttons(st, 36, false), ...[volumeRow(st, W - 148 - 16), inputsOf(st, W - 148 - 16)].filter((x): x is ViewNode => !!x)], { key: "right", gap: 3, grow: true, align: "center" })], { key: "controls", gap: 4, align: "center" }),
+      row([clickpad(st, 148), column([buttons(st, 36, false), ...[volumeRow(st, W - 148 - 16)].filter((x): x is ViewNode => !!x)], { key: "right", gap: 3, grow: true, align: "center" })], { key: "controls", gap: 4, align: "center" }),
+      ...[inputsOf(st, W), outputsOf(st, W)].filter((x): x is ViewNode => !!x),
       dock(st, DOCK_COMPACT, 36),
     ], { key: "compact", padding: 3, gap: 3 });
   } else {
@@ -401,7 +415,7 @@ export function render(st: RemoteState): View {
       nowCard(st, RIGHT, 84),
       ...[offerBanner(st, RIGHT), keyboardBanner(st, RIGHT)].filter((x): x is ViewNode => !!x),
       dock(st, DOCK_WIDE, 40),
-      ...[volumeRow(st, RIGHT), inputsOf(st, RIGHT)].filter((x): x is ViewNode => !!x),
+      ...[volumeRow(st, RIGHT), inputsOf(st, RIGHT), outputsOf(st, RIGHT)].filter((x): x is ViewNode => !!x),
       // The banners take the room the extras row had.
       ...(st.offer || st.keyboard?.focused ? [] : [extras(st)]),
     ], { key: "right", gap: 3, grow: true });

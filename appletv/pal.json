@@ -166,6 +166,14 @@
           "title": "Switch Apple TV (with several paired)"
         },
         {
+          "keys": "b",
+          "title": "Next sound output (when the group's TV serves them)"
+        },
+        {
+          "keys": "shift+s",
+          "title": "Reconnect sound (when the group's TV offers it)"
+        },
+        {
           "keys": "cmd+c",
           "title": "Copy what is playing"
         },
@@ -608,7 +616,7 @@
       "Sleep and wake, Control Center, the app switcher, the screen saver, switching users",
       "A menu bar item with what plays; its popover is the remote",
       "Guided setup: finds the Apple TV, takes the code it shows, and checks what works",
-      "In a group with your TV (Settings › Groups), the remote sets the TV's volume, switches its inputs and wakes both",
+      "In a group with your TV (Settings › Groups), the remote sets the TV's volume, switches its inputs, moves its sound (b, shift+S reconnects a soundbar) and wakes both",
       "With Samsung TV installed too, o opens the TV's own remote over this one (its settings, its sound) and Escape comes back"
     ],
     "permissions": [

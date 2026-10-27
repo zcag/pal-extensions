@@ -302,17 +302,18 @@ liveView.onHidden((ev) => { levels.delete(levelKey({ palette: ev.palette, bar: e
  * trip); `null` when the group's server is gone. Re-read on every change
  * of ours (`controls.onChange`, `mine`).
  */
-export const served: { volume?: Served<"volume"> | null; power?: Served<"power"> | null; inputs?: Served<"inputs"> | null } = {};
+export const served: { volume?: Served<"volume"> | null; power?: Served<"power"> | null; inputs?: Served<"inputs"> | null; outputs?: Served<"outputs"> | null } = {};
 
 export async function readServed(): Promise<void> {
-  const [volume, power, inputs] = await Promise.all((["volume", "power", "inputs"] as const).map((c) => controls.get(c, NAME).catch(() => undefined)));
+  const [volume, power, inputs, outputs] = await Promise.all((["volume", "power", "inputs", "outputs"] as const).map((c) => controls.get(c, NAME).catch(() => undefined)));
   const other = (v: Served | null | undefined) => !!v && v.provider.key !== NAME;
   const p = power as Served<"power"> | null | undefined;
   // In a group when anything comes from another device; alone (or before our own publish lands) a `null` means ours, not "gone".
-  const grouped = other(volume) || other(inputs) || !!p?.members?.some((m) => m.key !== NAME);
+  const grouped = other(volume) || other(inputs) || other(outputs) || !!p?.members?.some((m) => m.key !== NAME);
   served.volume = grouped && !(volume && !other(volume)) ? (volume as Served<"volume"> | null) : undefined;
   served.power = grouped && p?.members?.some((m) => m.key !== NAME) ? p : undefined;
   served.inputs = grouped ? (inputs as Served<"inputs"> | null | undefined) ?? null : undefined;
+  served.outputs = grouped ? (outputs as Served<"outputs"> | null | undefined) ?? null : undefined;
   push();
 }
 controls.onChange((c) => { if (c.mine) void readServed(); }, NAME);

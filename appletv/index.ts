@@ -97,6 +97,7 @@ async function act(action: string, ctx?: Ctx | BarCtx): Promise<Effect | undefin
   const values = (ctx as Ctx | undefined)?.values;
   // The volume and power parts (`controls:*`, pal's): the Apple TV's own the way its keys go, else on whoever the group serves them from.
   if (action.startsWith("controls:")) return controlAct(action, ctx);
+  if (action === "outputs:next") return nextOutput();
   if (action === "volume-up" || action === "volume-down") return step(action === "volume-up" ? 1 : -1);
   if (KEYS[action]) {
     const [key, press, f] = KEYS[action];
@@ -197,8 +198,17 @@ async function controlAct(action: string, ctx?: Ctx | BarCtx): Promise<Effect | 
     if (op === "set") { const f = Number(values?.value); return Number.isNaN(f) ? { keep: true } : withConn("set the volume", (c) => c.setVolume(Math.min(1, Math.max(0, f)))); }
     if (op === "mute") return withConn("mute", () => mute(arg === undefined ? muteFrom === undefined : arg === "true"));
   }
-  const v = control === "volume" ? served.volume : control === "inputs" ? served.inputs : undefined;
-  return served_(() => controls.act(action, { values: values as Record<string, string> | undefined }), control === "volume" && op === "set" ? undefined : `${by(v)}: ${control === "inputs" ? "switching input" : op === "mute" ? "mute" : "volume"}`);
+  const v = control === "volume" ? served.volume : control === "inputs" ? served.inputs : control === "outputs" ? served.outputs : undefined;
+  const what = control === "inputs" ? "switching input" : control === "outputs" ? (op === "reconnect" ? "reconnecting the sound" : "moving the sound") : op === "mute" ? "mute" : "volume";
+  return served_(() => controls.act(action, { values: values as Record<string, string> | undefined }), control === "volume" && op === "set" ? undefined : `${by(v)}: ${what}`);
+}
+
+/** `b`: the sound to the output after the one playing, on the group's device that serves them. */
+async function nextOutput(): Promise<Effect | undefined> {
+  const o = served.outputs;
+  if (!o?.list?.length) return { keep: true };
+  const next = o.list[(o.list.findIndex((x) => x.id === o.current) + 1) % o.list.length];
+  return served_(() => controls.run("outputs", "set", next.id), `${by(o)}: sound to ${next.name}`);
 }
 
 /** A remote action from the panel view or the popover: done means a new tree in place. */

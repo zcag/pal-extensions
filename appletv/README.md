@@ -59,6 +59,16 @@ installed (it is in `suggests`), `o` opens the TV's own remote over this
 one (for its settings or its sound) and Escape comes back here; the
 Samsung remote has the same `o` back to this one.
 
+**In a group** with the TV (Settings › Groups), the parts the TV serves
+are drawn here as pal's own: the volume (a slider when the TV tells its
+level, on a soundbar too), the inputs as chips with the one on screen lit,
+and where the sound plays (the TV's speakers, Q-Symphony, a soundbar) with
+a reconnect chip when the TV offers it. `b` moves the sound to the next
+output and `shift+S` reconnects it (to the TV's speakers and back, for a
+soundbar that came up quiet). None of it names the Samsung: any device
+serving `outputs` to the group fills the row, and without one it is not
+drawn.
+
 The card shows what plays with its cover and a seek bar a click moves, or
 what the TV is doing (asleep, the screen saver, the app in front). The
 dock is the `favorites` setting, else the apps opened most, each on a
