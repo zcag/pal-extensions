@@ -7,8 +7,9 @@
 // The TV resets a connection that overlaps another, so calls to one TV go
 // one at a time. Needs Settings › Connections › Network › Expert Settings ›
 // IP Remote on. Checked on a 2024 QE75QN85D, 2026-10-27; the method list is
-// TheFab21/ha-samsungtv-smart's IP_Control_Protocol_Reference.md.
-import type { SoundOutput } from "../types.ts";
+// TheFab21/ha-samsungtv-smart's IP_Control_Protocol_Reference.md. A getter
+// is the method with only the token; a setter the same method with its value.
+import type { Picture, PictureField, SoundOutput } from "../types.ts";
 
 export const PORT = 1516;
 /** The Allow prompt stays up about 30 s. */
@@ -68,7 +69,7 @@ export async function createAccessToken(address: string, w: Wire = {}): Promise<
 }
 
 /** `speakerSelect, volume, mute, pictureSize, pictureMode, soundMode, inputSource` on a 2024 QE75QN85D. */
-export type TvStates = { speakerSelect?: string; volume?: number; mute?: string; inputSource?: string; [k: string]: unknown };
+export type TvStates = { speakerSelect?: string; volume?: number; mute?: string; inputSource?: string; pictureMode?: string; [k: string]: unknown };
 export const getTVStates = async (address: string, token: string, w?: Wire) => ((await call(address, "getTVStates", auth(token), w)) ?? {}) as TvStates;
 
 /** The TV's own speakers; the rest are what `externalSpeakerControl` lists, by their `deviceId`. */
@@ -100,3 +101,45 @@ export const selectOutput = (address: string, token: string, out: SoundOutput, w
   out.id === INTERNAL
     ? call(address, "speakerSelectControl", auth(token, { speakerSelect: "Internal" }), w)
     : call(address, "externalSpeakerControl", auth(token, { deviceName: out.name, deviceId: out.id }), w);
+
+/** One method with the token and `params`: a getter without them, a setter with its value. */
+export const control = (address: string, token: string, method: string, params: Record<string, unknown> = {}, w?: Wire) => call(address, method, auth(token, params), w);
+
+/** The input as the TV names it (`HDMI1`, `TV`) to the id the remote uses (`hdmi1`, `tv`). */
+export const inputId = (source: string | undefined) => (source ? source.toLowerCase().replace(/[^a-z0-9]/g, "") : undefined);
+/** The other way: `hdmi2` to `HDMI2`. */
+export const inputSource = (id: string) => id.toUpperCase();
+
+/** `powerOn` while the screen is on; the TV does not answer in standby. */
+export const screenOn = async (address: string, token: string, w?: Wire) => ((await control(address, token, "powerControl", {}, w)) as { power?: string } | null)?.power !== "powerOff";
+
+/** The picture modes the TV takes by these ids (OCF names, the same in every menu language), in the order the chips draw them. */
+export const MODES = [["Standard", "Standard"], ["Movie", "Movie"], ["FilmmakerMode", "Filmmaker"], ["Dynamic", "Dynamic"], ["Eco", "Eco"]] as const;
+/** A mode the TV reports, HDR or PC variants included (`StandardHDR`), to the one the chips name. */
+export const modeOf = (reported: string | undefined) => MODES.find(([id]) => reported?.startsWith(id))?.[0] ?? reported;
+export const modeName = (mode: string | undefined) => MODES.find(([id]) => id === modeOf(mode))?.[1] ?? mode;
+
+/** Each picture value: its method, and the range the TV takes (Frame 2024/2025, the reference). */
+export const FIELDS: Record<PictureField, { method: string; min: number; max: number }> = {
+  backlight: { method: "backlightControl", min: 0, max: 50 },
+  contrast: { method: "contrastControl", min: 0, max: 50 },
+  brightness: { method: "brightnessControl", min: -5, max: 5 },
+  sharpness: { method: "sharpnessControl", min: 0, max: 20 },
+  color: { method: "colorControl", min: 0, max: 50 },
+  tint: { method: "tintControl", min: -15, max: 15 },
+};
+export const TONES = ["Cool", "Standard", "Warm1", "Warm2"] as const;
+
+const num = (x: unknown) => (x === undefined || x === null || x === "" || Number.isNaN(Number(x)) ? undefined : Number(x));
+
+/** The mode, every value and the colour tone: `getVideoStates` gives five values, the backlight and the tone are asked on their own. */
+export async function picture(address: string, token: string, w?: Wire): Promise<Picture> {
+  const ask = (method: string) => control(address, token, method, {}, w).catch((e) => { if (e instanceof Unpaired) throw e; return undefined; }) as Promise<Record<string, unknown> | undefined>;
+  const [mode, video, backlight, tone] = await Promise.all(["pictureModeControl", "getVideoStates", "backlightControl", "colorToneControl"].map(ask));
+  const values: Picture["values"] = {};
+  for (const f of Object.keys(FIELDS) as PictureField[]) {
+    const v = num(f === "backlight" ? backlight?.backlight : video?.[f]);
+    if (v !== undefined) values[f] = v;
+  }
+  return { mode: mode?.pictureMode as string | undefined, values, tone: tone?.colorTone as string | undefined };
+}

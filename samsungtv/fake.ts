@@ -6,12 +6,13 @@
 // change, the way the real one's poll would find it. Every command lands
 // as one JSON line in `<dir>/log`. Pairing answers with `token` unless
 // `deny` says the TV refuses; sound control's pairing with `ipcToken`,
-// and with no `ipcToken` the TV is one with IP Remote off.
+// and with no `ipcToken` the TV is one with IP Remote off. With it paired
+// the TV tells its input, picture and sound output as the real one does.
 import { appendFileSync, readFileSync, renameSync, watch, writeFileSync } from "node:fs";
 import { join } from "node:path";
-import { INPUTS } from "./device.ts";
-import { INTERNAL, OFF } from "./protocol/ipc.ts";
-import type { App, AppState, ChangeEvent, Conn, Driver, Found, Keyboard, Media, Paired, Power, SoundOutput } from "./types.ts";
+import { INPUTS, PORTS } from "./device.ts";
+import { FIELDS, INTERNAL, OFF, inputId, inputSource, modeOf } from "./protocol/ipc.ts";
+import type { App, AppState, ChangeEvent, Conn, Driver, Found, Input, Keyboard, Media, Paired, Picture, Power, SoundOutput } from "./types.ts";
 
 export type FakeTv = {
   found: Found[];
@@ -40,6 +41,11 @@ export type FakeTv = {
   /** The external sound outputs the TV lists, and the id of the one it plays on (`internal`: its speakers). */
   speakers?: SoundOutput[];
   speaker?: string;
+  /** The input on screen as IP Control names it (`HDMI1`); `direct: false` makes the TV refuse inputSourceControl, so Next HDMI steps to it. */
+  input?: string;
+  direct?: boolean;
+  /** The picture; Dynamic refuses the values, as the TV does. */
+  picture?: Picture;
 };
 
 export function fakeDriver(dir: string): Driver {
@@ -74,7 +80,7 @@ export function fakeDriver(dir: string): Driver {
       if (tv0.down) throw new Error(tv0.down);
       const listeners = new Set<(e: ChangeEvent) => void>();
       const emit = (e: ChangeEvent) => { for (const l of listeners) l(e); };
-      const watcher = watch(dir, (_ev, name) => { if (name === "tv.json") for (const kind of ["power", "volume", "app", "media", "keyboard", "sound"] as const) emit({ kind }); });
+      const watcher = watch(dir, (_ev, name) => { if (name === "tv.json") for (const kind of ["power", "volume", "app", "media", "keyboard", "sound", "input", "picture"] as const) emit({ kind }); });
       const did = (op: string, extra: Record<string, unknown> = {}) => log({ op, ...extra });
       const on = () => read().power === "on";
       const need = () => { if (!on()) throw new Error(`${device.name} is ${read().power === "standby" ? "in standby" : "off"}`); };
@@ -92,6 +98,22 @@ export function fakeDriver(dir: string): Driver {
         sound: () => (known() ? { outputs: [{ id: INTERNAL, name: "TV Speaker" }, ...(read().speakers ?? [])], current: read().speaker } : undefined),
         async readSound() { if (ipcToken) { ipcCheck(); did("readSound"); } },
         async setSoundOutput(id) { ipcCheck(); did("sound", { id }); write((tv) => { tv.speaker = id; }); },
+        async reconnectSound() {
+          ipcCheck();
+          const back = read().speaker;
+          if (!back || back === INTERNAL) throw new Error("The sound is on the TV's speakers already; there is nothing to reconnect");
+          for (const id of [INTERNAL, back]) { did("sound", { id }); write((tv) => { tv.speaker = id; }); }
+        },
+        picture: () => (known() ? read().picture : undefined),
+        async readPicture() { ipcCheck(); did("readPicture"); },
+        async setPictureMode(mode) { ipcCheck(); did("pictureMode", { mode }); write((tv) => { tv.picture = { values: {}, ...tv.picture, mode }; }); },
+        async setPicture(field, value) {
+          ipcCheck();
+          if (modeOf(read().picture?.mode) === "Dynamic") throw new Error(`The TV refused ${FIELDS[field].method}: Failed`);
+          did("picture", { field, value }); write((tv) => { tv.picture = { ...tv.picture, values: { ...tv.picture?.values, [field]: value } }; });
+        },
+        async setColorTone(tone) { ipcCheck(); did("tone", { tone }); write((tv) => { tv.picture = { values: {}, ...tv.picture, tone }; }); },
+        async openUrl(url) { ipcCheck(); did("open", { url }); },
         get remoteUp() { return on(); },
         async key(key, press = "tap") {
           need(); did("key", { key, press });
@@ -105,11 +127,18 @@ export function fakeDriver(dir: string): Driver {
         async turnOff() { did("power", { to: "off" }); write((tv) => { tv.power = "standby"; }); },
         volume: () => (on() ? read().volume : undefined),
         levelSettable: () => (on() ? read().levelOk ?? true : undefined),
-        async setVolume(level) { if (read().levelOk === false) throw new Error("The TV takes only volume up and down while its sound is on another speaker"); did("volume", { level }); write((tv) => { tv.volume = level; }); },
+        async setVolume(level) { if (read().levelOk === false && !known()) throw new Error("The TV takes only volume up and down while its sound is on another speaker"); did("volume", { level }); write((tv) => { tv.volume = level; }); },
         muted: () => (on() ? read().muted : undefined),
         async setMuted(muted) { did("mute", { muted }); write((tv) => { tv.muted = muted; }); },
-        inputs: () => INPUTS,
-        async setInput(id) { need(); did("input", { id }); },
+        inputs: () => (ipcToken ? PORTS : INPUTS),
+        input: () => (known() && on() ? (inputId(read().input) as Input["id"] | undefined) : undefined),
+        async setInput(id) {
+          need();
+          const path = !known() || id === "hdmi" || id === "source" ? "key" : read().direct === false ? "stepped" : "direct";
+          did("input", { id, path });
+          if (path !== "key") write((tv) => { tv.input = inputSource(id); });
+          return path;
+        },
         async apps() { return read().apps; },
         foreground(): AppState | undefined {
           const tv = read(), a = tv.apps.find((x) => x.id === tv.front);

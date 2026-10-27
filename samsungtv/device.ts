@@ -4,16 +4,18 @@
 // remote websocket while the screen is on (keys, text, the app list),
 // and a poll of REST and UPnP every `POLL_MS` for what the websocket does
 // not tell: power, volume and mute, the app in front, a DLNA sender's
-// media. The sound output is IP Control's, read when asked (a remote
-// opening, a switch) and as the TV comes on (in standby it lists no
-// outputs), never polled. A remote that drops while the TV is on is reopened with backoff;
-// one that drops because the TV went to standby is not.
+// media. With IP Control paired the poll also asks it what the TV is
+// showing (the input, the exact volume, the picture mode, the sound output
+// in use, whether the screen is on); the outputs themselves are listed when
+// asked (a remote opening, a switch) and as the TV comes on (in standby it
+// lists none). A remote that drops while the TV is on is reopened with
+// backoff; one that drops because the TV went to standby is not.
 import * as ipc from "./protocol/ipc.ts";
 import * as rest from "./protocol/rest.ts";
 import { Remote, KEYS, appsMsg, parseApps, clickMsg, iconMsg, imeText, keyMsg, moveMsg, remoteUrl, textEndMsg, textMsg } from "./protocol/remote.ts";
 import { ssdp, wol } from "./protocol/net.ts";
 import * as upnp from "./protocol/upnp.ts";
-import type { App, AppState, ChangeEvent, Conn, Driver, Found, Input, Key, Keyboard, Media, Paired, Pairing, Power, Press, Sound } from "./types.ts";
+import type { App, AppState, ChangeEvent, Conn, Driver, Found, Input, Key, Keyboard, Media, Paired, Pairing, Picture, PictureField, Power, Press, Sound } from "./types.ts";
 
 /** How often REST and UPnP are asked while a connection is open. */
 export const POLL_MS = 3000;
@@ -25,8 +27,8 @@ const HOLD_MS = 1000;
 const RETRY_MIN_MS = 2000, RETRY_MAX_MS = 30_000;
 /** How long a turn-on waits for the TV to say it is on. */
 const WAKE_MS = 20_000;
-/** How long a sound switch waits for the TV to report the new output, asking every `SWITCH_STEP_MS`. */
-const SWITCH_MS = 8000, SWITCH_STEP_MS = 400;
+/** How long a switch (sound, input, picture mode) waits for the TV to report it, asking every `STEP_MS`. */
+const SWITCH_MS = 8000, STEP_MS = 400;
 const errorMessage = (e: unknown) => (e instanceof Error ? e.message : String(e));
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
@@ -34,7 +36,7 @@ const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
  * What the local api can switch, measured on a 2024 QE75QN85D: KEY_HDMI
  * moves to the next HDMI input, KEY_SOURCE opens the TV's own input menu,
  * KEY_TV goes to the tuner; the numbered KEY_HDMI1..4 do nothing there.
- * The current input is not told, so none is marked.
+ * The current input is not told over these, so none is marked.
  */
 export const INPUTS: Input[] = [
   { id: "hdmi", name: "Next HDMI", sure: true },
@@ -42,11 +44,18 @@ export const INPUTS: Input[] = [
   { id: "tv", name: "TV", sure: false },
 ];
 
+/** With IP Control: the ports, the one on screen told (`getTVStates.inputSource`). */
+export const PORTS: Input[] = [
+  { id: "hdmi1", name: "HDMI 1", sure: true }, { id: "hdmi2", name: "HDMI 2", sure: true },
+  { id: "hdmi3", name: "HDMI 3", sure: true }, { id: "hdmi4", name: "HDMI 4", sure: true },
+  { id: "tv", name: "TV", sure: true },
+];
+
 /**
  * Where the driver talks: the TV's own ports by default; the tests point
  * every channel at one local server (`port`, plain ws) instead.
  */
-export type Wiring = { port?: number; secure?: boolean; pollMs?: number };
+export type Wiring = { port?: number; secure?: boolean; pollMs?: number; stepMs?: number };
 
 export function makeDriver(w: Wiring = {}): Driver {
   const restPort = w.port ?? 8001, upnpPort = w.port ?? 9197;
@@ -80,7 +89,7 @@ export function makeDriver(w: Wiring = {}): Driver {
       return { token, cancel: () => ac.abort() } satisfies Pairing;
     },
     async connect(device) {
-      const c = new RealConn(device, { remote, restPort, upnpPort, ipc: ipcWire, pollMs: w.pollMs ?? POLL_MS });
+      const c = new RealConn(device, { remote, restPort, upnpPort, ipc: ipcWire, pollMs: w.pollMs ?? POLL_MS, stepMs: w.stepMs ?? STEP_MS });
       await c.start();
       return c;
     },
@@ -125,7 +134,7 @@ async function mdns(timeoutMs: number): Promise<string[]> {
   });
 }
 
-type Wired = { remote: (address: string, token?: string) => string; restPort: number; upnpPort: number; ipc: ipc.Wire; pollMs: number };
+type Wired = { remote: (address: string, token?: string) => string; restPort: number; upnpPort: number; ipc: ipc.Wire; pollMs: number; stepMs: number };
 
 class RealConn implements Conn {
   private r: Remote | undefined;
@@ -136,7 +145,7 @@ class RealConn implements Conn {
   private retryMs = RETRY_MIN_MS;
   private retryAt = 0;
   token: string;
-  private st: { power: Power; volume?: number; muted?: boolean; front?: AppState; media?: Media; keyboard: Keyboard; sound?: Sound } = { power: "unknown", keyboard: { open: false } };
+  private st: { power: Power; volume?: number; muted?: boolean; front?: AppState; media?: Media; keyboard: Keyboard; sound?: Sound; input?: Input["id"]; picture?: Picture } = { power: "unknown", keyboard: { open: false } };
   ipcToken: string | undefined;
   private appList: App[] | undefined;
   /** The TV left `ed.installedApp.get` unanswered once: not asked again on this connection. */
@@ -160,33 +169,49 @@ class RealConn implements Conn {
     this.pollTimer = setTimeout(async () => { await this.poll().catch(() => {}); this.schedule(); }, this.w.pollMs);
   }
 
-  /** One round of REST and UPnP; each change said once. */
+  /** One round of REST and UPnP, and IP Control when it is paired; each change said once. */
   private async poll() {
     const a = this.device.address;
     const info = await rest.info(a, 2000, this.w.restPort);
-    const power: Power = info?.power ?? "off";
+    let power: Power = info?.power ?? "off";
+    // REST can say on while the panel is dark; IP Control's powerControl knows.
+    if (power === "on" && this.ipcToken && !(await this.withIpc((t) => ipc.screenOn(a, t, this.w.ipc)).catch(() => true))) power = "standby";
     if (power !== this.st.power) {
       this.st.power = power;
       this.emit({ kind: "power" });
-      if (power !== "on") { this.st.volume = this.st.muted = undefined; this.setFront(undefined); this.setMedia(undefined); }
+      if (power !== "on") { this.st.volume = this.st.muted = this.st.input = undefined; this.setFront(undefined); this.setMedia(undefined); }
       else if (this.ipcToken) void this.readSound().catch(() => {});
     }
     if (power !== "on") return;
     if (!this.r && !this.opening && Date.now() >= this.retryAt) void this.openRemote().catch(() => {});
-    const [vol, mute, media, front] = await Promise.all([
+    const [upnpVol, upnpMute, media, front, states] = await Promise.all([
       upnp.soap(a, upnp.RC, "GetVolume", { Channel: "Master" }, 2000, this.w.upnpPort).then((f) => Number(f.CurrentVolume), () => undefined),
       upnp.soap(a, upnp.RC, "GetMute", { Channel: "Master" }, 2000, this.w.upnpPort).then((f) => f.CurrentMute === "1", () => undefined),
       this.readMedia().catch(() => undefined),
       this.readFront(),
+      this.ipcToken ? this.readStates().catch(() => undefined) : undefined,
     ]);
-    if (vol !== undefined && !Number.isNaN(vol)) await this.probeLevel(vol);
-    if ((vol !== undefined && !Number.isNaN(vol) && vol !== this.st.volume) || (mute !== undefined && mute !== this.st.muted)) {
-      if (vol !== undefined && !Number.isNaN(vol)) this.st.volume = vol;
+    if (upnpVol !== undefined && !Number.isNaN(upnpVol)) await this.probeLevel(upnpVol);
+    // IP Control tells the level the soundbar plays at too, where UPnP reads 0.
+    const vol = states?.volume ?? (upnpVol !== undefined && !Number.isNaN(upnpVol) ? upnpVol : undefined);
+    const mute = states?.mute ? states.mute === "muteOn" : upnpMute;
+    if ((vol !== undefined && vol !== this.st.volume) || (mute !== undefined && mute !== this.st.muted)) {
+      if (vol !== undefined) this.st.volume = vol;
       if (mute !== undefined) this.st.muted = mute;
       this.emit({ kind: "volume" });
     }
+    if (states) this.takeStates(states);
     this.setMedia(media);
     this.setFront(front);
+  }
+
+  /** What `getTVStates` said beyond the volume: the input, the picture mode, the output in use. */
+  private takeStates(s: ipc.TvStates) {
+    const input = ipc.inputId(s.inputSource) as Input["id"] | undefined;
+    if (input !== this.st.input) { this.st.input = input; this.emit({ kind: "input" }); }
+    if (s.pictureMode && s.pictureMode !== this.st.picture?.mode) { this.st.picture = { values: {}, ...this.st.picture, mode: s.pictureMode }; this.emit({ kind: "picture" }); }
+    const outs = this.st.sound?.outputs;
+    if (outs) this.setSound({ outputs: outs, current: ipc.currentOf(s.speakerSelect, outs) });
   }
 
   private async readMedia() {
@@ -294,8 +319,10 @@ class RealConn implements Conn {
    * the level it reads, once a connection and again a minute after a refusal,
    * since the sound can move back to the TV's speakers.
    */
-  levelSettable() { return this.levelOk; }
+  levelSettable() { return this.levelOk || (this.ipcToken && this.ipcLevelOk !== false ? true : this.levelOk); }
   private levelOk: boolean | undefined;
+  /** IP Control's directVolumeControl refused a level once on this connection. */
+  private ipcLevelOk: boolean | undefined;
   private probedAt = 0;
   private async probeLevel(vol: number) {
     if (this.levelOk === true || (this.levelOk === false && Date.now() - this.probedAt < 60_000)) return;
@@ -304,24 +331,63 @@ class RealConn implements Conn {
     if (ok !== this.levelOk) { this.levelOk = ok; this.emit({ kind: "volume" }); }
   }
   volume() { return this.st.volume; }
+  /** UPnP while the TV takes it; with its sound on the soundbar, IP Control's directVolumeControl. */
   async setVolume(level: number) {
     const v = Math.round(Math.min(100, Math.max(0, level)));
-    const ok = await upnp.soap(this.device.address, upnp.RC, "SetVolume", { Channel: "Master", DesiredVolume: v }, 2000, this.w.upnpPort).then(() => true, () => false);
+    const ok = this.levelOk !== false && (await upnp.soap(this.device.address, upnp.RC, "SetVolume", { Channel: "Master", DesiredVolume: v }, 2000, this.w.upnpPort).then(() => true, () => false));
     if (!ok) {
       if (this.levelOk !== false) { this.levelOk = false; this.probedAt = Date.now(); this.emit({ kind: "volume" }); }
-      throw new Error("The TV takes only volume up and down while its sound is on another speaker");
-    }
-    this.levelOk = true;
+      if (!this.ipcToken || this.ipcLevelOk === false) throw new Error("The TV takes only volume up and down while its sound is on another speaker");
+      try { await this.withIpc((t) => ipc.control(this.device.address, t, "directVolumeControl", { volume: v }, this.w.ipc)); } catch (e) {
+        if (!(e instanceof ipc.Unpaired)) { this.ipcLevelOk = false; this.emit({ kind: "volume" }); }
+        throw new Error("The TV takes only volume up and down while its sound is on another speaker");
+      }
+      this.ipcLevelOk = true;
+    } else this.levelOk = true;
     if (v !== this.st.volume) { this.st.volume = v; this.emit({ kind: "volume" }); }
   }
   muted() { return this.st.muted; }
   async setMuted(m: boolean) {
-    await upnp.soap(this.device.address, upnp.RC, "SetMute", { Channel: "Master", DesiredMute: m ? 1 : 0 }, 2000, this.w.upnpPort);
+    const ok = await upnp.soap(this.device.address, upnp.RC, "SetMute", { Channel: "Master", DesiredMute: m ? 1 : 0 }, 2000, this.w.upnpPort).then(() => true, (e) => { if (!this.ipcToken) throw e; return false; });
+    if (!ok) await this.withIpc((t) => ipc.control(this.device.address, t, "muteControl", { mute: m ? "muteOn" : "muteOff" }, this.w.ipc));
     if (m !== this.st.muted) { this.st.muted = m; this.emit({ kind: "volume" }); }
   }
 
-  inputs() { return INPUTS; }
-  setInput(id: Input["id"]) { return this.rawKey(KEYS[id]); }
+  inputs() { return this.ipcToken ? PORTS : INPUTS; }
+  input() { return this.ipcToken ? this.st.input : undefined; }
+  /** IP Control's inputSourceControl took a port on this connection (true), or refused one (false: Next HDMI from then on). */
+  private direct: boolean | undefined;
+  async setInput(id: Input["id"]): Promise<"direct" | "stepped" | "key"> {
+    if (!this.ipcToken || id === "hdmi" || id === "source") { await this.rawKey(KEYS[id]); return "key"; }
+    if (this.st.input === id) return "direct";
+    if (this.direct !== false) {
+      try {
+        await this.withIpc((t) => ipc.control(this.device.address, t, "inputSourceControl", { inputSource: ipc.inputSource(id) }, this.w.ipc));
+        if (await this.waitStates((s) => ipc.inputId(s.inputSource) === id)) { this.direct = true; return "direct"; }
+      } catch (e) { if (e instanceof ipc.Unpaired) throw e; }
+      this.direct = false;
+    }
+    if (id === "tv") { await this.rawKey(KEYS.tv); await this.waitStates((s) => ipc.inputId(s.inputSource) === id); return "key"; }
+    for (let i = 0; i < PORTS.length && this.st.input !== id; i++) {
+      const was = this.st.input;
+      await this.rawKey(KEYS.hdmi);
+      await this.waitStates((s) => ipc.inputId(s.inputSource) !== was);
+    }
+    if (this.st.input !== id) throw new Error(`The TV did not move to ${PORTS.find((p) => p.id === id)?.name ?? id}`);
+    return "stepped";
+  }
+
+  /** Read `getTVStates` until `done` holds or `SWITCH_MS` passes; each read taken in. */
+  private async waitStates(done: (s: ipc.TvStates) => boolean): Promise<boolean> {
+    const until = Date.now() + SWITCH_MS;
+    for (;;) {
+      const s = await this.readStates();
+      this.takeStates(s);
+      if (done(s)) return true;
+      if (Date.now() >= until || this.closed) return false;
+      await sleep(this.w.stepMs);
+    }
+  }
 
   /** `ed.installedApp.get` when the remote is up and it answers with apps; else every catalog app the TV has, over REST. */
   async apps(): Promise<App[]> {
@@ -362,7 +428,7 @@ class RealConn implements Conn {
     if (done) r.send(textEndMsg());
   }
 
-  sound() { return this.st.sound; }
+  sound() { return this.ipcToken ? this.st.sound : undefined; }
   private setSound(s: Sound | undefined) {
     if (JSON.stringify(s) === JSON.stringify(this.st.sound)) return;
     this.st.sound = s; this.emit({ kind: "sound" });
@@ -370,14 +436,14 @@ class RealConn implements Conn {
   setIpcToken(token: string | undefined) {
     this.ipcToken = token;
     if (token) void this.readSound().catch(() => {});
-    else this.setSound(undefined);
+    else { this.setSound(undefined); this.st.input = undefined; this.st.picture = undefined; this.emit({ kind: "input" }); this.emit({ kind: "picture" }); }
   }
   /** One IP Control exchange with the token; a token the TV no longer knows is dropped and said (`ipcLost`). */
   private async withIpc<T>(f: (token: string) => Promise<T>): Promise<T> {
     const t = this.ipcToken;
     if (!t) throw new Error("Sound control is not paired");
     try { return await f(t); } catch (e) {
-      if (e instanceof ipc.Unpaired && this.ipcToken === t) { this.ipcToken = undefined; this.setSound(undefined); this.emit({ kind: "ipcLost" }); }
+      if (e instanceof ipc.Unpaired && this.ipcToken === t) { this.setIpcToken(undefined); this.emit({ kind: "ipcLost" }); }
       throw e;
     }
   }
@@ -394,21 +460,50 @@ class RealConn implements Conn {
    * one asked for.
    */
   async setSoundOutput(id: string) {
+    if (!this.st.sound) await this.readSound();
     const outputs = this.st.sound?.outputs ?? [];
     const out = outputs.find((o) => o.id === id);
     if (!out) throw new Error("The TV does not list that sound output");
     await this.withIpc((t) => ipc.selectOutput(this.device.address, t, out, this.w.ipc));
-    const until = Date.now() + SWITCH_MS;
-    for (;;) {
-      const said = (await this.readStates()).speakerSelect;
-      const now = ipc.currentOf(said, outputs) ?? (id !== ipc.INTERNAL && said && said.toLowerCase() !== ipc.INTERNAL ? id : undefined);
-      if (now === id || Date.now() >= until || this.closed) {
-        this.setSound({ outputs, current: now });
-        if (now !== id) throw new Error(`The TV did not switch the sound to ${out.name}`);
-        return;
-      }
-      await sleep(SWITCH_STEP_MS);
-    }
+    const now = (said: string | undefined) => ipc.currentOf(said, outputs) ?? (id !== ipc.INTERNAL && said && said.toLowerCase() !== ipc.INTERNAL ? id : undefined);
+    let said: string | undefined;
+    await this.waitStates((s) => now((said = s.speakerSelect)) === id);
+    this.setSound({ outputs, current: now(said) });
+    if (now(said) !== id) throw new Error(`The TV did not switch the sound to ${out.name}`);
+  }
+  async reconnectSound() {
+    if (!this.st.sound) await this.readSound();
+    const back = this.st.sound?.current;
+    if (!back) throw new Error("The TV has not said which output plays");
+    if (back === ipc.INTERNAL) throw new Error("The sound is on the TV's speakers already; there is nothing to reconnect");
+    await this.setSoundOutput(ipc.INTERNAL);
+    await this.setSoundOutput(back);
+  }
+
+  picture() { return this.ipcToken ? this.st.picture : undefined; }
+  async readPicture() {
+    const p = await this.withIpc((t) => ipc.picture(this.device.address, t, this.w.ipc));
+    this.st.picture = { ...p, mode: p.mode ?? this.st.picture?.mode };
+    this.emit({ kind: "picture" });
+  }
+  async setPictureMode(mode: string) {
+    await this.withIpc((t) => ipc.control(this.device.address, t, "pictureModeControl", { pictureMode: mode }, this.w.ipc));
+    if (!(await this.waitStates((s) => ipc.modeOf(s.pictureMode) === mode))) throw new Error(`The TV did not switch to ${ipc.modeName(mode)}`);
+    await this.readPicture().catch(() => {});
+  }
+  async setPicture(field: PictureField, value: number) {
+    const f = ipc.FIELDS[field], v = Math.round(Math.min(f.max, Math.max(f.min, value)));
+    await this.withIpc((t) => ipc.control(this.device.address, t, f.method, { [field]: v }, this.w.ipc));
+    this.st.picture = { ...this.st.picture, values: { ...this.st.picture?.values, [field]: v } };
+    this.emit({ kind: "picture" });
+  }
+  async setColorTone(tone: string) {
+    await this.withIpc((t) => ipc.control(this.device.address, t, "colorToneControl", { colorTone: tone }, this.w.ipc));
+    this.st.picture = { values: {}, ...this.st.picture, tone };
+    this.emit({ kind: "picture" });
+  }
+  async openUrl(url: string) {
+    await this.withIpc((t) => ipc.control(this.device.address, t, "directAccessControl", { applicationName: "webBrowser", url }, this.w.ipc));
   }
 
   on(l: (e: ChangeEvent) => void) { this.listeners.add(l); return () => this.listeners.delete(l); }

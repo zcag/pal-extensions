@@ -1,7 +1,8 @@
 // The one contract between the extension (palettes, views, the bar item)
 // and whatever talks to a Samsung TV: the real driver (device.ts: the
 // remote websocket, the REST api on 8001, UPnP on 9197,
-// IP Control on 1516 for the sound output, Wake-on-LAN) and
+// IP Control on 1516 for the sound output, the input, the exact volume and
+// the picture, Wake-on-LAN) and
 // the fake one the tests and the fixture use (fake.ts). Only current
 // Tizen TVs (2016 on, token auth); nothing here knows an older protocol.
 
@@ -48,10 +49,15 @@ export type Key =
   | "red" | "green" | "yellow" | "blue"
   | "0" | "1" | "2" | "3" | "4" | "5" | "6" | "7" | "8" | "9";
 
+/** The picture values a slider sets, each in the TV's own range (ipc.ts `FIELDS`). */
+export type PictureField = "backlight" | "contrast" | "brightness" | "sharpness" | "color" | "tint";
+/** The picture as IP Control reads it: the mode as the TV reports it (`FilmmakerMode`, `StandardHDR`), the values, the colour tone (`Warm2`). */
+export type Picture = { mode?: string; values: Partial<Record<PictureField, number>>; tone?: string };
+
 /** `Click` a key, or hold it: `Press` then `Release` after `holdMs`. */
 export type Press = "tap" | "hold";
 
-/** An input key (device.ts `INPUTS`). `sure`: seen working on a current TV; the numbered HDMI keys did nothing on a 2024 one. */
+/** An input: a key (device.ts `INPUTS`) without IP Control, a port with it (`hdmi1`, `tv`). `sure`: seen working on a current TV; the numbered HDMI keys did nothing on a 2024 one. */
 export type Input = { id: "tv" | "hdmi" | "hdmi1" | "hdmi2" | "hdmi3" | "hdmi4" | "source"; name: string; sure: boolean };
 
 /** An installed app. `type` is the TV's `app_type` (2 web app, 4 native), which picks how it is launched. */
@@ -75,6 +81,8 @@ export type ChangeEvent =
   | { kind: "keyboard" }
   | { kind: "token"; token: string }
   | { kind: "sound" }
+  | { kind: "input" }
+  | { kind: "picture" }
   /** The TV no longer knows the IP Control token: drop it, offer pairing again. */
   | { kind: "ipcLost" }
   | { kind: "connection"; up: boolean; error?: string };
@@ -106,8 +114,16 @@ export interface Conn {
   muted(): boolean | undefined;
   setMuted(muted: boolean): Promise<void>;
 
+  /** With IP Control the ports (HDMI 1 to 4, TV), else the keys that step through them. */
   inputs(): Input[];
-  setInput(id: Input["id"]): Promise<void>;
+  /** The input on screen, from IP Control; undefined without it. */
+  input(): Input["id"] | undefined;
+  /**
+   * Switch the input: straight to a port through IP Control, else (or when
+   * the TV refuses that) Next HDMI pressed until it reports the port; a key
+   * input (`hdmi`, `source`) is pressed. Answers how it got there.
+   */
+  setInput(id: Input["id"]): Promise<"direct" | "stepped" | "key">;
 
   /** The installed apps (`ed.installedApp.get`), else the known catalog checked one by one over REST. */
   apps(): Promise<App[]>;
@@ -135,6 +151,18 @@ export interface Conn {
   readSound(): Promise<void>;
   /** Switch the sound to an output, then wait for the TV to report it. */
   setSoundOutput(id: string): Promise<void>;
+  /** Move the sound to the TV's speakers and back to the output it was on, each step waited on: what wakes a soundbar that went quiet. */
+  reconnectSound(): Promise<void>;
+
+  /** The picture as last read; the mode alone until `readPicture`, undefined without IP Control. */
+  picture(): Picture | undefined;
+  readPicture(): Promise<void>;
+  setPictureMode(mode: string): Promise<void>;
+  /** A value in the TV's range; refused in a mode that does not take it (Dynamic). */
+  setPicture(field: PictureField, value: number): Promise<void>;
+  setColorTone(tone: string): Promise<void>;
+  /** Open a web page in the TV's browser. */
+  openUrl(url: string): Promise<void>;
 
   on(listener: (e: ChangeEvent) => void): () => void;
   close(): Promise<void>;

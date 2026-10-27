@@ -1,14 +1,15 @@
 // The guided pairing's state machine (setup.ts draws it): look for the
 // TVs, open the remote channel without a token so the chosen TV asks
 // "Allow pal?", keep the token Allow hands out, make the TV current, ask
-// its IP Control for sound control (a second Allow; without it the setup
-// still finishes), then connect and read what works for the Ready step.
-// While a prompt is up the wait counts down once a second; every change
-// is pushed into the open setup level. Sound control alone, for a TV
-// paired before it existed, is asked from the remote (`askSound`).
+// its IP Control for sound and picture (a second Allow; without it the
+// setup still finishes), then connect and read what works for the Ready
+// step. While a prompt is up the wait counts down once a second; every
+// change is pushed into the open setup level. Sound and picture alone, for
+// a TV paired before them, are asked from the remote (`askSound`).
 import { settings, storage, toast, view as liveView, type Ctx, type Effect } from "@zcag/pal";
 import { render as renderSetup, type Check, type SetupState } from "./setup.ts";
-import { OFF } from "./protocol/ipc.ts";
+import { OFF, modeName } from "./protocol/ipc.ts";
+import { outputName } from "./remote.ts";
 import { appsOf, cfg, current, driver, drop, ensure, keepIpcToken, paired, plain, push, savePaired, tv, NAME } from "./tv.ts";
 import type { App, Found, Pairing, Paired } from "./types.ts";
 
@@ -85,7 +86,7 @@ async function askSoundToken(dev: Paired, started: (p: Pairing) => void): Promis
   } catch (e) { return plain(e); }
 }
 
-const soundLater = (why: string) => (why === OFF ? `${OFF}: turn it on, then b on the remote pairs it; later is fine.` : `${why}. b on the remote pairs it, later is fine; it needs IP Remote on (Settings › Connections › Network › Expert Settings).`);
+const soundLater = (why: string) => (why === OFF ? `${OFF}: turn it on, then b on the remote pairs sound and picture; later is fine.` : `${why}. b on the remote pairs sound and picture, later is fine; it needs IP Remote on (Settings › Connections › Network › Expert Settings).`);
 
 /** Connect to the freshly paired TV and read what works: the checks of the Ready step. */
 async function check(p: Paired, soundWhy: string | undefined): Promise<Check[]> {
@@ -94,15 +95,16 @@ async function check(p: Paired, soundWhy: string | undefined): Promise<Check[]> 
   const checks: Check[] = [{ ok: c.remoteUp, what: "Remote", detail: c.remoteUp ? "The buttons, typing, opening apps" : "Allowed, but the remote did not open yet" }];
   const apps = await appsOf(p, true).catch(() => [] as App[]);
   checks.push({ ok: apps.length > 0, what: "Apps", detail: apps.length ? `${apps.length} apps found, a digit each for the dock` : "The TV did not list its apps; the remote works without them" });
-  const v = c.volume();
-  checks.push({ ok: v !== undefined ? true : "skipped", what: "Volume", detail: v !== undefined ? `${v} now; the slider sets it, m mutes` : "The TV did not report its volume: the buttons step it" });
-  checks.push({ ok: p.mac ? true : "skipped", what: "Power", detail: p.mac ? "p turns it off and on; from off, Power On with Mobile has to be on" : "p turns it off; the TV did not tell its network address, so pal cannot turn it on from off" });
-  checks.push({ ok: true, what: "Inputs", detail: "i moves to the next HDMI input; the input menu is a key away" });
   await c.readSound().catch(() => {});
-  const sound = c.sound();
-  checks.push(sound
-    ? { ok: true, what: "Sound", detail: `${sound.outputs.map((o) => o.name).join(", ")}: a chip each on the remote, b moves to the next` }
-    : { ok: "skipped", what: "Sound", detail: soundLater(soundWhy ?? "Sound control did not answer") });
+  await c.readPicture().catch(() => {});
+  const sound = c.sound(), pic = c.picture(), v = c.volume();
+  checks.push({ ok: v !== undefined ? true : "skipped", what: "Volume", detail: v !== undefined ? `${v} now; the slider sets it${sound ? ", on a soundbar too" : ""}, m mutes` : "The TV did not report its volume: the buttons step it" });
+  checks.push({ ok: p.mac ? true : "skipped", what: "Power", detail: p.mac ? "p turns it off and on; from off, Power On with Mobile has to be on" : "p turns it off; the TV did not tell its network address, so pal cannot turn it on from off" });
+  const port = c.inputs().find((i) => i.id === c.input());
+  checks.push({ ok: true, what: "Inputs", detail: sound ? `${port ? `${port.name} now; ` : ""}a chip each, the one on screen lit; i moves to the next` : "i moves to the next HDMI input; the input menu is a key away" });
+  if (!sound) { checks.push({ ok: "skipped", what: "Sound, picture", detail: soundLater(soundWhy ?? "IP Control did not answer") }); return checks; }
+  checks.push({ ok: true, what: "Sound", detail: `${sound.outputs.map((o) => outputName(o, sound.outputs)).join(", ")}: a chip each; b the next, shift+S reconnects` });
+  checks.push({ ok: pic?.mode ? true : "skipped", what: "Picture", detail: pic?.mode ? `${modeName(pic.mode)} now; v opens the picture: the mode, the values, the colour tone` : "The TV did not tell its picture mode" });
   return checks;
 }
 

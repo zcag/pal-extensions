@@ -1,20 +1,25 @@
 // Samsung TV: a remote under the keys, the TV's apps at the root, its
 // inputs and volume a key away, typing into its keyboard, what is on in
-// the bar, and a guided pairing (press Allow on the TV). The connection,
-// the apps, the controls and the redraw loop are shared (tv.ts); this
-// module is the remote (a pressed key lights its part of the pad for
-// 160 ms), the controls the TV provides (its volume, power, inputs and
-// what is on, which a group may hand to another device's remote), the
-// bar item, the list palettes and the links; pairing.ts is the setup.
-import { controls, extensions, settings, toast, type BarCtx, type BarItem, type Ctx, type Effect, type Extension, type Item, type LinkParams } from "@zcag/pal";
-import { DOCK_WIDE, G, positionAt, render as renderRemote, type DockApp, type Flash, type Layout, type RemoteState } from "./remote.ts";
+// the bar, and a guided pairing (press Allow on the TV). With IP Control
+// paired too: the input on screen and a chip per port, the sound output,
+// the exact volume on a soundbar, the picture page, a web page opened on
+// the TV. The connection, the apps, the controls and the redraw loop are
+// shared (tv.ts); this module is the remote (a pressed key lights its part
+// of the pad for 160 ms), the picture page, the controls the TV provides
+// (its volume, power, inputs and what is on, which a group may hand to
+// another device's remote), the bar item, the list palettes and the links;
+// pairing.ts is the setup.
+import { clipboard, controls, extensions, settings, toast, type BarCtx, type BarItem, type Ctx, type Effect, type Extension, type Item, type LinkParams } from "@zcag/pal";
+import { DOCK_WIDE, G, outputName, positionAt, render as renderRemote, type DockApp, type Flash, type Layout, type RemoteState } from "./remote.ts";
+import { ROWS, render as renderPicture, rowOf, refuses, type PictureState } from "./picture.ts";
+import { FIELDS, INTERNAL, MODES, TONES, modeName, modeOf } from "./protocol/ipc.ts";
 import { SETUP_ROW, appRow, commandRows, noTv } from "./rows.ts";
 import { askSound, cancelPairing, setupPick, setupView, soundAsk } from "./pairing.ts";
 import {
-  appLists, appsOf, artOf, cfg, current, disposeTv, drop, ensure, frontApp, launch, launches, onOpen, paired, plain, push, registerBar, registerView,
-  served, tv, turnOn, warm, withConn, NAME, type BarSettings, type Level,
+  appLists, appsOf, artOf, cfg, current, disposeTv, drop, ensure, frontApp, inputName, inputNames, launch, launches, nameInput, onOpen, paired, plain, push, registerBar, registerView,
+  served, showing, tv, turnOn, warm, withConn, NAME, type BarSettings, type Level,
 } from "./tv.ts";
-import type { App, Input, Key, Press } from "./types.ts";
+import type { App, Conn, Input, Key, PictureField, Press } from "./types.ts";
 
 let barCfg: BarSettings = { when: "app" };
 
@@ -22,6 +27,8 @@ let barCfg: BarSettings = { when: "app" };
 
 /** Escape on the field: it stays down until the TV's keyboard closes and opens again. */
 let dismissed = false;
+/** The search row's field when it is not typing into the TV: a page to open there (`w`), or a name for the input. */
+let field: RemoteState["field"];
 let flash: Flash | undefined;
 let flashTimer: ReturnType<typeof setTimeout> | undefined;
 const FLASH_MS = 160;
@@ -63,6 +70,7 @@ async function remoteState(layout: Layout): Promise<RemoteState> {
   if (!c) return base;
   const front = frontApp(), media = c.media();
   if (!c.keyboard().open) dismissed = false;
+  const on = showing(c), port = c.inputs().find((i) => i.id === c.input());
   return {
     ...base,
     power: c.power(),
@@ -71,6 +79,8 @@ async function remoteState(layout: Layout): Promise<RemoteState> {
     volume: served.volume, powerSlot: served.power, inputs: served.inputs,
     keyboard: c.keyboard(), typing: c.keyboard().open && !dismissed,
     sound: c.ipcToken ? c.sound() : { pair: true, left: soundAsk.until ? Math.max(0, Math.round((soundAsk.until - Date.now()) / 1000)) : undefined, error: soundAsk.error },
+    ...(c.ipcToken && { ipc: true, showing: { ...on, ...(port && on.input !== port.name && { port: port.name }) } }),
+    field,
     dock: dockOf(appLists.get(dev.id) ?? []),
     flash,
   };
@@ -103,14 +113,25 @@ async function act(action: string, ctx?: Ctx | BarCtx): Promise<Effect | undefin
     try { await controls.act(action, { values: values as Record<string, string> | undefined }); return undefined; } catch (e) { return toast("Could not do that", plain(e), "failure"); }
   }
   if (action.startsWith("sound:")) return soundAct(action.slice(6));
+  if (action === "open") { field = { kind: "open", value: await copiedLink() ?? "" }; return undefined; }
+  if (action === "open:send") {
+    const url = withScheme(String(values?.input ?? field?.value ?? ""));
+    field = undefined;
+    if (!url) return undefined;
+    return (await withConn("open the page", (c) => c.openUrl(url))) ?? { hud: `Opening ${url.replace(/^https?:\/\//, "")} on the TV`, keep: true };
+  }
+  if (action === "input:rename") { const id = tv.conn?.input(); field = id ? { kind: "rename", value: inputNames().get(id) ?? "" } : undefined; return undefined; }
+  if (action === "rename:send") { const id = tv.conn?.input(); field = undefined; if (id) await nameInput(id, String(values?.input ?? "")); return undefined; }
+  if (action === "field:cancel") { field = undefined; return undefined; }
   if (action.startsWith("launch:")) {
     const dev = current(await paired());
     const app = dev ? dockOf(appLists.get(dev.id) ?? [])[Number(action.slice(7))] : undefined;
     return app ? launch(app.id, app.name) : { keep: true };
   }
   switch (action) {
-    // KEY_HDMI: the TV moves to its next HDMI input itself.
-    case "input:next": return withConn("switch the input", (c) => c.setInput("hdmi"));
+    // With IP Control the next port after the one on screen; else KEY_HDMI, the TV moves to its next HDMI input itself.
+    case "input:next": return withConn("switch the input", (c) => switchInput(c, nextPort(c)));
+    case "picture": return { push: { extension: NAME, palette: "picture" } };
     case "wake": try { await turnOn(); return undefined; } catch (e) { return toast("Could not turn it on", plain(e), "failure"); }
     case "type": dismissed = false; return undefined;
     case "type:send": {
@@ -135,9 +156,30 @@ async function act(action: string, ctx?: Ctx | BarCtx): Promise<Effect | undefin
   return { keep: true };
 }
 
-/** `pair` sound control, the `next` output, or the output with this id; the TV is waited on to report it. */
+/** The HDMI port after the one on screen, round from 4 to 1; Next HDMI's key without IP Control. */
+function nextPort(c: Conn): Input["id"] {
+  const ports = c.inputs().filter((i) => /^hdmi\d$/.test(i.id));
+  if (!ports.length) return "hdmi";
+  return ports[(ports.findIndex((i) => i.id === c.input()) + 1) % ports.length].id;
+}
+
+/** Switch the input, saying in the log how it got there: IP Control straight to the port, Next HDMI stepped to it, or a key. */
+async function switchInput(c: Conn, id: Input["id"]): Promise<void> {
+  const how = await c.setInput(id);
+  if (how !== "key") console.log(`[samsungtv] input ${id}: ${how}`);
+}
+
+/** The newest link in the clipboard history, when there is one among the last few copies. */
+async function copiedLink(): Promise<string | undefined> {
+  const recent = await clipboard.list({ kind: "text", limit: 5 }).catch(() => []);
+  return [...recent].sort((a, b) => b.at - a.at).map((e) => e.text?.trim() ?? "").find((t) => /^https?:\/\/\S+$/i.test(t));
+}
+const withScheme = (s: string) => { const t = s.trim(); return !t ? "" : /^[a-z]+:\/\//i.test(t) ? t : `https://${t}`; };
+
+/** `pair` sound control, `reconnect` the output in use, the `next` output, or the output with this id; the TV is waited on to report it. */
 async function soundAct(id: string): Promise<Effect | undefined> {
   if (id === "pair") { void askSound(); return undefined; }
+  if (id === "reconnect") return withConn("reconnect the sound", (c) => c.reconnectSound());
   return withConn("switch the sound", (c) => {
     const s = c.sound();
     if (id !== "next") return c.setSoundOutput(id);
@@ -156,9 +198,54 @@ async function remotePick(action: string | undefined, ctx: Ctx | BarCtx | undefi
 }
 
 registerView("remote", async (l) => renderRemote(await remoteState(l.compact ? "compact" : "wide")));
+registerView("picture", async () => renderPicture(pictureState()));
 registerView("bar:tv", async () => renderRemote(await remoteState("compact")));
 onOpen((l: Level) => {
   if (l.palette === "remote" && cfg().wake) void ensure().then((c) => (c.power() !== "on" ? turnOn() : undefined)).catch(() => {});
+});
+
+// ---- the picture page -----------------------------------------------------------------------------------
+
+/** The row the page's keys are on, and the values the TV refused, by the mode they were refused in. */
+let picAt = 0;
+const refused = new Set<string>();
+let picError: string | undefined;
+
+function pictureState(): PictureState {
+  const c = tv.conn, p = c?.picture(), mode = modeOf(p?.mode);
+  return { device: current()?.name, picture: p && Object.keys(p.values).length ? p : undefined, at: picAt, refused: (Object.keys(FIELDS) as PictureField[]).filter((f) => refused.has(`${mode}:${f}`)), error: picError ?? (c && !c.ipcToken ? "Pair sound and picture first: b on the remote" : undefined) };
+}
+
+/** One step of a value, a mode or a tone along its row. */
+const around = <T,>(xs: readonly T[], at: number, d: number) => xs[Math.min(xs.length - 1, Math.max(0, at + d))];
+
+async function pictureAct(action: string, ctx?: Ctx): Promise<void> {
+  picError = undefined;
+  const c = await ensure(), p = c.picture();
+  const mode = modeOf(p?.mode);
+  const run = async (what: string, f: () => Promise<void>, field?: PictureField) => {
+    try { await f(); } catch (e) { if (field) refused.add(`${mode}:${field}`); picError = `Could not ${what}: ${plain(e)}`; }
+  };
+  if (action === "pic:up" || action === "pic:down") { picAt = Math.min(ROWS - 1, Math.max(0, picAt + (action === "pic:up" ? -1 : 1))); return; }
+  if (action === "pic:read") return run("read the picture", () => c.readPicture());
+  if (action.startsWith("pic:mode:")) return run("change the mode", () => c.setPictureMode(action.slice(9)));
+  if (action.startsWith("pic:tone:")) return run("change the colour tone", () => c.setColorTone(action.slice(9)));
+  if (action.startsWith("pic:set:")) {
+    const f = action.slice(8) as PictureField, { min, max } = FIELDS[f];
+    return run(`set the ${f}`, () => c.setPicture(f, min + Number(ctx?.values?.value ?? 0) * (max - min)), f);
+  }
+  const d = action === "pic:more" ? 1 : action === "pic:less" ? -1 : 0, r = rowOf(picAt);
+  if (!d || !p) return;
+  if (r === "mode") return run("change the mode", () => c.setPictureMode(around(MODES.map(([id]) => id), MODES.findIndex(([id]) => id === mode), d)));
+  if (r === "tone") return run("change the colour tone", () => c.setColorTone(around(TONES, TONES.indexOf(p.tone as never), d)));
+  if (refuses(pictureState(), r) || p.values[r] === undefined) return;
+  return run(`set the ${r}`, () => c.setPicture(r, p.values[r]! + d), r);
+}
+
+onOpen((l: Level) => {
+  if (l.palette !== "picture") return;
+  picError = undefined;
+  void ensure().then((c) => c.readPicture()).catch((e) => { picError = `Could not read the picture: ${plain(e)}`; }).then(push);
 });
 
 // ---- the controls it provides ------------------------------------------------------------------------------
@@ -171,7 +258,7 @@ const handlers: Extension["controls"] = {
     mute: async (on: boolean) => { await (await ensure()).setMuted(on); },
   },
   power: { set: async (on: boolean) => { if (on) await turnOn(); else await (await ensure()).turnOff(); } },
-  inputs: { set: async (id: string) => { await (await ensure()).setInput(id as Input["id"]); } },
+  inputs: { set: async (id: string) => { await switchInput(await ensure(), id as Input["id"]); } },
   player: {
     play_pause: async () => { await (await ensure()).key("play_pause"); },
     next: async () => { await (await ensure()).key("next"); },
@@ -197,7 +284,7 @@ async function barItem(): Promise<BarItem> {
     title: title.length > 48 ? `${title.slice(0, 47)}…` : title,
     color: media?.state === "paused" ? "muted" : undefined,
     tooltip: media ? `${title} on ${dev.name}${media.state === "paused" ? ", paused" : ""}` : app ? `${app.name} on ${dev.name}` : `${dev.name} is on`,
-    states: { power, app: app?.name ?? null },
+    states: { power, app: app?.name ?? null, input: showing().input ?? null, sound: showing().output ?? null, picture: showing().mode ?? null },
     menu,
   };
 }
@@ -259,8 +346,20 @@ async function pickCommand(id: string, action: string | undefined, ctx?: Ctx): P
     return { hud: `${name}: ${id === "wake" ? "turning on" : "turning off"}` };
   }
   if (id.startsWith("input:")) {
-    const e = await withConn("switch the input", (c) => c.setInput(id.slice(6) as Input["id"]));
-    return e ?? { hud: `${name}: ${id === "input:source" ? "the input menu" : id === "input:hdmi" ? "next HDMI input" : id.slice(6).toUpperCase()}` };
+    const want = id.slice(6) as Input["id"], port = tv.conn?.inputs().find((i) => i.id === want);
+    const e = await withConn("switch the input", (c) => switchInput(c, want));
+    return e ?? { hud: `${name}: ${id === "input:source" ? "the input menu" : id === "input:hdmi" ? "next HDMI input" : port ? inputName(port) : want.toUpperCase()}` };
+  }
+  if (id.startsWith("sound:")) {
+    const e = await soundAct(id.slice(6));
+    const out = tv.conn?.sound()?.outputs.find((o) => o.id === id.slice(6));
+    return e ?? { hud: `${name}: ${id === "sound:reconnect" ? "sound reconnected" : out ? `sound to ${outputName(out, tv.conn!.sound()!.outputs)}` : "sound"}` };
+  }
+  if (id.startsWith("picture:")) return (await withConn("change the picture mode", (c) => c.setPictureMode(id.slice(8)))) ?? { hud: `${name}: ${modeName(id.slice(8))}` };
+  if (id === "open") {
+    const url = await copiedLink();
+    if (!url) return toast("No link copied", "Copy a web address first, or press w in the remote and type one", "failure");
+    return (await withConn("open the page", (c) => c.openUrl(url))) ?? { hud: `${name}: opening ${url.replace(/^https?:\/\//, "")}` };
   }
   const e = await act(ROW_ACTION[id] ?? id, ctx);
   if (e?.toast) return e;
@@ -307,10 +406,35 @@ async function link(route: string, params: LinkParams): Promise<Effect | void> {
       return { hud: `Samsung TV: volume ${Math.round(n)}` };
     }
     case "input": {
-      const id = (str("to") || "hdmi").toLowerCase() as Input["id"];
-      if (!["hdmi", "source", "tv"].includes(id)) throw new Error("to is hdmi (the next HDMI input), source (the input menu) or tv");
-      await (await ensure()).setInput(id);
+      const id = (str("to") || "hdmi").toLowerCase().replace(/\s+/g, "") as Input["id"];
+      const c = await ensure();
+      const ok = ["hdmi", "source", "tv", ...(c.ipcToken ? ["hdmi1", "hdmi2", "hdmi3", "hdmi4"] : [])];
+      if (!ok.includes(id)) throw new Error(`to is hdmi (the next HDMI input), source (the input menu) or tv${c.ipcToken ? ", or hdmi1 to hdmi4" : "; hdmi1 to hdmi4 need sound and picture paired"}`);
+      await switchInput(c, id);
       return { hud: `Samsung TV: ${id}` };
+    }
+    case "sound": {
+      const c = await ensure(), to = str("to").toLowerCase();
+      if (!c.ipcToken) throw new Error("sound and picture are not paired: b on the remote pairs them");
+      if (to === "reconnect") { await c.reconnectSound(); return { hud: "Samsung TV: sound reconnected" }; }
+      if (!c.sound()) await c.readSound();
+      const outs = c.sound()?.outputs ?? [];
+      const out = outs.find((o) => [o.id, o.name, outputName(o, outs)].some((n) => n.toLowerCase() === to) || (o.id === INTERNAL && ["tv", "speaker", "tv speaker"].includes(to)));
+      if (!out) throw new Error(`to is reconnect, tv, or one of the TV's outputs: ${outs.filter((o) => o.id !== INTERNAL).map((o) => outputName(o, outs).toLowerCase()).join(", ")}`);
+      await c.setSoundOutput(out.id);
+      return { hud: `Samsung TV: sound to ${outputName(out, outs)}` };
+    }
+    case "picture": {
+      const want = str("mode").toLowerCase(), mode = MODES.find(([id, name]) => id.toLowerCase() === want || name.toLowerCase() === want)?.[0];
+      if (!mode) throw new Error(`mode is ${MODES.map(([, n]) => n.toLowerCase()).join(", ")}`);
+      await (await ensure()).setPictureMode(mode);
+      return { hud: `Samsung TV: ${modeName(mode)}` };
+    }
+    case "open": {
+      const url = withScheme(str("url"));
+      if (!url) throw new Error("url is the page to open");
+      await (await ensure()).openUrl(url);
+      return { hud: `Samsung TV: opening ${url.replace(/^https?:\/\//, "")}` };
     }
     case "type": {
       const c = await ensure();
@@ -330,6 +454,11 @@ export default {
       view: async (ctx) => { await Promise.all([warm(), lookForOther()]); return renderRemote(await remoteState(ctx?.compact ? "compact" : "wide")); },
       pick: (_id, action, ctx) => remotePick(action, ctx, ctx?.compact ? "compact" : "wide"),
     },
+    picture: {
+      title: "Samsung TV Picture",
+      view: async () => { await warm(); return renderPicture(pictureState()); },
+      pick: async (_id, action, ctx) => { await pictureAct(action ?? "", ctx); return { view: renderPicture(pictureState()) }; },
+    },
     apps: {
       title: "Samsung TV Apps",
       placeholder: "Search the TV's apps",
@@ -341,8 +470,9 @@ export default {
       list: async () => {
         const list = await paired();
         const dev = current(list);
-        const inputs = tv.conn?.inputs() ?? (await import("./device.ts")).INPUTS;
-        return dev ? commandRows(dev.name, list.filter((d) => d.id !== dev.id).map((d) => d.name), inputs) : [SETUP_ROW];
+        const c = tv.conn, s = c?.sound();
+        const inputs = (c?.inputs() ?? (await import("./device.ts")).INPUTS).map((i) => ({ ...i, name: inputName(i) }));
+        return dev ? commandRows(dev.name, list.filter((d) => d.id !== dev.id).map((d) => d.name), inputs, s ? { outputs: s.outputs, reconnect: !!s.current && s.current !== INTERNAL } : undefined) : [SETUP_ROW];
       },
       pick: (id, action, ctx) => pickCommand(id, action, ctx),
     },

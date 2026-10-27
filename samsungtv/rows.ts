@@ -1,10 +1,12 @@
 // The list palettes' rows, pure (the fixture builds the store shots from
-// these): an app with its icon, the commands at the root, the inputs.
+// these): an app with its icon, the commands at the root, the inputs, and
+// with IP Control the sound outputs, the picture modes and a web page.
 // Every row names the TV it acts on, so with two paired the root never
 // leaves you guessing which one a key goes to.
 import { hint, type Action, type Item } from "@zcag/pal";
-import { G } from "./remote.ts";
-import type { App, Input } from "./types.ts";
+import { MODES } from "./protocol/ipc.ts";
+import { G, outputName } from "./remote.ts";
+import type { App, Input, SoundOutput } from "./types.ts";
 
 /** The row every palette shows while nothing is paired. */
 export const SETUP_ROW: Item = { id: "setup", name: "Set Up Samsung TV", subtitle: "Find the TV on this network and press Allow on it", icon: G.remote, actions: [{ id: "setup", title: "Set up" }] };
@@ -44,10 +46,20 @@ export const COMMANDS: Cmd[] = [
   { id: "guide", name: "Guide", icon: G.guide, keywords: ["channels", "epg"] },
 ];
 
-export function commandRows(device: string, others: string[], inputs: Input[]): Item[] {
-  const rows: Item[] = COMMANDS.map((c) => ({ id: c.id, name: c.name, subtitle: device, icon: c.icon, keywords: ["samsung", "tv", ...(c.keywords ?? [])], actions: [{ id: "run", title: c.name }] }));
+/** What IP Control adds at the root once it is paired: the outputs (and Reconnect Sound while one other than the TV's speakers plays), the picture modes, a web page. */
+export type IpcRows = { outputs: SoundOutput[]; reconnect: boolean };
+
+export function commandRows(device: string, others: string[], inputs: Input[], ipc?: IpcRows): Item[] {
+  const cmd = (id: string, name: string, icon: string, keywords: string[]): Item => ({ id, name, subtitle: device, icon, keywords: ["samsung", "tv", ...keywords], actions: [{ id: "run", title: name }] });
+  const rows: Item[] = COMMANDS.map((c) => cmd(c.id, c.name, c.icon, c.keywords ?? []));
   const label: Record<string, string> = { hdmi: "Next HDMI Input", source: "Open the Input Menu", tv: "Switch to TV" };
-  for (const i of inputs) rows.push({ id: `input:${i.id}`, name: label[i.id] ?? `Switch to ${i.name}`, subtitle: device, icon: G.hdmi, keywords: ["samsung", "tv", "input", "source", "hdmi"], actions: [{ id: "run", title: label[i.id] ?? `Switch to ${i.name}` }] });
+  for (const i of inputs) rows.push(cmd(`input:${i.id}`, label[i.id] ?? `Switch to ${i.name}`, G.hdmi, ["input", "source", "hdmi", ...(i.id.startsWith("hdmi") && i.id.length > 4 ? [`hdmi ${i.id.slice(4)}`] : [])]));
+  if (ipc) {
+    if (ipc.reconnect) rows.push(cmd("sound:reconnect", "Reconnect Sound", G.reconnect, ["sound", "soundbar", "q-symphony", "audio", "fix"]));
+    for (const o of ipc.outputs) rows.push(cmd(`sound:${o.id}`, `Sound to ${outputName(o, ipc.outputs)}`, G.speaker, ["sound", "output", "speaker", "audio", o.name]));
+    for (const [id, name] of MODES) rows.push(cmd(`picture:${id}`, `${name} Picture Mode`, G.picture, ["picture", "mode"]));
+    rows.push(cmd("open", "Open the Copied Link on the TV", G.web, ["browser", "url", "web", "link"]));
+  }
   for (const o of others) rows.push({ id: `device:${o}`, name: `Switch to ${o}`, subtitle: "Make it the TV the remote and these commands control", icon: G.tv, keywords: ["samsung", "tv"], actions: [{ id: "run", title: `Switch to ${o}` }] });
   rows.push({ id: "setup", name: "Set Up Samsung TV", subtitle: "Pair another TV, or pair this one again", icon: G.remote, keywords: ["samsung", "tv", "pair"], actions: [{ id: "setup", title: "Set up" }] });
   return rows;

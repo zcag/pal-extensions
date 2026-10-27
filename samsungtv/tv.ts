@@ -11,12 +11,14 @@
 import { bar, controls, errorMessage, failed, settings, state, storage, view as liveView, type BarItem, type ControlName, type ControlStates, type Effect, type Served, type View } from "@zcag/pal";
 import { iconData, letterTile } from "./art.ts";
 import { fakeDriver } from "./fake.ts";
-import type { App, Conn, Driver, Paired } from "./types.ts";
+import { inputId, modeName } from "./protocol/ipc.ts";
+import { outputName } from "./remote.ts";
+import type { App, Conn, Driver, Input, Paired } from "./types.ts";
 
 export const NAME = "samsungtv";
 
 /** `[extensions.samsungtv]`, defaults in pal.json. */
-export type Settings = { device: string; favorites: string[]; wake: boolean; stay: boolean };
+export type Settings = { device: string; favorites: string[]; wake: boolean; stay: boolean; inputs: string[] };
 /** The bar item's own settings. */
 export type BarSettings = { when: "on" | "app" };
 export const cfg = (): Settings => settings.get<Settings>(NAME);
@@ -27,6 +29,26 @@ export const driver = (): Promise<Driver> => (driverP ??= process.env.PAL_SAMSUN
 
 /** An error as a sentence the views can show. */
 export const plain = (e: unknown): string => errorMessage(e).replace(/^Error: /, "");
+
+// ---- input names ----------------------------------------------------------------------------------
+
+/** The `inputs` setting's lines, `HDMI 1 = Apple TV`, by input id. */
+export function inputNames(): Map<string, string> {
+  const out = new Map<string, string>();
+  for (const line of cfg().inputs ?? []) {
+    const [k, ...v] = line.split("="), id = inputId(k.trim()), name = v.join("=").trim();
+    if (id && name) out.set(id, name);
+  }
+  return out;
+}
+/** An input as the remote names it: the name given to it, else the TV's. */
+export const inputName = (i: Pick<Input, "id" | "name">) => inputNames().get(i.id) ?? i.name;
+/** Give an input a name (empty: back to the TV's), written to the setting. */
+export async function nameInput(id: string, name: string): Promise<void> {
+  const keep = (cfg().inputs ?? []).filter((l) => inputId(l.split("=")[0].trim()) !== id);
+  const port = id.replace(/^hdmi(\d)$/, "HDMI $1").toUpperCase();
+  await settings.set({ inputs: name.trim() ? [...keep, `${port} = ${name.trim()}`] : keep }, NAME);
+}
 
 // ---- paired TVs -----------------------------------------------------------------------------------
 
@@ -201,7 +223,7 @@ export function provided(): { [C in ControlName]: ControlStates[C] | null } {
     volume: on ? { device, ...(v !== undefined && c!.levelSettable() !== false && { level: v / 100 }), muted: c!.muted() ?? false } : null,
     // A TV that is off is still woken by Wake-on-LAN: its power stays offered while its MAC is known.
     power: dev && (c || dev.mac) ? { device, on: !!on, ...(tv.waking && { busy: true }) } : null,
-    inputs: on ? { device, list: c!.inputs().map((i) => ({ id: i.id, name: i.name })) } : null,
+    inputs: on ? { device, list: c!.inputs().map((i) => ({ id: i.id, name: inputName(i) })), ...(c!.input() && { current: c!.input() }) } : null,
     player: on && (m || front) ? {
       device, app: front?.name, title: m?.title ?? front?.name, palette: "remote",
       ...(m && { state: m.state === "playing" ? "playing" : m.state === "paused" ? "paused" : "stopped", position: m.position, at: m.at, duration: m.duration }),
@@ -295,10 +317,18 @@ liveView.onHidden((ev) => { levels.delete(levelKey({ palette: ev.palette, bar: e
 // ---- states --------------------------------------------------------------------------------------------
 
 let said: Record<string, unknown> = {};
-/** `samsungtv/power` and `app`: published when they change. */
+/** What IP Control says the TV shows, by name: the input, the sound output, the picture mode (each undefined when not told). */
+export function showing(c: Conn | undefined = tv.conn): { input?: string; output?: string; mode?: string } {
+  if (!c || c.power() !== "on") return {};
+  const id = c.input(), port = c.inputs().find((i) => i.id === id), s = c.sound();
+  const out = s?.outputs.find((o) => o.id === s.current);
+  return { input: port && inputName(port), output: out && outputName(out, s!.outputs), mode: modeName(c.picture()?.mode) };
+}
+
+/** `samsungtv/power`, `app`, `input`, `sound` and `picture`: published when they change. */
 function publishStates(): void {
-  const c = tv.conn;
-  const now: Record<string, unknown> = { power: c ? c.power() : null, app: frontApp()?.name ?? null };
+  const c = tv.conn, on = showing(c);
+  const now: Record<string, unknown> = { power: c ? c.power() : null, app: frontApp()?.name ?? null, input: on.input ?? null, sound: on.output ?? null, picture: on.mode ?? null };
   for (const [k, v] of Object.entries(now)) if (said[k] !== v) void state.set(k, v as string | null, NAME).catch(() => {});
   said = now;
 }

@@ -1,7 +1,7 @@
 {
   "name": "samsungtv",
   "title": "Samsung TV",
-  "description": "A remote for your Samsung TV under the keys, spoken to the TV on your network: the arrows and OK, your apps a digit away, the volume as a slider, the next HDMI input on a key, the sound moved between the TV's speakers and a soundbar, typing into the TV's own keyboard from yours, turning it on and off, and the menu bar. Pairs by pressing Allow on the TV. Its volume, power and inputs can drive another device's remote too (Settings › Groups).",
+  "description": "A remote for your Samsung TV under the keys, spoken to the TV on your network: the arrows and OK, your apps a digit away, the volume as a slider, the inputs as chips, typing into the TV's own keyboard from yours, turning it on and off, and the menu bar. With IP Remote on in the TV's settings it also knows the input on screen and jumps straight to one, moves the sound between the TV's speakers, Q-Symphony and a soundbar (and reconnects a soundbar gone quiet), sets the exact volume on the soundbar, changes the picture mode and the picture, and opens a web page on the TV. Pairs by pressing Allow on the TV. Its volume, power and inputs can drive another device's remote too (Settings › Groups).",
   "keywords": [
     "samsung",
     "tv",
@@ -45,6 +45,14 @@
       "default": []
     },
     {
+      "kind": "list",
+      "id": "inputs",
+      "label": "Input names",
+      "placeholder": "HDMI 1 = Apple TV",
+      "description": "A name for an input, one a line: the chips and the card say it instead of HDMI 1. Naming this input in the remote's cmd+K writes it here.",
+      "default": []
+    },
+    {
       "kind": "boolean",
       "id": "wake",
       "label": "Turn on",
@@ -64,7 +72,7 @@
   "palettes": {
     "remote": {
       "title": "Samsung TV Remote",
-      "description": "The arrows move, Enter is OK, Backspace goes back, h is Home; the app on screen, your dock of apps on the digits, the volume as a slider, the next HDMI input on i, the sound output on b, and a field that types into the TV whenever it shows its keyboard.",
+      "description": "The arrows move, Enter is OK, Backspace goes back, h is Home; the app or input on screen with the sound output and the picture mode, your dock of apps on the digits, the volume as a slider, the inputs and the sound outputs as chips, the picture on v, a web page on w, and a field that types into the TV whenever it shows its keyboard.",
       "kind": "view",
       "keywords": [
         "control",
@@ -123,7 +131,19 @@
         },
         {
           "keys": "b",
-          "title": "Next sound output (pairs sound control the first time)"
+          "title": "Next sound output (pairs sound and picture the first time)"
+        },
+        {
+          "keys": "shift+s",
+          "title": "Reconnect sound: to the TV's speakers and back"
+        },
+        {
+          "keys": "v",
+          "title": "Picture: the mode, the values, the colour tone"
+        },
+        {
+          "keys": "w",
+          "title": "Open a web page on the TV"
         },
         {
           "keys": "[ ]",
@@ -163,6 +183,35 @@
         }
       ]
     },
+    "picture": {
+      "title": "Samsung TV Picture",
+      "description": "The Samsung TV's picture: the mode as chips (Standard, Movie, Filmmaker, Dynamic, Eco), backlight, contrast, brightness, sharpness, colour and tint as sliders, and the colour tone. Needs sound and picture paired.",
+      "kind": "view",
+      "keywords": [
+        "picture mode",
+        "filmmaker",
+        "backlight",
+        "brightness"
+      ],
+      "keys": [
+        {
+          "keys": "up, down",
+          "title": "Pick a row"
+        },
+        {
+          "keys": "left, right",
+          "title": "Change it"
+        },
+        {
+          "keys": "1-5",
+          "title": "Picture mode"
+        },
+        {
+          "keys": "r",
+          "title": "Read the picture again"
+        }
+      ]
+    },
     "apps": {
       "title": "Samsung TV Apps",
       "description": "The apps on the Samsung TV; Enter opens one on the TV, the one on screen tagged.",
@@ -193,7 +242,7 @@
     },
     "commands": {
       "title": "Samsung TV",
-      "description": "Turn on and off, home, play or pause, mute and the volume, the next HDMI input or the input menu, the TV's settings and its guide, as root results.",
+      "description": "Turn on and off, home, play or pause, mute and the volume, the inputs, the TV's settings and its guide, as root results; with sound and picture paired also each sound output, Reconnect Sound, the picture modes, and the copied link opened on the TV.",
       "kind": "list",
       "tier": "primary",
       "keys": [
@@ -205,7 +254,7 @@
     },
     "setup": {
       "title": "Set Up Samsung TV",
-      "description": "Finds the Samsung TVs on the network and pairs one: the TV asks whether to allow pal, you press Allow, then once more for the sound output; ends with a check of what works.",
+      "description": "Finds the Samsung TVs on the network and pairs one: the TV asks whether to allow pal, you press Allow, then once more for sound and picture; ends with a check of what works.",
       "kind": "view",
       "keywords": [
         "pair"
@@ -280,6 +329,10 @@
           "title": "Next sound output"
         },
         {
+          "keys": "shift+s",
+          "title": "Reconnect sound"
+        },
+        {
           "keys": "1-6",
           "title": "Open a dock app"
         },
@@ -349,6 +402,18 @@
     "app": {
       "description": "The app on the Samsung TV's screen",
       "kind": "string"
+    },
+    "input": {
+      "description": "The input on the Samsung TV's screen, by its name (HDMI 1, or the name given to it); needs sound and picture paired",
+      "kind": "string"
+    },
+    "sound": {
+      "description": "Where the Samsung TV's sound plays: TV Speaker, Q-Symphony, Soundbar; needs sound and picture paired",
+      "kind": "string"
+    },
+    "picture": {
+      "description": "The Samsung TV's picture mode: Standard, Movie, Filmmaker, Dynamic, Eco; needs sound and picture paired",
+      "kind": "string"
     }
   },
   "links": {
@@ -394,7 +459,7 @@
       "description": "Switch the input",
       "params": {
         "to": {
-          "description": "hdmi (the next HDMI input, the default), source (the input menu) or tv"
+          "description": "hdmi (the next HDMI input, the default), source (the input menu), tv, or hdmi1 to hdmi4 (with sound and picture paired)"
         }
       }
     },
@@ -406,23 +471,52 @@
           "required": true
         }
       }
+    },
+    "sound": {
+      "description": "Move the sound, or reconnect it (to the TV's speakers and back, for a soundbar gone quiet); needs sound and picture paired",
+      "params": {
+        "to": {
+          "description": "reconnect, tv (its speakers), or an output by name (q-symphony, soundbar)",
+          "required": true
+        }
+      }
+    },
+    "picture": {
+      "description": "Set the picture mode; needs sound and picture paired",
+      "params": {
+        "mode": {
+          "description": "standard, movie, filmmaker, dynamic or eco",
+          "required": true
+        }
+      }
+    },
+    "open": {
+      "description": "Open a web page in the TV's browser; needs sound and picture paired",
+      "params": {
+        "url": {
+          "description": "The page",
+          "required": true
+        }
+      }
     }
   },
   "store": {
-    "tagline": "Your Samsung TV's remote, apps, volume and inputs, from the keyboard",
+    "tagline": "Your Samsung TV's remote, apps, volume, inputs, sound and picture, from the keyboard",
     "category": "media",
     "features": [
       "The arrows and OK, Back and Home under the keys; each part of the pad lights as you press",
       "Your dock of apps on the digits, the one on screen marked; every app at the root: type `youtube`, press Enter",
-      "The volume as a slider and m to mute, set on the TV itself (and the soundbar it drives)",
-      "i moves to the next HDMI input; the TV's input menu and its settings are a key away",
-      "The sound output as chips: the TV's speakers, Q-Symphony or a soundbar, the one playing lit; b moves to the next",
+      "The volume as a slider and m to mute, set on the TV itself and, with IP Remote on, exactly on the soundbar too",
+      "The inputs as chips, the one on screen lit, a click jumps there; name them (HDMI 1 = Apple TV) and the card says so",
+      "The sound output as chips: the TV's speakers, Q-Symphony or a soundbar; shift+S reconnects a soundbar gone quiet, from the root or a link as well",
+      "The picture on v: the mode (Filmmaker, Movie, Standard…), backlight, contrast and the rest as sliders, the colour tone",
+      "w opens a web page on the TV, the link you copied already in the field",
       "When the TV shows its keyboard, a field opens here: type with your keyboard, Enter sends it",
       "Turns the TV off, and on from standby or off (Wake-on-LAN)",
       "A menu bar item with the app on screen; its popover is the remote",
       "With an Apple TV in the same group, the Apple TV's remote sets this TV's volume and inputs and turns both on",
       "With Apple TV installed too, o opens the Apple TV's remote over this one and Escape comes back",
-      "Guided setup: finds the TV, you press Allow on it (once more for the sound output), and it checks what works"
+      "Guided setup: finds the TV, you press Allow on it (once more for sound and picture), and it checks what works"
     ],
     "permissions": [
       "network"
@@ -434,7 +528,7 @@
     "screenshots": [
       {
         "file": "1-remote.png",
-        "caption": "The remote: the arrows and OK, the app on screen, your apps on the digits, the inputs, the sound output and the volume"
+        "caption": "The remote: the arrows and OK, what is on with its input, sound output and picture mode, your apps on the digits, the inputs, the sound output and the volume"
       },
       {
         "file": "2-typing.png",
@@ -446,15 +540,15 @@
       },
       {
         "file": "4-commands.png",
-        "caption": "At the root: turn the TV on or off, mute, the next HDMI input, the input menu"
+        "caption": "At the root: on or off, each input, each sound output and Reconnect Sound, the picture modes"
       },
       {
-        "file": "5-setup.png",
-        "caption": "Guided setup: the TV asks whether to allow pal; press Allow with its remote"
+        "file": "5-picture.png",
+        "caption": "The picture on v: the mode as chips, each value a slider, the colour tone"
       },
       {
         "file": "6-ready.png",
-        "caption": "Then a check of what works, read from the TV itself"
+        "caption": "Guided setup: press Allow on the TV, then a check of what works, read from the TV itself"
       },
       {
         "file": "bar-menubar.png",

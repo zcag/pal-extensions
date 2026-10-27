@@ -3,13 +3,15 @@
 // the magic packet, the remote's messages, IP Control's answers) and the
 // real driver against a stand-in TV on one local port: REST, UPnP, the
 // remote websocket (plain ws, the same messages the TV's wss carries) and
-// IP Control (plain http, the JSON-RPC the TV's https carries).
+// IP Control (plain http, the JSON-RPC the TV's https carries: the sound
+// output, the input, the volume on a soundbar, the picture, a web page).
 import { afterEach, describe, expect, test } from "bun:test";
 import type { Server, ServerWebSocket } from "bun";
 import { makeDriver } from "../samsungtv/device.ts";
 import { isSamsung, magicPacket, msearch, parseResponse } from "../samsungtv/protocol/net.ts";
 import { appsMsg, imeText, keyMsg, parseApps, refusal, remoteUrl, textEndMsg, textMsg } from "../samsungtv/protocol/remote.ts";
-import { currentOf, parseSpeakers, result, Unpaired } from "../samsungtv/protocol/ipc.ts";
+import { currentOf, inputId, modeName, modeOf, parseSpeakers, result, Unpaired } from "../samsungtv/protocol/ipc.ts";
+import { outputName } from "../samsungtv/remote.ts";
 import { decodeEntities, parseInfo } from "../samsungtv/protocol/rest.ts";
 import { envelope, fault, fields, hms, mediaOf, RC } from "../samsungtv/protocol/upnp.ts";
 import type { ChangeEvent, Conn, Paired } from "../samsungtv/types.ts";
@@ -67,6 +69,10 @@ describe("ip control", () => {
     expect(outs.map((o) => o.id)).toEqual(["internal", "QSYM-RECEIVER", "RCV-1"]);
     expect(parseSpeakers({})).toEqual([]);
     expect([currentOf("QSYM-RECEIVER", outs), currentOf("internal", outs), currentOf("external", outs), currentOf("external", outs.slice(0, 2)), currentOf(undefined, outs)]).toEqual(["QSYM-RECEIVER", "internal", undefined, "QSYM-RECEIVER", undefined]);
+    // The chips' names: a soundbar is "Soundbar", unless two would read the same.
+    expect(outs.map((o) => outputName(o, outs))).toEqual(["TV Speaker", "Q-Symphony", "Soundbar"]);
+    expect(outputName({ name: "HW-Q600C Soundbar(HDMI-eARC)" }, [{ name: "HW-Q600C Soundbar(HDMI-eARC)" }, { name: "Soundbar(Bluetooth)" }])).toBe("HW-Q600C Soundbar");
+    expect([inputId("HDMI1"), inputId("TV"), modeOf("StandardHDR"), modeName("FilmmakerMode")]).toEqual(["hdmi1", "tv", "Standard", "Filmmaker"]);
   });
 });
 
@@ -126,8 +132,10 @@ type Tv = {
   soap: string[];
   sockets: Set<ServerWebSocket<unknown>>;
   urls: string[];
-  /** IP Control: the token Allow hands out and knows, the external outputs, the one in use, every call. */
-  ipc: { token: string; speakers: { deviceName: string; deviceId: string }[]; speaker: string; calls: any[] };
+  /** IP Control: the token Allow hands out and knows, the external outputs, the one in use, the input, the picture, whether it takes an input straight, every call. */
+  ipc: { token: string; speakers: { deviceName: string; deviceId: string }[]; speaker: string; input: string; mode: string; contrast: number; direct: boolean; calls: any[] };
+  /** UPnP refuses SetVolume, as with the sound on a soundbar. */
+  upnpFixed?: boolean;
   onKey?: (code: string) => void;
 };
 
@@ -137,7 +145,7 @@ afterEach(async () => { await conn?.close(); conn = undefined; server?.stop(true
 
 function standIn(): { tv: Tv; port: number } {
   const tv: Tv = { power: "on", volume: 10, muted: false, apps: { "111299001912": { name: "YouTube", visible: false } }, answer: { token: "t-1" }, installed: [], got: [], soap: [], sockets: new Set(), urls: [],
-    ipc: { token: "ipc-1", speakers: [{ deviceName: "Q-Symphony", deviceId: "QSYM-RECEIVER" }, { deviceName: "Soundbar(HDMI-eARC)", deviceId: "RCV-1" }], speaker: "QSYM-RECEIVER", calls: [] } };
+    ipc: { token: "ipc-1", speakers: [{ deviceName: "Q-Symphony", deviceId: "QSYM-RECEIVER" }, { deviceName: "Soundbar(HDMI-eARC)", deviceId: "RCV-1" }], speaker: "QSYM-RECEIVER", input: "HDMI1", mode: "FilmmakerMode", contrast: 40, direct: true, calls: [] } };
   server = Bun.serve({
     port: 0,
     async fetch(req, srv) {
@@ -148,10 +156,20 @@ function standIn(): { tv: Tv; port: number } {
         tv.ipc.calls.push({ method: j.method, ...p, accept: req.headers.get("accept") });
         if (j.method === "createAccessToken") return ok({ AccessToken: tv.ipc.token });
         if (p.AccessToken !== tv.ipc.token) return Response.json({ code: -32700, message: "Parse error" });
-        if (j.method === "getTVStates") return ok({ speakerSelect: tv.ipc.speaker, volume: 15, mute: "muteOff" });
+        const failed = () => Response.json({ jsonrpc: "2.0", id: String(j.id), error: { code: -32002, message: "Failed" } });
+        if (j.method === "getTVStates") return ok({ speakerSelect: tv.ipc.speaker, volume: tv.volume, mute: "muteOff", inputSource: tv.ipc.input, pictureMode: tv.ipc.mode });
         if (j.method === "speakerSelectControl" && p.speakerSelect) { tv.ipc.speaker = "internal"; return ok({}); }
         if (j.method === "externalSpeakerControl" && p.deviceId) { tv.ipc.speaker = p.deviceId; return ok({}); }
         if (j.method === "externalSpeakerControl") return ok(tv.ipc.speakers);
+        if (j.method === "powerControl") return ok({ power: tv.power === "on" ? "powerOn" : "powerOff" });
+        if (j.method === "inputSourceControl" && p.inputSource) { if (!tv.ipc.direct) return failed(); tv.ipc.input = p.inputSource; return ok({}); }
+        if (j.method === "directVolumeControl" && p.volume !== undefined) { tv.volume = p.volume; return ok({}); }
+        if (j.method === "pictureModeControl") { if (p.pictureMode) tv.ipc.mode = p.pictureMode; return ok({ pictureMode: tv.ipc.mode }); }
+        if (j.method === "getVideoStates") return ok({ contrast: tv.ipc.contrast, sharpness: 0, brightness: 0, color: 25, tint: 0 });
+        if (j.method === "backlightControl") return ok({ backlight: 50 });
+        if (j.method === "colorToneControl") return ok({ colorTone: "Warm2" });
+        if (j.method === "contrastControl") { if (tv.ipc.mode === "Dynamic") return failed(); tv.ipc.contrast = p.contrast; return ok({}); }
+        if (j.method === "directAccessControl") return ok({});
         return Response.json({ jsonrpc: "2.0", id: String(j.id), error: { code: -32601, message: "Method not found" } });
       }
       if (u.pathname === "/api/v2/") return Response.json({ ...INFO, device: { ...INFO.device, PowerState: tv.power } });
@@ -169,6 +187,7 @@ function standIn(): { tv: Tv; port: number } {
         let out = "";
         if (action === "GetVolume") out = `<CurrentVolume>${tv.volume}</CurrentVolume>`;
         else if (action === "GetMute") out = `<CurrentMute>${tv.muted ? 1 : 0}</CurrentMute>`;
+        else if (action === "SetVolume" && tv.upnpFixed) return new Response("<s:Fault><detail><UPnPError><errorCode>501</errorCode><errorDescription>Action Failed</errorDescription></UPnPError></detail></s:Fault>", { status: 500 });
         else if (action === "SetVolume") tv.volume = Number(val("DesiredVolume"));
         else if (action === "SetMute") tv.muted = val("DesiredMute") === "1";
         else if (action === "GetTransportInfo") out = "<CurrentTransportState>NO_MEDIA_PRESENT</CurrentTransportState>";
@@ -187,6 +206,7 @@ function standIn(): { tv: Tv; port: number } {
         const j = JSON.parse(String(m));
         tv.got.push(j);
         if (j.params?.TypeOfRemote === "SendRemoteKey") tv.onKey?.(j.params.DataOfCmd);
+        if (j.params?.DataOfCmd === "KEY_HDMI") tv.ipc.input = `HDMI${(Number(tv.ipc.input.slice(4)) % 4) + 1}`;
         if (j.params?.event === "ed.installedApp.get") ws.send(JSON.stringify({ event: "ed.installedApp.get", data: { data: tv.installed } }));
         if (j.params?.event === "ed.apps.icon") ws.send(JSON.stringify({ event: "ed.apps.icon", data: { iconPath: j.params.data.iconPath, imageBase64: Buffer.from("PNG").toString("base64") } }));
       },
@@ -294,7 +314,7 @@ describe("the driver against a stand-in TV", () => {
 
   test("sound control: IP Control's token, the outputs and the one in use, a switch read back; a token the TV forgot is dropped and said", async () => {
     const { tv, port } = standIn();
-    const d = makeDriver({ port, pollMs: 60_000 });
+    const d = makeDriver({ port, pollMs: 60_000, stepMs: 5 });
     expect(await (await d.pairSound({ address: "127.0.0.1", name: "TV" })).token).toBe("ipc-1");
     expect(tv.ipc.calls[0]).toEqual({ method: "createAccessToken", accept: "application/json" });
     const c = (conn = await d.connect(paired()));
@@ -311,9 +331,40 @@ describe("the driver against a stand-in TV", () => {
     await c.setSoundOutput("internal");
     expect(tv.ipc.calls.find((x) => x.speakerSelect)).toMatchObject({ method: "speakerSelectControl", speakerSelect: "Internal" });
     expect(c.sound()?.current).toBe("internal");
+    // Reconnect: to the TV's speakers, then back to the output it was on, each read back.
+    await c.setSoundOutput("QSYM-RECEIVER");
+    const before = tv.ipc.calls.length;
+    await c.reconnectSound();
+    expect(tv.ipc.calls.slice(before).filter((x) => x.speakerSelect || x.deviceId).map((x) => x.speakerSelect ?? x.deviceId)).toEqual(["Internal", "QSYM-RECEIVER"]);
+    expect(c.sound()?.current).toBe("QSYM-RECEIVER");
+    // The ports, the one on screen read; straight to one, and Next HDMI stepped to one when the TV refuses that.
+    expect(c.inputs().map((i) => i.id)).toEqual(["hdmi1", "hdmi2", "hdmi3", "hdmi4", "tv"]);
+    expect(await c.setInput("hdmi3")).toBe("direct");
+    expect([tv.ipc.input, c.input()]).toEqual(["HDMI3", "hdmi3"]);
+    tv.ipc.direct = false;
+    const d2 = (conn = await d.connect({ ...paired(), ipcToken: "ipc-1" }));
+    await c.close();
+    expect(await d2.setInput("hdmi2")).toBe("stepped");
+    expect([tv.ipc.input, d2.input(), sends(tv).filter((g) => g.params?.DataOfCmd === "KEY_HDMI").length]).toEqual(["HDMI2", "hdmi2", 3]);
+    // The volume on the soundbar: UPnP refuses a level there, IP Control takes it.
+    tv.upnpFixed = true;
+    await d2.setVolume(18);
+    expect([tv.volume, d2.volume(), d2.levelSettable()]).toEqual([18, 18, true]);
+    // The picture: read whole, the mode switched and read back, a value the mode refuses in words.
+    await d2.readPicture();
+    expect(d2.picture()).toEqual({ mode: "FilmmakerMode", values: { backlight: 50, contrast: 40, brightness: 0, sharpness: 0, color: 25, tint: 0 }, tone: "Warm2" });
+    await d2.setPicture("contrast", 41);
+    expect(tv.ipc.contrast).toBe(41);
+    await d2.setPictureMode("Dynamic");
+    expect(modeOf(d2.picture()?.mode)).toBe("Dynamic");
+    await expect(d2.setPicture("contrast", 30)).rejects.toThrow("The TV refused contrastControl");
+    await d2.openUrl("https://example.com");
+    expect(tv.ipc.calls.at(-1)).toMatchObject({ method: "directAccessControl", applicationName: "webBrowser", url: "https://example.com" });
+    const lost: ChangeEvent[] = [];
+    d2.on((e) => lost.push(e));
     tv.ipc.token = "ipc-2";
-    await expect(c.readSound()).rejects.toThrow("pair it again");
-    expect([c.ipcToken, c.sound(), events.at(-1)]).toEqual([undefined, undefined, { kind: "ipcLost" }]);
+    await expect(d2.readSound()).rejects.toThrow("pair it again");
+    expect([d2.ipcToken, d2.sound(), d2.input(), d2.picture(), lost.at(-1)]).toEqual([undefined, undefined, undefined, undefined, { kind: "ipcLost" }]);
   });
 
   test("a TV that does not answer is not connected to, nor paired for sound", async () => {

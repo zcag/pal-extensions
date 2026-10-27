@@ -4,8 +4,9 @@
 // anything is paired, the guided setup (discovery, Allow, the check of what
 // works), the remote's keys and what each sends, the volume, power and
 // inputs as controls (published, run through pal, and rebound by a group to
-// another device's volume), the sound outputs (pairing sound control from
-// the remote, switching, a token the TV forgot), typing while the TV shows its keyboard, a
+// another device's volume), with IP Control paired from the remote: the
+// sound outputs (switching, reconnecting, a token the TV forgot), the ports
+// and their names, the picture page and a web page; typing while the TV shows its keyboard, a
 // change on the TV pushed into the open remote and the bar item, the apps
 // and the dock, the root commands, and the links.
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
@@ -16,6 +17,7 @@ import { iconData, letterTile, sampleApp } from "../samsungtv/art.ts";
 import type { FakeTv } from "../samsungtv/fake.ts";
 import { dpad, positionAt, render as renderRemote, type RemoteState } from "../samsungtv/remote.ts";
 import { render as renderSetup } from "../samsungtv/setup.ts";
+import { render as renderPicture } from "../samsungtv/picture.ts";
 import type { Served, View } from "../.pal/sdk/src/protocol.ts";
 import { checkView } from "../.pal/sdk/src/view.ts";
 import { Host, bundledIcon, logLines, stored } from "../.pal/host/test/harness.ts";
@@ -66,7 +68,15 @@ describe("pure parts", () => {
     expect(ids.some((id) => id.startsWith("sound:"))).toBe(false);
     const out = renderRemote({ ...base, sound });
     expect(out.actions.find((a) => a.shortcut === "b")).toMatchObject({ id: "sound:next" });
-    expect(out.actions.find((a) => a.id === "sound:RCV-1")).toMatchObject({ title: "Sound to Q6C Series Soundbar(HDMI-eARC)" });
+    expect(out.actions.find((a) => a.id === "sound:RCV-1")).toMatchObject({ title: "Sound to Soundbar" });
+    expect(out.actions.find((a) => a.shortcut === "shift+s")).toMatchObject({ id: "sound:reconnect" });
+    expect(renderRemote({ ...base, sound: { ...sound, current: "internal" } }).actions.map((a) => a.id)).not.toContain("sound:reconnect");
+    // IP Control: the picture on v, a web page on w in the search row, the card says where it plays.
+    const ipc = renderRemote({ ...base, sound, ipc: true, front: undefined, showing: { input: "Apple TV", port: "HDMI 1", output: "Q-Symphony", mode: "Filmmaker" }, field: { kind: "open", value: "https://example.com" } });
+    expect(ipc.actions.filter((a) => ["v", "w"].includes(String(a.shortcut))).map((a) => a.id)).toEqual(["picture", "open"]);
+    expect(ipc.input).toMatchObject({ value: "https://example.com", submit: "open:send", cancel: "field:cancel" });
+    expect(JSON.stringify(ipc.tree)).toContain('"value":"HDMI 1 · Q-Symphony · Filmmaker"');
+    expect(() => checkView(ipc, "remote")).not.toThrow();
     expect(JSON.stringify(out.tree)).toContain('"key":"snd-QSYM-RECEIVER","direction":"row","align":"center","padding":1,"surface":"#4F8AE866"');
     expect(renderRemote({ ...base, sound: { pair: true } }).actions.find((a) => a.shortcut === "b")).toMatchObject({ id: "sound:pair" });
     expect(renderRemote({ ...base, power: "standby", sound }).actions.map((a) => a.id)).not.toContain("sound:next");
@@ -77,6 +87,12 @@ describe("pure parts", () => {
     }
     expect(JSON.stringify(renderSetup({ phase: "allow", device: LIVING, until: 20_000 }, [], [], undefined, 0).tree)).toContain("20 s");
     expect(renderSetup({ phase: "find", scanning: false }, [], [], "").input).toMatchObject({ submit: "pair:typed" });
+    // The picture page: Dynamic takes no values, so its sliders are greyed and set nothing.
+    const pic = { mode: "Dynamic", values: { backlight: 50, contrast: 40 }, tone: "Warm2" };
+    for (const st of [{ at: 0, refused: [] }, { at: 2, refused: [], picture: pic }, { at: 7, refused: ["contrast" as const], picture: { ...pic, mode: "Movie" } }]) expect(() => checkView(renderPicture(st), "picture")).not.toThrow();
+    const dynamic = renderPicture({ at: 0, refused: [], picture: pic });
+    expect(dynamic.actions.some((a) => a.id.startsWith("pic:set:"))).toBe(false);
+    expect(JSON.stringify(dynamic.tree)).toContain("Not in Dynamic");
   });
   test("pictures: an app's tile keeps its colour, the TV's icon bytes by their magic, the store's invented apps", () => {
     expect(letterTile("YouTube")).toEqual(letterTile("YouTube"));
@@ -102,6 +118,7 @@ describe("over the host against the stand-in TV", () => {
   const text = (v: { tree: unknown }) => JSON.stringify(v.tree);
   const pick = (palette: string, action: string, values?: Record<string, string>) => host.pick(E, palette, palette === "setup" ? "setup" : "remote", action, values ? { values } : undefined);
   const pub = (control: string) => host.published.get(`${E}\0${control}`);
+  const devices = () => stored.get(`${E}\0devices`) as { ipcToken?: string }[];
 
   beforeAll(async () => {
     writeFileSync(tvFile, JSON.stringify(TV));
@@ -110,14 +127,14 @@ describe("over the host against the stand-in TV", () => {
   });
   afterAll(() => { host.kill(); delete process.env.PAL_SAMSUNGTV_FAKE; rmSync(dir, { recursive: true, force: true }); });
 
-  test("loads with four palettes, the bar item, six links and the four controls, no warnings", () => {
+  test("loads with five palettes, the bar item, nine links and the four controls, no warnings", () => {
     const l = host.loaded().find((x) => x.extension === E)!;
     expect(l.warnings).toEqual([]);
-    expect(l.palettes.map((p) => p.name)).toEqual(["remote", "apps", "commands", "setup"]);
+    expect(l.palettes.map((p) => p.name)).toEqual(["remote", "picture", "apps", "commands", "setup"]);
     expect(l.palettes.find((p) => p.name === "remote")).toMatchObject({ view: "view", icon: bundledIcon(E) });
     expect(l.palettes.find((p) => p.name === "commands")).toMatchObject({ tier: "primary" });
     expect(l.bar?.map((b) => b.id)).toEqual(["tv"]);
-    expect(Object.keys(l.manifest.links!).sort()).toEqual(["input", "key", "launch", "power", "type", "volume"]);
+    expect(Object.keys(l.manifest.links!).sort()).toEqual(["input", "key", "launch", "open", "picture", "power", "sound", "type", "volume"]);
     expect(l.manifest.controls).toEqual(["volume", "power", "inputs", "player"]);
   });
 
@@ -144,7 +161,7 @@ describe("over the host against the stand-in TV", () => {
     expect(ready).toContain("3 apps found");
     expect(ready).toContain("10 now; the slider sets it");
     expect(ops("pairSound")).toEqual([{ op: "pairSound", address: LIVING.address }]);
-    expect(ready).toContain("IP Remote is off on the TV (Settings › Connections › Network › Expert Settings): turn it on, then b on the remote pairs it");
+    expect(ready).toContain("IP Remote is off on the TV (Settings › Connections › Network › Expert Settings): turn it on, then b on the remote pairs sound and picture");
     const devices = stored.get(`${E}\0devices`) as { id: string; token: string; mac?: string; ipcToken?: string }[];
     expect(devices).toEqual([expect.objectContaining({ id: LIVING.id, token: "11122233", mac: LIVING.mac })]);
     expect(devices[0].ipcToken).toBeUndefined();
@@ -174,7 +191,7 @@ describe("over the host against the stand-in TV", () => {
       await pick("remote", action);
       if (key) await host.until(() => ops("key").at(-1)?.key === key, 2000, action);
     }
-    expect(ops("input").at(-1)).toEqual({ op: "input", id: "hdmi" });
+    expect(ops("input").at(-1)).toEqual({ op: "input", id: "hdmi", path: "key" });
     // The control parts: through pal to whoever serves them, here the TV itself.
     await host.pick(E, "remote", "remote", "controls:volume:set", { values: { value: "0.4" } });
     await host.until(() => ops("volume").at(-1)?.level === 40, 2000, "the volume set");
@@ -185,6 +202,7 @@ describe("over the host against the stand-in TV", () => {
     await host.until(() => ops("mute").at(-1)?.muted === true, 2000, "muted");
     await pick("remote", "controls:inputs:set:source");
     await host.until(() => ops("input").at(-1)?.id === "source", 2000, "the input menu");
+    expect((await view("remote")).actions.map((a) => a.id)).not.toContain("picture");
     expect(await pick("remote", "launch:0")).toMatchObject({ hud: "Opening YouTube" });
     expect(ops("launch").at(-1)).toEqual({ op: "launch", id: "111299001912" });
     expect(await pick("remote", "apps")).toEqual({ push: { extension: E, palette: "apps" } });
@@ -193,10 +211,9 @@ describe("over the host against the stand-in TV", () => {
     setTv((tv) => { tv.muted = false; });
   });
 
-  test("sound: the remote offers to pair it, b asks the TV; then a chip per output, the current lit, a click switches; a token the TV forgot is dropped and offered again", async () => {
-    const devices = () => stored.get(`${E}\0devices`) as { ipcToken?: string }[];
-    expect(text(await view("remote"))).toContain("Move the sound between the TV and a soundbar");
-    setTv((tv) => { tv.ipcToken = "ipc-1"; });
+  test("sound and picture: the remote offers to pair them, b asks the TV; then a chip per output, the current lit, a click switches, shift+S reconnects", async () => {
+    expect(text(await view("remote"))).toContain("Sound output, the input, the exact volume and the picture, from here");
+    setTv((tv) => { tv.ipcToken = "ipc-1"; tv.input = "HDMI1"; tv.picture = { mode: "FilmmakerMode", values: { backlight: 50, contrast: 40 }, tone: "Warm2" }; });
     await pick("remote", "sound:pair");
     await host.until(() => devices()[0].ipcToken === "ipc-1", 2000, "the sound token kept");
     await host.until(async () => text(await view("remote")).includes("Q-Symphony"), 2000, "the outputs");
@@ -208,11 +225,51 @@ describe("over the host against the stand-in TV", () => {
     await host.until(async () => text(await view("remote")).includes('"key":"snd-RCV-1","direction":"row","align":"center","padding":1,"surface":"#4F8AE866"'), 2000, "the soundbar lit");
     await pick("remote", "sound:internal");
     expect(tvNow().speaker).toBe("internal");
+    await pick("remote", "sound:QSYM-RECEIVER");
+    await pick("remote", "sound:reconnect");
+    expect(ops("sound").slice(-2).map((o) => o.id)).toEqual(["internal", "QSYM-RECEIVER"]);
+    // The card says where it plays; the root has each output and Reconnect Sound.
+    await host.until(async () => text(await view("remote")).includes("On 75\\\" Neo QLED · Q-Symphony · Filmmaker"), 2000, "the card's line");
+    expect((await host.list(E, "commands")).map((r) => r.id)).toEqual(expect.arrayContaining(["sound:reconnect", "sound:RCV-1", "picture:FilmmakerMode", "open", "input:hdmi2"]));
+  });
+
+  test("with IP Control: the ports as chips, the one on screen lit and published; named in the remote; the picture page; a web page on w; a token the TV forgot is dropped", async () => {
+    await host.until(() => pub("inputs")?.current === "hdmi1", 2000, "the input on screen published");
+    expect((pub("inputs") as { list: { id: string }[] }).list.map((i) => i.id)).toEqual(["hdmi1", "hdmi2", "hdmi3", "hdmi4", "tv"]);
+    await pick("remote", "controls:inputs:set:hdmi2");
+    await host.until(() => ops("input").at(-1)?.id === "hdmi2", 2000, "straight to HDMI 2");
+    expect(ops("input").at(-1)).toEqual({ op: "input", id: "hdmi2", path: "direct" });
+    setTv((tv) => { tv.direct = false; });
+    await pick("remote", "input:next");
+    await host.until(() => ops("input").at(-1)?.id === "hdmi3", 2000, "stepped to HDMI 3");
+    expect(ops("input").at(-1)?.path).toBe("stepped");
+    // Named from cmd+K: the setting holds it, the chips and the card say it.
+    await pick("remote", "input:rename");
+    expect((await view("remote")).input).toMatchObject({ submit: "rename:send" });
+    await pick("remote", "rename:send", { input: "Apple TV" });
+    await host.until(() => (host.written.get(E)?.inputs as string[] | undefined)?.[0] === "HDMI 3 = Apple TV", 2000, "the name written");
+    // The picture page: the mode lit, a slider moved by the arrows; Dynamic greys them.
+    const pic = await view("picture");
+    expect(text(pic)).toContain('"key":"mode-FilmmakerMode","direction":"row","align":"center","padding":1,"surface":"#4F8AE866"');
+    await pick("picture", "pic:down");
+    await pick("picture", "pic:down");
+    await pick("picture", "pic:more");
+    expect(ops("picture").at(-1)).toEqual({ op: "picture", field: "contrast", value: 41 });
+    await pick("picture", "pic:mode:Dynamic");
+    expect(ops("pictureMode").at(-1)).toEqual({ op: "pictureMode", mode: "Dynamic" });
+    await host.until(async () => text(await view("picture")).includes("Not in Dynamic"), 2000, "greyed in Dynamic");
+    const before = ops("picture").length;
+    await pick("picture", "pic:more");
+    expect(ops("picture").length).toBe(before);
+    // w: the field, then the page opened on the TV, the scheme added.
+    await pick("remote", "open");
+    await pick("remote", "open:send", { input: "example.com" });
+    expect(ops("open").at(-1)).toEqual({ op: "open", url: "https://example.com" });
     // The TV forgot the token (a reset): the switch fails in words, the token goes, the offer is back.
     setTv((tv) => { tv.ipcToken = "ipc-2"; });
     expect((await pick("remote", "sound:RCV-1")).toast).toMatchObject({ style: "failure" });
     await host.until(() => devices()[0].ipcToken === undefined, 2000, "the token dropped");
-    expect(text(await view("remote"))).toContain("Move the sound between the TV and a soundbar");
+    expect(text(await view("remote"))).toContain("pair sound and picture");
   });
 
   test("typing: offered only while the TV shows its keyboard; then the field opens by itself and Enter sends and submits", async () => {
@@ -275,7 +332,7 @@ describe("over the host against the stand-in TV", () => {
     expect(rows.map((r) => r.id)).toEqual(expect.arrayContaining(["wake", "standby", "mute", "input:hdmi", "input:source", "input:tv"]));
     expect(rows.map((r) => r.id)).not.toContain("type");
     expect(await host.pick(E, "commands", "input:hdmi", "run")).toEqual({ hud: `${LIVING.name}: next HDMI input` });
-    expect(ops("input").at(-1)).toEqual({ op: "input", id: "hdmi" });
+    expect(ops("input").at(-1)).toEqual({ op: "input", id: "hdmi", path: "key" });
     expect(await host.pick(E, "commands", "home", "run")).toEqual({ hud: `${LIVING.name}: Go Home` });
     await host.pick(E, "commands", "mute", "run");
     await host.until(() => ops("mute").at(-1)?.muted === true, 2000, "mute from the root");
@@ -287,12 +344,13 @@ describe("over the host against the stand-in TV", () => {
     await host.request("link", { extension: E, route: "volume", params: { level: "25" } });
     expect(ops("volume").at(-1)).toEqual({ op: "volume", level: 25 });
     await host.request("link", { extension: E, route: "input", params: { to: "source" } });
-    expect(ops("input").at(-1)).toEqual({ op: "input", id: "source" });
+    expect(ops("input").at(-1)).toEqual({ op: "input", id: "source", path: "key" });
     await host.request("link", { extension: E, route: "key", params: { name: "KEY_INFO" } });
     expect(ops("key").at(-1)).toEqual({ op: "key", code: "KEY_INFO", press: "tap" });
     await expect(host.request("link", { extension: E, route: "launch", params: { app: "nothing" } })).rejects.toThrow(/no app "nothing"/);
     await expect(host.request("link", { extension: E, route: "type", params: { text: "hi" } })).rejects.toThrow(/no text field is open/);
-    await expect(host.request("link", { extension: E, route: "input", params: { to: "hdmi3" } })).rejects.toThrow(/to is hdmi/);
+    await expect(host.request("link", { extension: E, route: "input", params: { to: "hdmi3" } })).rejects.toThrow(/hdmi1 to hdmi4 need sound and picture paired/);
+    await expect(host.request("link", { extension: E, route: "sound", params: { to: "reconnect" } })).rejects.toThrow(/not paired/);
     await host.request("link", { extension: E, route: "power", params: { to: "off" } });
     await host.until(() => tvNow().power === "standby", 2000, "off by link");
   });

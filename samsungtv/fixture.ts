@@ -7,8 +7,9 @@
 import { NOW, writeFixture } from "../.pal/app/scripts/fixture-kit.ts";
 import type { Served } from "@zcag/pal";
 import { sampleApp } from "./art.ts";
-import { INPUTS } from "./device.ts";
+import { PORTS } from "./device.ts";
 import manifest from "./pal.json" with { type: "json" };
+import { render as renderPicture } from "./picture.ts";
 import { render as renderRemote, type RemoteState } from "./remote.ts";
 import { appRow, commandRows } from "./rows.ts";
 import { render as renderSetup } from "./setup.ts";
@@ -29,13 +30,15 @@ const dock = APPS.map((a) => ({ id: a.id, name: a.name, art: art(a), front: a.id
 
 const volume: Served<"volume"> = { device: DEVICE, level: 0.24, muted: false, provider };
 const power: Served<"power"> = { device: DEVICE, on: true, provider };
-const inputs: Served<"inputs"> = { device: DEVICE, list: INPUTS.map((i) => ({ id: i.id, name: i.name })), provider };
+const inputs: Served<"inputs"> = { device: DEVICE, list: PORTS.map((i) => ({ id: i.id, name: i.id === "hdmi1" ? "Apple TV" : i.name })), current: "hdmi1", provider };
+const OUTPUTS = [{ id: "internal", name: "TV Speaker" }, { id: "QSYM-RECEIVER", name: "Q-Symphony" }, { id: "RCV-1", name: "Q6C Series Soundbar(HDMI-eARC)" }];
 
 const base: RemoteState = {
   layout: "wide", conn: "up", power: "on", device: { name: DEVICE, model: "QE65QN90DATXTK" }, others: 1, wakeable: true, remote: "Apple TV",
   front: { id: front.id, name: front.name, art: art(front) }, volume, powerSlot: power, inputs, dock, keyboard: { open: false },
-  sound: { outputs: [{ id: "internal", name: "TV Speaker" }, { id: "QSYM-RECEIVER", name: "Q-Symphony" }, { id: "RCV-1", name: "Soundbar (HDMI-eARC)" }], current: "QSYM-RECEIVER" },
+  sound: { outputs: OUTPUTS, current: "QSYM-RECEIVER" }, ipc: true, showing: { input: "Apple TV", port: "HDMI 1", output: "Q-Symphony", mode: "Filmmaker" },
 };
+const picture = renderPicture({ device: DEVICE, at: 2, refused: [], picture: { mode: "FilmmakerMode", values: { backlight: 42, contrast: 40, brightness: 0, sharpness: 0, color: 25, tint: 0 }, tone: "Warm2" } });
 const remote = renderRemote(base);
 const pressed = renderRemote({ ...base, flash: "right" });
 const typing = renderRemote({ ...base, front: { id: APPS[1].id, name: APPS[1].name, art: art(APPS[1]) }, dock: dock.map((d) => ({ ...d, front: d.id === APPS[1].id })), keyboard: { open: true, text: "harb" }, typing: true });
@@ -45,14 +48,15 @@ const LIVING: Found = { id: "uuid:5b1e2c40-7a41-4d1e-9c55-0f3a8e21b7d4", name: D
 const BEDROOM: Found = { id: "uuid:9a0c7e11-2b3f-4c8a-8e61-6d2f1b0c9e42", name: "Bedroom", address: "192.168.1.52", model: "UE50CU7172UXXH", power: "standby", tokenAuth: true };
 const setupFind = renderSetup({ phase: "find", scanning: false }, [LIVING, BEDROOM], [], undefined, NOW);
 const setupAllow = renderSetup({ phase: "allow", device: LIVING, until: NOW + 24_000 }, [LIVING, BEDROOM], [], undefined, NOW);
-const paired = { id: LIVING.id, name: DEVICE, address: LIVING.address, model: LIVING.model, mac: LIVING.mac, token: "x", pairedAt: NOW };
+const paired = { id: LIVING.id, name: DEVICE, address: LIVING.address, model: LIVING.model, mac: LIVING.mac, token: "x", ipcToken: "y", pairedAt: NOW };
 const setupReady = renderSetup({ phase: "ready", device: paired, checks: [
   { ok: true, what: "Remote", detail: "The buttons, typing, opening apps" },
   { ok: true, what: "Apps", detail: "8 apps found, a digit each for the dock" },
-  { ok: true, what: "Volume", detail: "24 now; the slider sets it, m mutes" },
+  { ok: true, what: "Volume", detail: "24 now; the slider sets it, on a soundbar too, m mutes" },
   { ok: true, what: "Power", detail: "p turns it off and on; from off, Power On with Mobile has to be on" },
-  { ok: true, what: "Inputs", detail: "i moves to the next HDMI input; the input menu is a key away" },
-  { ok: true, what: "Sound", detail: "TV Speaker, Q-Symphony, Soundbar (HDMI-eARC): a chip each on the remote, b moves to the next" },
+  { ok: true, what: "Inputs", detail: "HDMI 1 now; a chip each, the one on screen lit; i moves to the next" },
+  { ok: true, what: "Sound", detail: "TV Speaker, Q-Symphony, Soundbar: a chip each; b the next, shift+S reconnects" },
+  { ok: true, what: "Picture", detail: "Filmmaker now; v opens the picture: the mode, the values, the colour tone" },
 ] }, [LIVING], [paired], undefined, NOW);
 
 const appRows = [...APPS].sort((a, b) => a.name.localeCompare(b.name)).map((a) => appRow(a, art(a), { device: DEVICE, front: a.id === front.id, dock: (() => { const i = dock.findIndex((d) => d.id === a.id); return i < 0 ? undefined : i; })() }));
@@ -62,7 +66,8 @@ const fixture = {
     remote: { title: "Samsung TV Remote", icon: ICON, view: "view", tree: remote },
     "remote-typing": { title: "Samsung TV Remote", icon: ICON, view: "view", tree: typing },
     apps: { title: "Samsung TV Apps", icon: ICON, placeholder: "Search the TV's apps", items: appRows },
-    commands: { title: "Samsung TV", icon: ICON, items: commandRows(DEVICE, ["Bedroom"], INPUTS) },
+    commands: { title: "Samsung TV", icon: ICON, items: commandRows(DEVICE, ["Bedroom"], PORTS.map((i) => ({ ...i, name: i.id === "hdmi1" ? "Apple TV" : i.name })), { outputs: OUTPUTS, reconnect: true }) },
+    picture: { title: "Samsung TV Picture", icon: ICON, view: "view", tree: picture },
     setup: { title: "Set Up Samsung TV", icon: ICON, view: "view", tree: setupAllow },
     "setup-find": { title: "Set Up Samsung TV", icon: ICON, view: "view", tree: setupFind },
     "setup-ready": { title: "Set Up Samsung TV", icon: ICON, view: "view", tree: setupReady },
@@ -71,12 +76,12 @@ const fixture = {
     "remote/remote:right": { view: pressed },
   },
   shots: {
-    "1-remote": { palette: "remote", keys: ["wait:400"], raw: true, caption: "The remote: the arrows and OK, the app on screen, your apps on the digits, the inputs, the sound output and the volume" },
+    "1-remote": { palette: "remote", keys: ["wait:400"], raw: true, caption: "The remote: the arrows and OK, what is on with its input, sound output and picture mode, your apps on the digits, the inputs, the sound output and the volume" },
     "2-typing": { palette: "remote-typing", keys: ["wait:400"], raw: true, caption: "The TV shows its keyboard and a field opens here: type with yours, Enter sends it" },
     "3-apps": { palette: "apps", keys: ["wait:400"], caption: "Every app on the TV; Enter opens it, cmd+D puts it on the dock" },
-    "4-commands": { palette: "commands", keys: ["wait:400"], caption: "At the root: turn the TV on or off, mute, the next HDMI input, the input menu" },
-    "5-setup": { palette: "setup", keys: ["wait:400"], raw: true, caption: "Guided setup: the TV asks whether to allow pal; press Allow with its remote" },
-    "6-ready": { palette: "setup-ready", keys: ["wait:400"], raw: true, caption: "Then a check of what works, read from the TV itself" },
+    "4-commands": { palette: "commands", keys: ["wait:400"], caption: "At the root: on or off, each input, each sound output and Reconnect Sound, the picture modes" },
+    "5-picture": { palette: "picture", keys: ["wait:400"], raw: true, caption: "The picture on v: the mode as chips, each value a slider, the colour tone" },
+    "6-ready": { palette: "setup-ready", keys: ["wait:400"], raw: true, caption: "Guided setup: press Allow on the TV, then a check of what works, read from the TV itself" },
   },
 };
 writeFixture("samsungtv", fixture);
