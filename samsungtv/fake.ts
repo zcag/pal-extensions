@@ -5,11 +5,13 @@
 // (`fs.watch` on the directory) and told to the open connection as a
 // change, the way the real one's poll would find it. Every command lands
 // as one JSON line in `<dir>/log`. Pairing answers with `token` unless
-// `deny` says the TV refuses.
+// `deny` says the TV refuses; sound control's pairing with `ipcToken`,
+// and with no `ipcToken` the TV is one with IP Remote off.
 import { appendFileSync, readFileSync, renameSync, watch, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { INPUTS } from "./device.ts";
-import type { App, AppState, ChangeEvent, Conn, Driver, Found, Keyboard, Media, Paired, Power } from "./types.ts";
+import { INTERNAL, OFF } from "./protocol/ipc.ts";
+import type { App, AppState, ChangeEvent, Conn, Driver, Found, Keyboard, Media, Paired, Power, SoundOutput } from "./types.ts";
 
 export type FakeTv = {
   found: Found[];
@@ -31,6 +33,13 @@ export type FakeTv = {
   keyboard: Keyboard;
   /** App icons as base64, by the app's `icon` path. */
   icons?: Record<string, string>;
+  /** What IP Control's Allow hands out, and the token it knows; unset: IP Remote is off. */
+  ipcToken?: string;
+  /** IP Control's pairing is refused with this message. */
+  ipcDeny?: string;
+  /** The external sound outputs the TV lists, and the id of the one it plays on (`internal`: its speakers). */
+  speakers?: SoundOutput[];
+  speaker?: string;
 };
 
 export function fakeDriver(dir: string): Driver {
@@ -51,6 +60,13 @@ export function fakeDriver(dir: string): Driver {
       token.catch(() => {});
       return { token, cancel: () => { log({ op: "cancel" }); cancel(); } };
     },
+    async pairSound(device) {
+      log({ op: "pairSound", address: device.address });
+      const tv = read();
+      const token = tv.ipcDeny || !tv.ipcToken ? Promise.reject(new Error(tv.ipcDeny ?? OFF)) : Promise.resolve(tv.ipcToken);
+      token.catch(() => {});
+      return { token, cancel: () => log({ op: "cancelSound" }) };
+    },
     async wake(device) { log({ op: "wake", mac: device.mac }); write((tv) => { tv.power = "on"; }); },
     async connect(device: Paired): Promise<Conn> {
       const tv0 = read();
@@ -58,13 +74,24 @@ export function fakeDriver(dir: string): Driver {
       if (tv0.down) throw new Error(tv0.down);
       const listeners = new Set<(e: ChangeEvent) => void>();
       const emit = (e: ChangeEvent) => { for (const l of listeners) l(e); };
-      const watcher = watch(dir, (_ev, name) => { if (name === "tv.json") for (const kind of ["power", "volume", "app", "media", "keyboard"] as const) emit({ kind }); });
+      const watcher = watch(dir, (_ev, name) => { if (name === "tv.json") for (const kind of ["power", "volume", "app", "media", "keyboard", "sound"] as const) emit({ kind }); });
       const did = (op: string, extra: Record<string, unknown> = {}) => log({ op, ...extra });
       const on = () => read().power === "on";
       const need = () => { if (!on()) throw new Error(`${device.name} is ${read().power === "standby" ? "in standby" : "off"}`); };
+      let ipcToken = device.ipcToken;
+      const known = () => !!ipcToken && read().ipcToken === ipcToken;
+      const ipcCheck = () => {
+        if (!ipcToken) throw new Error("Sound control is not paired");
+        if (!known()) { ipcToken = undefined; emit({ kind: "ipcLost" }); throw new Error("The TV no longer knows pal's sound control; pair it again"); }
+      };
       const conn: Conn = {
         device,
         token: device.token,
+        get ipcToken() { return ipcToken; },
+        setIpcToken(t) { ipcToken = t; emit({ kind: "sound" }); },
+        sound: () => (known() ? { outputs: [{ id: INTERNAL, name: "TV Speaker" }, ...(read().speakers ?? [])], current: read().speaker } : undefined),
+        async readSound() { if (ipcToken) { ipcCheck(); did("readSound"); } },
+        async setSoundOutput(id) { ipcCheck(); did("sound", { id }); write((tv) => { tv.speaker = id; }); },
         get remoteUp() { return on(); },
         async key(key, press = "tap") {
           need(); did("key", { key, press });

@@ -4,13 +4,16 @@
 // remote websocket while the screen is on (keys, text, the app list),
 // and a poll of REST and UPnP every `POLL_MS` for what the websocket does
 // not tell: power, volume and mute, the app in front, a DLNA sender's
-// media. A remote that drops while the TV is on is reopened with backoff;
+// media. The sound output is IP Control's, read when asked (a remote
+// opening, a switch) and as the TV comes on (in standby it lists no
+// outputs), never polled. A remote that drops while the TV is on is reopened with backoff;
 // one that drops because the TV went to standby is not.
+import * as ipc from "./protocol/ipc.ts";
 import * as rest from "./protocol/rest.ts";
 import { Remote, KEYS, appsMsg, parseApps, clickMsg, iconMsg, imeText, keyMsg, moveMsg, remoteUrl, textEndMsg, textMsg } from "./protocol/remote.ts";
 import { ssdp, wol } from "./protocol/net.ts";
 import * as upnp from "./protocol/upnp.ts";
-import type { App, AppState, ChangeEvent, Conn, Driver, Found, Input, Key, Keyboard, Media, Paired, Pairing, Power, Press } from "./types.ts";
+import type { App, AppState, ChangeEvent, Conn, Driver, Found, Input, Key, Keyboard, Media, Paired, Pairing, Power, Press, Sound } from "./types.ts";
 
 /** How often REST and UPnP are asked while a connection is open. */
 export const POLL_MS = 3000;
@@ -22,6 +25,8 @@ const HOLD_MS = 1000;
 const RETRY_MIN_MS = 2000, RETRY_MAX_MS = 30_000;
 /** How long a turn-on waits for the TV to say it is on. */
 const WAKE_MS = 20_000;
+/** How long a sound switch waits for the TV to report the new output, asking every `SWITCH_STEP_MS`. */
+const SWITCH_MS = 8000, SWITCH_STEP_MS = 400;
 const errorMessage = (e: unknown) => (e instanceof Error ? e.message : String(e));
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
@@ -47,6 +52,7 @@ export function makeDriver(w: Wiring = {}): Driver {
   const restPort = w.port ?? 8001, upnpPort = w.port ?? 9197;
   const remote = (address: string, token?: string) => remoteUrl(address, token, { port: w.port, secure: w.secure ?? !w.port });
   const probe = (address: string) => rest.info(address, 2000, restPort);
+  const ipcWire: ipc.Wire = { port: w.port, secure: w.secure ?? !w.port };
 
   return {
     probe,
@@ -68,8 +74,13 @@ export function makeDriver(w: Wiring = {}): Driver {
       })();
       return { token, cancel: () => cancel() } satisfies Pairing;
     },
+    async pairSound(device) {
+      const ac = new AbortController();
+      const token = ipc.createAccessToken(device.address, { ...ipcWire, signal: ac.signal }).catch((e) => { throw new Error(soundRefusal(e, ac.signal.aborted)); });
+      return { token, cancel: () => ac.abort() } satisfies Pairing;
+    },
     async connect(device) {
-      const c = new RealConn(device, { remote, restPort, upnpPort, pollMs: w.pollMs ?? POLL_MS });
+      const c = new RealConn(device, { remote, restPort, upnpPort, ipc: ipcWire, pollMs: w.pollMs ?? POLL_MS });
       await c.start();
       return c;
     },
@@ -81,6 +92,14 @@ export function makeDriver(w: Wiring = {}): Driver {
 }
 
 export const realDriver = makeDriver();
+
+/** Why IP Control's pairing did not give a token, in words: cancelled, no one answering the prompt, IP Remote off. */
+function soundRefusal(e: unknown, cancelled: boolean): string {
+  if (cancelled) return "The pairing was cancelled";
+  if ((e as Error)?.name === "TimeoutError") return "No one pressed Allow on the TV in time";
+  if (e instanceof TypeError) return ipc.OFF;
+  return "The TV did not allow sound control";
+}
 
 /**
  * TVs answering mDNS: `_samsungmsf._tcp` (the TXT's `se` is the REST base,
@@ -106,7 +125,7 @@ async function mdns(timeoutMs: number): Promise<string[]> {
   });
 }
 
-type Wired = { remote: (address: string, token?: string) => string; restPort: number; upnpPort: number; pollMs: number };
+type Wired = { remote: (address: string, token?: string) => string; restPort: number; upnpPort: number; ipc: ipc.Wire; pollMs: number };
 
 class RealConn implements Conn {
   private r: Remote | undefined;
@@ -117,12 +136,13 @@ class RealConn implements Conn {
   private retryMs = RETRY_MIN_MS;
   private retryAt = 0;
   token: string;
-  private st: { power: Power; volume?: number; muted?: boolean; front?: AppState; media?: Media; keyboard: Keyboard } = { power: "unknown", keyboard: { open: false } };
+  private st: { power: Power; volume?: number; muted?: boolean; front?: AppState; media?: Media; keyboard: Keyboard; sound?: Sound } = { power: "unknown", keyboard: { open: false } };
+  ipcToken: string | undefined;
   private appList: App[] | undefined;
   /** The TV left `ed.installedApp.get` unanswered once: not asked again on this connection. */
   private unlisted = false;
 
-  constructor(readonly device: Paired, private w: Wired) { this.token = device.token; }
+  constructor(readonly device: Paired, private w: Wired) { this.token = device.token; this.ipcToken = device.ipcToken; }
 
   get remoteUp() { return !!this.r?.open; }
   private emit(e: ChangeEvent) { for (const l of this.listeners) { try { l(e); } catch {} } }
@@ -149,6 +169,7 @@ class RealConn implements Conn {
       this.st.power = power;
       this.emit({ kind: "power" });
       if (power !== "on") { this.st.volume = this.st.muted = undefined; this.setFront(undefined); this.setMedia(undefined); }
+      else if (this.ipcToken) void this.readSound().catch(() => {});
     }
     if (power !== "on") return;
     if (!this.r && !this.opening && Date.now() >= this.retryAt) void this.openRemote().catch(() => {});
@@ -339,6 +360,55 @@ class RealConn implements Conn {
     const r = await this.remote();
     if (text) r.send(textMsg(text));
     if (done) r.send(textEndMsg());
+  }
+
+  sound() { return this.st.sound; }
+  private setSound(s: Sound | undefined) {
+    if (JSON.stringify(s) === JSON.stringify(this.st.sound)) return;
+    this.st.sound = s; this.emit({ kind: "sound" });
+  }
+  setIpcToken(token: string | undefined) {
+    this.ipcToken = token;
+    if (token) void this.readSound().catch(() => {});
+    else this.setSound(undefined);
+  }
+  /** One IP Control exchange with the token; a token the TV no longer knows is dropped and said (`ipcLost`). */
+  private async withIpc<T>(f: (token: string) => Promise<T>): Promise<T> {
+    const t = this.ipcToken;
+    if (!t) throw new Error("Sound control is not paired");
+    try { return await f(t); } catch (e) {
+      if (e instanceof ipc.Unpaired && this.ipcToken === t) { this.ipcToken = undefined; this.setSound(undefined); this.emit({ kind: "ipcLost" }); }
+      throw e;
+    }
+  }
+  private readStates() { return this.withIpc((t) => ipc.getTVStates(this.device.address, t, this.w.ipc)); }
+  async readSound() {
+    if (!this.ipcToken) return;
+    const [external, states] = await this.withIpc((t) => Promise.all([ipc.speakers(this.device.address, t, this.w.ipc), ipc.getTVStates(this.device.address, t, this.w.ipc)]));
+    const outputs = [{ id: ipc.INTERNAL, name: "TV Speaker" }, ...external];
+    this.setSound({ outputs, current: ipc.currentOf(states.speakerSelect, outputs) });
+  }
+  /**
+   * Ask for the output, then read until the TV reports it. A firmware that
+   * says only `external` reports an external output that way: taken as the
+   * one asked for.
+   */
+  async setSoundOutput(id: string) {
+    const outputs = this.st.sound?.outputs ?? [];
+    const out = outputs.find((o) => o.id === id);
+    if (!out) throw new Error("The TV does not list that sound output");
+    await this.withIpc((t) => ipc.selectOutput(this.device.address, t, out, this.w.ipc));
+    const until = Date.now() + SWITCH_MS;
+    for (;;) {
+      const said = (await this.readStates()).speakerSelect;
+      const now = ipc.currentOf(said, outputs) ?? (id !== ipc.INTERNAL && said && said.toLowerCase() !== ipc.INTERNAL ? id : undefined);
+      if (now === id || Date.now() >= until || this.closed) {
+        this.setSound({ outputs, current: now });
+        if (now !== id) throw new Error(`The TV did not switch the sound to ${out.name}`);
+        return;
+      }
+      await sleep(SWITCH_STEP_MS);
+    }
   }
 
   on(l: (e: ChangeEvent) => void) { this.listeners.add(l); return () => this.listeners.delete(l); }

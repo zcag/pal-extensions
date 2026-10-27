@@ -2,9 +2,10 @@
 // and the tests draw rigged states with this same function. Two layouts:
 // `wide` for the panel (the d-pad and the buttons on the left; the TV,
 // what is in front, the keyboard the TV is asking with, the app dock, the
-// inputs and the volume on the right; the keys under everything) and
-// `compact` for the bar popover (what is in front on top, the d-pad
-// beside the buttons and the volume, the inputs, the dock). The d-pad is
+// inputs, the sound outputs and the volume on the right; the keys under
+// everything) and `compact` for the bar popover (what is in front on top,
+// the d-pad beside the buttons and the volume, the inputs, the sound
+// outputs, the dock). The d-pad is
 // made of stacks, so every part is a click target as well as a key, each
 // lit for a moment in the accent when its key is pressed (`flash`). The
 // volume, the power button and the inputs are pal's control parts
@@ -12,7 +13,7 @@
 // group may hand them to another device, and then they drive that one.
 // Nothing here waits on the TV.
 import { CONTROL_LIT, POPOVER_W, column, controlButton, inputsRow, keyHint, keycap, powerButton, row, text, volumeRow, withControls, type Action, type Served, type TagColor, type View, type ViewNode } from "@zcag/pal";
-import type { Keyboard, Media, Power } from "./types.ts";
+import type { Keyboard, Media, Power, Sound } from "./types.ts";
 
 /** Nerd Font glyphs (Material Design) the remote is drawn with. */
 export const G = {
@@ -20,7 +21,7 @@ export const G = {
   back: "\u{f17b3}", home: "\u{f02dc}", playPause: "\u{f040e}", rewind: "\u{f045f}", forward: "\u{f0211}", prev: "\u{f04ae}", next: "\u{f04ad}",
   volUp: "\u{f075d}", volDown: "\u{f075e}", mute: "\u{f075f}", power: "\u{f0425}", standby: "\u{f0906}",
   keyboard: "\u{f030c}", apps: "\u{f003b}", hdmi: "\u{f0841}", settings: "\u{f0493}", guide: "\u{f0503}", web: "\u{f059f}",
-  check: "\u{f05e0}", alert: "\u{f0028}", info: "\u{f02fd}", wifiOff: "\u{f05aa}", play: "\u{f0ecf}", cast: "\u{f0118}",
+  check: "\u{f05e0}", alert: "\u{f0028}", info: "\u{f02fd}", wifiOff: "\u{f05aa}", play: "\u{f0ecf}", cast: "\u{f0118}", speaker: "\u{f04c3}",
 } as const;
 
 export type Layout = "wide" | "compact";
@@ -54,6 +55,12 @@ export type RemoteState = {
   powerSlot?: Served<"power"> | null;
   inputs?: Served<"inputs"> | null;
   keyboard?: Keyboard;
+  /**
+   * The sound outputs, once sound control (IP Control) is paired: a chip
+   * each, the current one lit. Before that `pair`: offered on `b`, with the
+   * seconds `left` while the TV's prompt is up, or the last try's `error`.
+   */
+  sound?: Sound | { pair: true; left?: number; error?: string };
   /** The text field is open in the search row. */
   typing?: boolean;
   dock: DockApp[];
@@ -175,11 +182,35 @@ function dock(st: RemoteState, max: number, side: number): ViewNode {
   return row(tiles, { key: "dock", gap: 2, align: "start" });
 }
 
+/** The sound outputs as chips like the inputs, the current one lit; or, before sound control is paired, the offer to pair it. */
+function soundRow(st: RemoteState, width: number): ViewNode | undefined {
+  const s = st.sound;
+  if (!s || st.power !== "on") return undefined;
+  const glyph = text(G.speaker, { style: "glyph", size: "sm", color: "muted" });
+  if ("outputs" in s) {
+    const share = Math.floor((width - 28) / Math.max(1, s.outputs.length)) - 12;
+    const chips = s.outputs.map((o): ViewNode => {
+      const on = o.id === s.current;
+      return { type: "stack", key: `snd-${o.id}`, direction: "row", align: "center", padding: 1, surface: on ? CONTROL_LIT : "elevated", radius: true, action: `sound:${o.id}`, children: [text(o.name, { size: "xs", color: on ? "accent" : undefined, weight: on ? "semibold" : undefined, ...(o.name.length * 6.5 > share && { width: share }) })] };
+    });
+    return row([glyph, row(chips, { key: "sound-chips", gap: 1 })], { key: "sound-row", gap: 2, width });
+  }
+  const waiting = s.left !== undefined;
+  const line = waiting ? `Press Allow on the TV, for its sound · ${s.left} s` : s.error ?? "Move the sound between the TV and a soundbar from here";
+  return row([
+    glyph,
+    text(line, { size: "xs", color: s.error && !waiting ? "amber" : "muted", width: width - (waiting ? 28 : 160), key: `snd-${waiting ? "wait" : s.error ? "error" : "offer"}` }),
+    { type: "spacer" },
+    ...(waiting ? [] : keyHint("b", s.error ? "try again" : "pair sound", { action: "sound:pair" })),
+  ], { key: "sound-row", gap: 2, width });
+}
+
 /** What the remote does beyond the buttons, as clickable hints. */
-function extras(): ViewNode {
+function extras(st: RemoteState): ViewNode {
   return row([
     keycap("[", "channel-down"), ...keyHint("]", "channel", { action: "channel-up" }),
     ...keyHint("i", "next input", { action: "input:next" }),
+    ...(st.sound && "outputs" in st.sound ? keyHint("b", "sound", { action: "sound:next" }) : []),
     ...keyHint("s", "settings", { action: "menu" }),
     ...keyHint("g", "guide", { action: "guide" }),
     ...keyHint("e", "exit", { action: "exit" }),
@@ -237,6 +268,14 @@ function trouble(st: RemoteState): ViewNode {
 const otherRemote = (st: RemoteState): Action[] => (st.remote ? [{ id: "other-remote", title: `${st.remote} remote`, shortcut: "o" }] : []);
 const otherHint = (st: RemoteState): ViewNode[] => (st.remote ? keyHint("o", st.remote, { action: "other-remote" }) : []);
 
+/** `b`: the next sound output, each one by name in ⌘K; or pairing sound control. Only while the TV is on, as the row. */
+function soundActions(st: RemoteState): Action[] {
+  const s = st.sound;
+  if (!s || st.power !== "on") return [];
+  if (!("outputs" in s)) return s.left === undefined ? [{ id: "sound:pair", title: "Pair sound control", shortcut: "b" }] : [];
+  return [{ id: "sound:next", title: "Next sound output", shortcut: "b" }, ...s.outputs.map((o): Action => ({ id: `sound:${o.id}`, title: `Sound to ${o.name}`, hidden: true }))];
+}
+
 /** Every action the remote answers to; the first listed is Enter. */
 export function actions(st: RemoteState): Action[] {
   if (st.unpaired) return [{ id: "setup", title: "Set up a Samsung TV" }, ...otherRemote(st)];
@@ -262,6 +301,7 @@ export function actions(st: RemoteState): Action[] {
     { id: "exit", title: "Exit", shortcut: "e" },
     // The TV's own keyboard is the only one typing reaches (an app's in-app keyboard, YouTube's, takes nothing).
     ...(st.keyboard?.open ? [{ id: "type", title: "Type into the TV's field", shortcut: "t" } as Action] : []),
+    ...soundActions(st),
     { id: "apps", title: "All apps", shortcut: "a" },
     ...(st.others ? [{ id: "device", title: "Switch TV", shortcut: "d" } as Action] : []),
     ...otherRemote(st),
@@ -289,7 +329,7 @@ export function render(st: RemoteState): View {
       nowCard(st, W, 56),
       ...present([keyboardBanner(st, W)]),
       row([dpad(st, 148), column([buttons(st, 36, false), ...present([volumeRow(st.volume, W - 148 - 16, { device: st.device?.name })])], { key: "right", gap: 3, grow: true, align: "center" })], { key: "controls", gap: 4, align: "center" }),
-      ...present([inputsRow(st.inputs, W)]),
+      ...present([inputsRow(st.inputs, W), soundRow(st, W)]),
       dock(st, DOCK_COMPACT, 40),
     ], { key: "compact", padding: 3, gap: 3 });
   } else {
@@ -300,8 +340,8 @@ export function render(st: RemoteState): View {
       nowCard(st, RIGHT, 72),
       ...present([keyboardBanner(st, RIGHT)]),
       dock(st, DOCK_WIDE, 44),
-      ...present([inputsRow(st.inputs, RIGHT), volumeRow(st.volume, RIGHT, { device: st.device?.name })]),
-      ...(st.keyboard?.open ? [] : [extras()]),
+      ...present([inputsRow(st.inputs, RIGHT), st.keyboard?.open ? undefined : soundRow(st, RIGHT), volumeRow(st.volume, RIGHT, { device: st.device?.name })]),
+      ...(st.keyboard?.open ? [] : [extras(st)]),
     ], { key: "right", gap: 3, grow: true });
     tree = column([row([left, right], { key: "main", gap: 4, align: "start" }), { type: "spacer", key: "fill" }, hints(st)], { key: "wide", padding: 3, gap: 2, grow: true });
   }

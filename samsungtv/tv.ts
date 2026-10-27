@@ -67,6 +67,7 @@ export async function ensure(): Promise<Conn> {
       unlisten = c.on((e) => {
         if (e.kind === "connection") tv.error = e.up ? undefined : e.error;
         if (e.kind === "token") void keepToken(c.device.id, e.token);
+        if (e.kind === "ipcLost") void keepIpcToken(c.device.id, undefined);
         push();
       });
       if (c.token !== dev.token) void keepToken(dev.id, c.token);
@@ -87,6 +88,13 @@ export async function ensure(): Promise<Conn> {
 async function keepToken(id: string, token: string): Promise<void> {
   const list = await paired();
   if (list.some((d) => d.id === id && d.token !== token)) await savePaired(list.map((d) => (d.id === id ? { ...d, token } : d)));
+}
+
+/** Sound control was paired (or the TV forgot it: undefined): kept beside the token, and the connection told. */
+export async function keepIpcToken(id: string, ipcToken: string | undefined): Promise<void> {
+  const list = await paired();
+  if (list.some((d) => d.id === id && d.ipcToken !== ipcToken)) await savePaired(list.map((d) => (d.id === id ? { ...d, ipcToken } : d)));
+  if (tv.conn?.device.id === id && tv.conn.ipcToken !== ipcToken) tv.conn.setIpcToken(ipcToken);
 }
 
 /** Wait a moment for a first connection, so a view opened cold draws the TV rather than "connecting". */
@@ -275,7 +283,8 @@ liveView.onShown((ev) => {
   const l: Level = { palette: ev.palette, bar: ev.bar, compact: ev.compact };
   levels.set(levelKey(l), l);
   for (const f of opened) f(l);
-  void ensure().then(async () => {
+  void ensure().then(async (c) => {
+    void c.readSound().catch(() => {}).then(push);
     const dev = current(await paired());
     if (dev && !appLists.has(dev.id)) await appsOf(dev).catch(() => {});
     push();

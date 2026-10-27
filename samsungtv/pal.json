@@ -1,7 +1,7 @@
 {
   "name": "samsungtv",
   "title": "Samsung TV",
-  "description": "A remote for your Samsung TV under the keys, spoken to the TV on your network: the arrows and OK, your apps a digit away, the volume as a slider, the next HDMI input on a key, typing into the TV's own keyboard from yours, turning it on and off, and the menu bar. Pairs by pressing Allow on the TV. Its volume, power and inputs can drive another device's remote too (Settings › Groups).",
+  "description": "A remote for your Samsung TV under the keys, spoken to the TV on your network: the arrows and OK, your apps a digit away, the volume as a slider, the next HDMI input on a key, the sound moved between the TV's speakers and a soundbar, typing into the TV's own keyboard from yours, turning it on and off, and the menu bar. Pairs by pressing Allow on the TV. Its volume, power and inputs can drive another device's remote too (Settings › Groups).",
   "keywords": [
     "samsung",
     "tv",
@@ -64,7 +64,7 @@
   "palettes": {
     "remote": {
       "title": "Samsung TV Remote",
-      "description": "The arrows move, Enter is OK, Backspace goes back, h is Home; the app on screen, your dock of apps on the digits, the volume as a slider, the next HDMI input on i, and a field that types into the TV whenever it shows its keyboard.",
+      "description": "The arrows move, Enter is OK, Backspace goes back, h is Home; the app on screen, your dock of apps on the digits, the volume as a slider, the next HDMI input on i, the sound output on b, and a field that types into the TV whenever it shows its keyboard.",
       "kind": "view",
       "keywords": [
         "control",
@@ -120,6 +120,10 @@
         {
           "keys": "i",
           "title": "Next HDMI input"
+        },
+        {
+          "keys": "b",
+          "title": "Next sound output (pairs sound control the first time)"
         },
         {
           "keys": "[ ]",
@@ -201,7 +205,7 @@
     },
     "setup": {
       "title": "Set Up Samsung TV",
-      "description": "Finds the Samsung TVs on the network and pairs one: the TV asks whether to allow pal, you press Allow; ends with a check of what works.",
+      "description": "Finds the Samsung TVs on the network and pairs one: the TV asks whether to allow pal, you press Allow, then once more for the sound output; ends with a check of what works.",
       "kind": "view",
       "keywords": [
         "pair"
@@ -229,7 +233,7 @@
   "bar": {
     "tv": {
       "title": "Samsung TV",
-      "description": "The app on the Samsung TV's screen, hidden while the TV shows another device's input and in standby. The popover is the remote: the arrows, the buttons, the volume, the inputs and the dock on the digits.",
+      "description": "The app on the Samsung TV's screen, hidden while the TV shows another device's input and in standby. The popover is the remote: the arrows, the buttons, the volume, the inputs, the sound output and the dock on the digits.",
       "refresh": {
         "every": 60,
         "on": [
@@ -270,6 +274,10 @@
         {
           "keys": "i",
           "title": "Next HDMI input"
+        },
+        {
+          "keys": "b",
+          "title": "Next sound output"
         },
         {
           "keys": "1-6",
@@ -408,12 +416,13 @@
       "Your dock of apps on the digits, the one on screen marked; every app at the root: type `youtube`, press Enter",
       "The volume as a slider and m to mute, set on the TV itself (and the soundbar it drives)",
       "i moves to the next HDMI input; the TV's input menu and its settings are a key away",
+      "The sound output as chips: the TV's speakers, Q-Symphony or a soundbar, the one playing lit; b moves to the next",
       "When the TV shows its keyboard, a field opens here: type with your keyboard, Enter sends it",
       "Turns the TV off, and on from standby or off (Wake-on-LAN)",
       "A menu bar item with the app on screen; its popover is the remote",
       "With an Apple TV in the same group, the Apple TV's remote sets this TV's volume and inputs and turns both on",
       "With Apple TV installed too, o opens the Apple TV's remote over this one and Escape comes back",
-      "Guided setup: finds the TV, you press Allow on it, and it checks what works"
+      "Guided setup: finds the TV, you press Allow on it (once more for the sound output), and it checks what works"
     ],
     "permissions": [
       "network"
@@ -425,7 +434,7 @@
     "screenshots": [
       {
         "file": "1-remote.png",
-        "caption": "The remote: the arrows and OK, the app on screen, your apps on the digits, the inputs and the volume"
+        "caption": "The remote: the arrows and OK, the app on screen, your apps on the digits, the inputs, the sound output and the volume"
       },
       {
         "file": "2-typing.png",
@@ -454,13 +463,13 @@
       },
       {
         "file": "bar-popover.png",
-        "caption": "A click opens the remote: the arrows, the buttons, the volume, the inputs and the dock",
+        "caption": "A click opens the remote: the arrows, the buttons, the volume, the inputs, the sound output and the dock",
         "kind": "bar",
         "box": [
           386,
           64,
           840,
-          944
+          960
         ]
       },
       {

@@ -1,13 +1,15 @@
 // The Samsung TV extension's protocol layer: the pure pieces (the REST
 // description as a 2024 QE75QN85D answers it, SOAP in and out, SSDP lines,
-// the magic packet, the remote's messages) and the real driver against a
-// stand-in TV on one local port: REST, UPnP and the remote websocket
-// (plain ws, the same messages the TV's wss carries).
+// the magic packet, the remote's messages, IP Control's answers) and the
+// real driver against a stand-in TV on one local port: REST, UPnP, the
+// remote websocket (plain ws, the same messages the TV's wss carries) and
+// IP Control (plain http, the JSON-RPC the TV's https carries).
 import { afterEach, describe, expect, test } from "bun:test";
 import type { Server, ServerWebSocket } from "bun";
 import { makeDriver } from "../samsungtv/device.ts";
 import { isSamsung, magicPacket, msearch, parseResponse } from "../samsungtv/protocol/net.ts";
 import { appsMsg, imeText, keyMsg, parseApps, refusal, remoteUrl, textEndMsg, textMsg } from "../samsungtv/protocol/remote.ts";
+import { currentOf, parseSpeakers, result, Unpaired } from "../samsungtv/protocol/ipc.ts";
 import { decodeEntities, parseInfo } from "../samsungtv/protocol/rest.ts";
 import { envelope, fault, fields, hms, mediaOf, RC } from "../samsungtv/protocol/upnp.ts";
 import type { ChangeEvent, Conn, Paired } from "../samsungtv/types.ts";
@@ -51,6 +53,20 @@ describe("upnp", () => {
     const meta = "&lt;DIDL-Lite&gt;&lt;item&gt;&lt;dc:title&gt;Harbour &amp;amp; Lights&lt;/dc:title&gt;&lt;/item&gt;&lt;/DIDL-Lite&gt;";
     const p = fields(`<u:GetPositionInfoResponse><TrackURI>http://x/a.mp4</TrackURI><TrackMetaData>${meta}</TrackMetaData><RelTime>0:01:05</RelTime><TrackDuration>0:42:00</TrackDuration></u:GetPositionInfoResponse>`);
     expect(mediaOf({ CurrentTransportState: "PAUSED_PLAYBACK" }, p, 7)).toEqual({ state: "paused", at: 7, url: "http://x/a.mp4", title: "Harbour & Lights", position: 65, duration: 2520 });
+  });
+});
+
+describe("ip control", () => {
+  test("answers: the result, the flat -32700 as unpaired, errors in words; the outputs and which one plays", () => {
+    // The living-room TV, 2026-10-27.
+    expect(result({ jsonrpc: "2.0", id: "1", result: { speakerSelect: "QSYM-RECEIVER", volume: 15 } }, "getTVStates")).toEqual({ speakerSelect: "QSYM-RECEIVER", volume: 15 });
+    expect(() => result({ code: -32700, message: "Parse error" }, "getTVStates")).toThrow(Unpaired);
+    expect(() => result({ jsonrpc: "2.0", error: { code: -32002, message: "Not offered" } }, "externalSpeakerControl")).toThrow("The TV refused externalSpeakerControl: Not offered");
+    expect(() => result(undefined, "getTVStates")).toThrow("no answer");
+    const outs = [{ id: "internal", name: "TV Speaker" }, ...parseSpeakers([{ deviceName: "Q-Symphony", deviceId: "QSYM-RECEIVER" }, { deviceName: "Q6C Series Soundbar(HDMI-eARC)", deviceId: "RCV-1" }])];
+    expect(outs.map((o) => o.id)).toEqual(["internal", "QSYM-RECEIVER", "RCV-1"]);
+    expect(parseSpeakers({})).toEqual([]);
+    expect([currentOf("QSYM-RECEIVER", outs), currentOf("internal", outs), currentOf("external", outs), currentOf("external", outs.slice(0, 2)), currentOf(undefined, outs)]).toEqual(["QSYM-RECEIVER", "internal", undefined, "QSYM-RECEIVER", undefined]);
   });
 });
 
@@ -110,6 +126,8 @@ type Tv = {
   soap: string[];
   sockets: Set<ServerWebSocket<unknown>>;
   urls: string[];
+  /** IP Control: the token Allow hands out and knows, the external outputs, the one in use, every call. */
+  ipc: { token: string; speakers: { deviceName: string; deviceId: string }[]; speaker: string; calls: any[] };
   onKey?: (code: string) => void;
 };
 
@@ -118,12 +136,24 @@ let conn: Conn | undefined;
 afterEach(async () => { await conn?.close(); conn = undefined; server?.stop(true); server = undefined; });
 
 function standIn(): { tv: Tv; port: number } {
-  const tv: Tv = { power: "on", volume: 10, muted: false, apps: { "111299001912": { name: "YouTube", visible: false } }, answer: { token: "t-1" }, installed: [], got: [], soap: [], sockets: new Set(), urls: [] };
+  const tv: Tv = { power: "on", volume: 10, muted: false, apps: { "111299001912": { name: "YouTube", visible: false } }, answer: { token: "t-1" }, installed: [], got: [], soap: [], sockets: new Set(), urls: [],
+    ipc: { token: "ipc-1", speakers: [{ deviceName: "Q-Symphony", deviceId: "QSYM-RECEIVER" }, { deviceName: "Soundbar(HDMI-eARC)", deviceId: "RCV-1" }], speaker: "QSYM-RECEIVER", calls: [] } };
   server = Bun.serve({
     port: 0,
     async fetch(req, srv) {
       const u = new URL(req.url);
       if (u.pathname.startsWith("/api/v2/channels/")) { tv.urls.push(u.search); return srv.upgrade(req, { data: undefined }) ? undefined : new Response("no", { status: 400 }); }
+      if (u.pathname === "/" && req.method === "POST") {
+        const j: any = await req.json(), p = j.params ?? {}, ok = (r: unknown) => Response.json({ jsonrpc: "2.0", id: String(j.id), result: r });
+        tv.ipc.calls.push({ method: j.method, ...p, accept: req.headers.get("accept") });
+        if (j.method === "createAccessToken") return ok({ AccessToken: tv.ipc.token });
+        if (p.AccessToken !== tv.ipc.token) return Response.json({ code: -32700, message: "Parse error" });
+        if (j.method === "getTVStates") return ok({ speakerSelect: tv.ipc.speaker, volume: 15, mute: "muteOff" });
+        if (j.method === "speakerSelectControl" && p.speakerSelect) { tv.ipc.speaker = "internal"; return ok({}); }
+        if (j.method === "externalSpeakerControl" && p.deviceId) { tv.ipc.speaker = p.deviceId; return ok({}); }
+        if (j.method === "externalSpeakerControl") return ok(tv.ipc.speakers);
+        return Response.json({ jsonrpc: "2.0", id: String(j.id), error: { code: -32601, message: "Method not found" } });
+      }
       if (u.pathname === "/api/v2/") return Response.json({ ...INFO, device: { ...INFO.device, PowerState: tv.power } });
       const app = /^\/api\/v2\/applications\/(.+)$/.exec(u.pathname)?.[1];
       if (app) {
@@ -244,13 +274,14 @@ describe("the driver against a stand-in TV", () => {
     expect(tv.got.some((g) => g.params?.event === "ed.apps.launch")).toBe(false);
   });
 
-  test("standby: nothing read but power, no remote until asked; turning on presses Power on the socket", async () => {
+  test("standby: nothing read but power, no remote until asked; turning on presses Power on the socket, and the sound outputs are read", async () => {
     const { tv, port } = standIn();
     tv.power = "standby";
-    const c = (conn = await makeDriver({ port, pollMs: 60_000 }).connect(paired()));
+    const c = (conn = await makeDriver({ port, pollMs: 60_000 }).connect({ ...paired(), ipcToken: "ipc-1" }));
     expect([c.power(), c.remoteUp, c.volume()]).toEqual(["standby", false, undefined]);
     expect(tv.urls).toEqual([]);
     expect(tv.soap).toEqual([]);
+    expect(tv.ipc.calls).toEqual([]);
     await c.turnOff();
     expect(sends(tv)).toEqual([]);
     // The stand-in wakes on KEY_POWER; no MAC is paired, so no Wake-on-LAN goes out.
@@ -258,11 +289,38 @@ describe("the driver against a stand-in TV", () => {
     await c.turnOn();
     expect(c.power()).toBe("on");
     expect(sends(tv).map((g) => g.params.DataOfCmd)).toEqual(["KEY_POWER"]);
+    await until(() => c.sound()?.current === "QSYM-RECEIVER");
   });
 
-  test("a TV that does not answer is not connected to", async () => {
+  test("sound control: IP Control's token, the outputs and the one in use, a switch read back; a token the TV forgot is dropped and said", async () => {
+    const { tv, port } = standIn();
+    const d = makeDriver({ port, pollMs: 60_000 });
+    expect(await (await d.pairSound({ address: "127.0.0.1", name: "TV" })).token).toBe("ipc-1");
+    expect(tv.ipc.calls[0]).toEqual({ method: "createAccessToken", accept: "application/json" });
+    const c = (conn = await d.connect(paired()));
+    const events: ChangeEvent[] = [];
+    c.on((e) => events.push(e));
+    await c.readSound();
+    expect(c.sound()).toBeUndefined();
+    c.setIpcToken("ipc-1");
+    await c.readSound();
+    expect(c.sound()).toEqual({ outputs: [{ id: "internal", name: "TV Speaker" }, { id: "QSYM-RECEIVER", name: "Q-Symphony" }, { id: "RCV-1", name: "Soundbar(HDMI-eARC)" }], current: "QSYM-RECEIVER" });
+    await c.setSoundOutput("RCV-1");
+    expect(tv.ipc.calls.find((x) => x.deviceId)).toMatchObject({ method: "externalSpeakerControl", AccessToken: "ipc-1", deviceName: "Soundbar(HDMI-eARC)", deviceId: "RCV-1" });
+    expect(c.sound()?.current).toBe("RCV-1");
+    await c.setSoundOutput("internal");
+    expect(tv.ipc.calls.find((x) => x.speakerSelect)).toMatchObject({ method: "speakerSelectControl", speakerSelect: "Internal" });
+    expect(c.sound()?.current).toBe("internal");
+    tv.ipc.token = "ipc-2";
+    await expect(c.readSound()).rejects.toThrow("pair it again");
+    expect([c.ipcToken, c.sound(), events.at(-1)]).toEqual([undefined, undefined, { kind: "ipcLost" }]);
+  });
+
+  test("a TV that does not answer is not connected to, nor paired for sound", async () => {
     const { port } = standIn();
     server!.stop(true);
     await expect(makeDriver({ port, pollMs: 60_000 }).connect(paired())).rejects.toThrow("does not answer");
+    // Nothing on IP Control's port is a TV with IP Remote off.
+    await expect((await makeDriver({ port }).pairSound({ address: "127.0.0.1", name: "TV" })).token).rejects.toThrow("IP Remote is off");
   });
 });

@@ -9,7 +9,7 @@
 import { controls, extensions, settings, toast, type BarCtx, type BarItem, type Ctx, type Effect, type Extension, type Item, type LinkParams } from "@zcag/pal";
 import { DOCK_WIDE, G, positionAt, render as renderRemote, type DockApp, type Flash, type Layout, type RemoteState } from "./remote.ts";
 import { SETUP_ROW, appRow, commandRows, noTv } from "./rows.ts";
-import { cancelPairing, setupPick, setupView } from "./pairing.ts";
+import { askSound, cancelPairing, setupPick, setupView, soundAsk } from "./pairing.ts";
 import {
   appLists, appsOf, artOf, cfg, current, disposeTv, drop, ensure, frontApp, launch, launches, onOpen, paired, plain, push, registerBar, registerView,
   served, tv, turnOn, warm, withConn, NAME, type BarSettings, type Level,
@@ -70,6 +70,7 @@ async function remoteState(layout: Layout): Promise<RemoteState> {
     media, position: positionAt(media, Date.now()),
     volume: served.volume, powerSlot: served.power, inputs: served.inputs,
     keyboard: c.keyboard(), typing: c.keyboard().open && !dismissed,
+    sound: c.ipcToken ? c.sound() : { pair: true, left: soundAsk.until ? Math.max(0, Math.round((soundAsk.until - Date.now()) / 1000)) : undefined, error: soundAsk.error },
     dock: dockOf(appLists.get(dev.id) ?? []),
     flash,
   };
@@ -101,6 +102,7 @@ async function act(action: string, ctx?: Ctx | BarCtx): Promise<Effect | undefin
     if (action.startsWith("controls:power")) lightUp("power");
     try { await controls.act(action, { values: values as Record<string, string> | undefined }); return undefined; } catch (e) { return toast("Could not do that", plain(e), "failure"); }
   }
+  if (action.startsWith("sound:")) return soundAct(action.slice(6));
   if (action.startsWith("launch:")) {
     const dev = current(await paired());
     const app = dev ? dockOf(appLists.get(dev.id) ?? [])[Number(action.slice(7))] : undefined;
@@ -131,6 +133,17 @@ async function act(action: string, ctx?: Ctx | BarCtx): Promise<Effect | undefin
     }
   }
   return { keep: true };
+}
+
+/** `pair` sound control, the `next` output, or the output with this id; the TV is waited on to report it. */
+async function soundAct(id: string): Promise<Effect | undefined> {
+  if (id === "pair") { void askSound(); return undefined; }
+  return withConn("switch the sound", (c) => {
+    const s = c.sound();
+    if (id !== "next") return c.setSoundOutput(id);
+    if (!s?.outputs.length) throw new Error("The TV has not said its sound outputs yet");
+    return c.setSoundOutput(s.outputs[(s.outputs.findIndex((o) => o.id === s.current) + 1) % s.outputs.length].id);
+  });
 }
 
 /** A remote action from the panel view or the popover: done means a new tree in place. */

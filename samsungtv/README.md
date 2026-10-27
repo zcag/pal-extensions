@@ -7,7 +7,8 @@ commands at the root, and the guided pairing; the app on screen on the bar.
 Current Tizen TVs only (2016 on, with token auth); built against a 2024
 QE75QN85D.
 
-Three of the TV's own local interfaces, the ones its phone remote uses:
+Four of the TV's own local interfaces, the first three the ones its phone
+remote uses:
 
 - **The remote websocket** (`wss://<tv>:8002/api/v2/channels/samsung.remote.control`,
   `protocol/remote.ts`): the keys, text into the TV's own keyboard (and
@@ -17,6 +18,13 @@ Three of the TV's own local interfaces, the ones its phone remote uses:
   running, on screen), opening and closing an app.
 - **UPnP** (`:9197`, `protocol/upnp.ts`): the volume as a level and mute,
   and what a DLNA sender plays on the TV.
+- **IP Control** (`https://<tv>:1516/`, `protocol/ipc.ts`): JSON-RPC 2.0
+  over HTTPS POST (self-signed certificate), the TV's control interface for
+  installers. Here: the sound output, which the other three cannot see or
+  move. It has its own token and its own Allow prompt, and needs **IP
+  Remote** on in the TV's Settings › Connections › Network › Expert
+  Settings. Calls to one TV go one at a time (it resets a connection that
+  overlaps another).
 
 Turning on from off is Wake-on-LAN to the TV's MAC (`protocol/net.ts`).
 
@@ -30,13 +38,22 @@ Turning on from off is Wake-on-LAN to the TV's MAC (`protocol/net.ts`).
    one, `i` types an address, `r` looks again.
 2. **Allow**: pal opens the remote channel without a token and the TV asks
    "Allow pal?"; press Allow with its remote. The wait counts down from 35 s.
+   Then IP Control asks once more, for the sound output
+   (`createAccessToken`), with the same wait. Escape skips it; with IP
+   Remote off, Deny, or no answer the setup still finishes, and Ready says
+   which setting turns it on.
 3. **Ready**: pal connects with the token and reads what works from the
    TV itself: the remote, how many apps, the volume, whether it can be
-   turned on from off.
+   turned on from off, the sound outputs.
 
-The token and the TV's MAC stay in pal's storage (`<data dir>/pal/storage/
-samsungtv.json`, `devices`); which TV is current is the `device` setting.
-The TV may hand out a new token on a connect; it is kept. `x` forgets one;
+The token, IP Control's token (`ipcToken`) and the TV's MAC stay in pal's
+storage (`<data dir>/pal/storage/samsungtv.json`, `devices`); which TV is
+current is the `device` setting. The TV may hand out a new token on a
+connect; it is kept. A TV paired without sound control (paired before it
+existed, or IP Remote was off) is offered it on the remote: `b` there asks
+the TV for it, the wait counting down in the sound row; the rest of the
+pairing stays. When the TV no longer knows IP Control's token (it answers
+`-32700 Parse error`), the token is dropped and the offer is back. `x` forgets one;
 remove pal on the TV too under Settings › General › External Device
 Manager › Device Connection Manager › Device List. Pressed Deny once? The
 TV remembers it there, too.
@@ -49,7 +66,8 @@ back, `h` is Home, `space` plays or pauses, `,` and `.` rewind and fast
 forward, `cmd+left`/`cmd+right` previous and next, `-` and `=` the volume,
 `m` mutes, `p` turns the TV off (standby) or on, `i` moves to the next
 HDMI input, `[` and `]` the channel, `s` the TV's settings, `g` the guide,
-`e` exit, `a` all apps, `d` the next paired TV, `r` reconnects. With the
+`e` exit, `b` the next sound output, `a` all apps, `d` the next paired
+TV, `r` reconnects. With the
 Apple TV extension installed (it is in `suggests`), `o` opens its remote
 over this one and Escape comes back here; the Apple TV's remote has the
 same `o` back to this one.
@@ -58,7 +76,12 @@ The card shows the app on screen with its tile, what a DLNA sender plays
 with its position, or that the TV is in standby. The dock is the
 `favorites` setting, else the apps opened most, else the usual ones
 (YouTube, Netflix, ...), each on a digit, the one on screen dotted. Below
-it, the inputs as chips and the volume as a slider.
+it, the inputs as chips, the sound outputs as chips (TV Speaker, then each
+output the TV lists by its name: Q-Symphony, a soundbar on HDMI eARC), the
+one playing lit, a click switching to one, and the volume as a slider. The
+outputs are read when the remote opens and after a switch, which waits for
+the TV to report the new output. Without sound control paired the row is
+the offer to pair it.
 
 **Typing.** When the TV shows its own keyboard (a search, a sign-in field
 of the TV's), a banner says so and a field opens in the search row by
@@ -132,6 +155,15 @@ States: `samsungtv/power` (`on`, `standby`, `off`, `unknown`),
 - **Seeking** is not possible from here; the TV's own remote does it.
 - **Turning on from off** needs Power On with Mobile (Settings › General
   › Network › Expert Settings); from standby `p` works always.
+- **Sound output.** IP Control lists the external outputs
+  (`externalSpeakerControl`; `{}` while a receiver is off) and switches to
+  one with its name and id, or to the TV's speakers with
+  `speakerSelectControl` `Internal`. The current one is
+  `getTVStates.speakerSelect` (`QSYM-RECEIVER`, `internal`); the
+  `speakerSelectControl` getter answers null while on Q-Symphony. In
+  standby `externalSpeakerControl` answers `-32601 Method not found` (and
+  `getTVStates` says `internal`), so the outputs are read again as the TV
+  comes on. Without `Accept: application/json` the TV answers an empty body.
 - Everything stays on the LAN.
 
 ## Tests
@@ -141,4 +173,5 @@ against a stand-in TV (`fake.ts`, `PAL_SAMSUNGTV_FAKE`: the TV's state a
 JSON file, every command a log line), groups and the controls through the
 harness. `samsungtv-protocol.test.ts` covers the wire against a local
 server playing the TV: REST, UPnP, the websocket with Allow and Deny, the
-token, keys, text and the keyboard events.
+token, keys, text and the keyboard events, and IP Control (its token, the
+outputs, a switch read back, a token the TV forgot).

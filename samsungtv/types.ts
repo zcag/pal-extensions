@@ -1,6 +1,7 @@
 // The one contract between the extension (palettes, views, the bar item)
 // and whatever talks to a Samsung TV: the real driver (device.ts: the
-// remote websocket, the REST api on 8001, UPnP on 9197, Wake-on-LAN) and
+// remote websocket, the REST api on 8001, UPnP on 9197,
+// IP Control on 1516 for the sound output, Wake-on-LAN) and
 // the fake one the tests and the fixture use (fake.ts). Only current
 // Tizen TVs (2016 on, token auth); nothing here knows an older protocol.
 
@@ -22,8 +23,13 @@ export type Found = {
   frame?: boolean;
 };
 
-/** A paired TV as storage keeps it: the token is what the TV gave when Allow was pressed. */
-export type Paired = { id: string; name: string; address: string; model: string; mac?: string; token: string; pairedAt: number };
+/** A paired TV as storage keeps it: the token is what the TV gave when Allow was pressed; `ipcToken` what its IP Control gave (sound control), when that was allowed too. */
+export type Paired = { id: string; name: string; address: string; model: string; mac?: string; token: string; ipcToken?: string; pairedAt: number };
+
+/** Where the TV's sound goes: its own speakers (`internal`) or an external output it lists (`QSYM-RECEIVER` Q-Symphony, `RCV-1` a soundbar on HDMI eARC). */
+export type SoundOutput = { id: string; name: string };
+/** The outputs as the TV lists them, the TV's speakers first; `current` the one it plays on, when it says. */
+export type Sound = { outputs: SoundOutput[]; current?: string };
 
 /**
  * `on`: the screen is on. `standby`: the TV answers on the network with
@@ -68,6 +74,9 @@ export type ChangeEvent =
   | { kind: "media" }
   | { kind: "keyboard" }
   | { kind: "token"; token: string }
+  | { kind: "sound" }
+  /** The TV no longer knows the IP Control token: drop it, offer pairing again. */
+  | { kind: "ipcLost" }
   | { kind: "connection"; up: boolean; error?: string };
 
 /** One live session with one paired TV: the remote websocket when the screen is on, REST and UPnP polled. */
@@ -116,6 +125,17 @@ export interface Conn {
   /** Send text to the focused field (the TV appends it), then end the input when `done`. */
   type(text: string, done?: boolean): Promise<void>;
 
+  /** The IP Control token in use; undefined: sound control is not paired. */
+  readonly ipcToken: string | undefined;
+  /** A token just paired (or undefined to forget it): used from now on, the outputs read again. */
+  setIpcToken(token: string | undefined): void;
+  /** The sound outputs as last read; undefined without an IP Control token or before a read. */
+  sound(): Sound | undefined;
+  /** Read the outputs and the current one from the TV (`sound` when they changed, `ipcLost` when the token went). */
+  readSound(): Promise<void>;
+  /** Switch the sound to an output, then wait for the TV to report it. */
+  setSoundOutput(id: string): Promise<void>;
+
   on(listener: (e: ChangeEvent) => void): () => void;
   close(): Promise<void>;
 }
@@ -133,6 +153,8 @@ export interface Driver {
   /** One TV by address: its `/api/v2/` answer, or undefined when nothing answers there. */
   probe(address: string): Promise<Found | undefined>;
   pair(found: Found): Promise<Pairing>;
+  /** IP Control's own Allow prompt, for the sound output; its token. Refused when IP Remote is off on the TV. */
+  pairSound(device: Pick<Paired, "address" | "name">): Promise<Pairing>;
   connect(device: Paired): Promise<Conn>;
   /** Wake-on-LAN, with no connection: what turns a TV on from off. */
   wake(device: Pick<Paired, "address" | "mac">): Promise<void>;

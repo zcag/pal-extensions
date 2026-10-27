@@ -1,12 +1,15 @@
 // The guided pairing's state machine (setup.ts draws it): look for the
 // TVs, open the remote channel without a token so the chosen TV asks
-// "Allow pal?", keep the token Allow hands out, make the TV current, then
-// connect and read what works for the Ready step. While the prompt is up
-// the wait counts down once a second; every change is pushed into the
-// open setup level.
+// "Allow pal?", keep the token Allow hands out, make the TV current, ask
+// its IP Control for sound control (a second Allow; without it the setup
+// still finishes), then connect and read what works for the Ready step.
+// While a prompt is up the wait counts down once a second; every change
+// is pushed into the open setup level. Sound control alone, for a TV
+// paired before it existed, is asked from the remote (`askSound`).
 import { settings, storage, toast, view as liveView, type Ctx, type Effect } from "@zcag/pal";
 import { render as renderSetup, type Check, type SetupState } from "./setup.ts";
-import { appsOf, cfg, current, driver, drop, ensure, paired, plain, push, savePaired, tv, NAME } from "./tv.ts";
+import { OFF } from "./protocol/ipc.ts";
+import { appsOf, cfg, current, driver, drop, ensure, keepIpcToken, paired, plain, push, savePaired, tv, NAME } from "./tv.ts";
 import type { App, Found, Pairing, Paired } from "./types.ts";
 
 /** How long the TV keeps its Allow prompt up (device.ts PAIR_MS). */
@@ -19,6 +22,7 @@ let scanning: Promise<void> | undefined;
 let pairing: Pairing | undefined;
 let countdown: ReturnType<typeof setInterval> | undefined;
 let typingAddress: string | undefined;
+let soundSkipped = false;
 
 const view = async () => renderSetup(setup, found, await paired(), typingAddress);
 function pushSetup(): void {
@@ -37,13 +41,14 @@ function scan(): void {
 }
 
 const stopCountdown = () => { if (countdown) clearInterval(countdown); countdown = undefined; };
+const countDown = (phase: SetupState["phase"]) => { stopCountdown(); countdown = setInterval(() => { if (setup.phase === phase) pushSetup(); else stopCountdown(); }, 1000); };
 
 /** Ask the TV to allow pal, and wait for the answer. */
 function askAllow(device: Found): void {
   pairing?.cancel();
   stopCountdown();
   setup = { phase: "allow", device, until: Date.now() + ALLOW_MS };
-  countdown = setInterval(() => { if (setup.phase === "allow") pushSetup(); else stopCountdown(); }, 1000);
+  countDown("allow");
   void (async () => {
     try {
       pairing = await (await driver()).pair(device);
@@ -62,15 +67,28 @@ function askAllow(device: Found): void {
 }
 
 async function savePairing(device: Found, token: string): Promise<Paired> {
-  const list = (await paired()).filter((d) => d.id !== device.id);
-  const p: Paired = { id: device.id, name: device.name, address: device.address, model: device.model, mac: device.mac, token, pairedAt: Date.now() };
+  const all = await paired(), list = all.filter((d) => d.id !== device.id);
+  const p: Paired = { id: device.id, name: device.name, address: device.address, model: device.model, mac: device.mac, token, ipcToken: all.find((d) => d.id === device.id)?.ipcToken, pairedAt: Date.now() };
   await savePaired([...list, p]);
   await settings.set({ device: p.name }, NAME).catch(() => {});
   return p;
 }
 
+/** IP Control's Allow, for sound control: the token kept, or why not in words. */
+async function askSoundToken(dev: Paired, started: (p: Pairing) => void): Promise<string | undefined> {
+  try {
+    const p = await (await driver()).pairSound(dev);
+    started(p);
+    const token = await p.token;
+    await keepIpcToken(dev.id, token);
+    return undefined;
+  } catch (e) { return plain(e); }
+}
+
+const soundLater = (why: string) => (why === OFF ? `${OFF}: turn it on, then b on the remote pairs it; later is fine.` : `${why}. b on the remote pairs it, later is fine; it needs IP Remote on (Settings › Connections › Network › Expert Settings).`);
+
 /** Connect to the freshly paired TV and read what works: the checks of the Ready step. */
-async function check(p: Paired): Promise<Check[]> {
+async function check(p: Paired, soundWhy: string | undefined): Promise<Check[]> {
   await drop();
   const c = await ensure();
   const checks: Check[] = [{ ok: c.remoteUp, what: "Remote", detail: c.remoteUp ? "The buttons, typing, opening apps" : "Allowed, but the remote did not open yet" }];
@@ -80,14 +98,26 @@ async function check(p: Paired): Promise<Check[]> {
   checks.push({ ok: v !== undefined ? true : "skipped", what: "Volume", detail: v !== undefined ? `${v} now; the slider sets it, m mutes` : "The TV did not report its volume: the buttons step it" });
   checks.push({ ok: p.mac ? true : "skipped", what: "Power", detail: p.mac ? "p turns it off and on; from off, Power On with Mobile has to be on" : "p turns it off; the TV did not tell its network address, so pal cannot turn it on from off" });
   checks.push({ ok: true, what: "Inputs", detail: "i moves to the next HDMI input; the input menu is a key away" });
+  await c.readSound().catch(() => {});
+  const sound = c.sound();
+  checks.push(sound
+    ? { ok: true, what: "Sound", detail: `${sound.outputs.map((o) => o.name).join(", ")}: a chip each on the remote, b moves to the next` }
+    : { ok: "skipped", what: "Sound", detail: soundLater(soundWhy ?? "Sound control did not answer") });
   return checks;
 }
 
 async function finish(device: Found, token: string): Promise<void> {
+  const p = await savePairing(device, token);
+  setup = { phase: "sound", device, until: Date.now() + ALLOW_MS };
+  countDown("sound");
+  pushSetup();
+  soundSkipped = false;
+  const soundWhy = await askSoundToken(p, (s) => { pairing = s; }).then((why) => (why && soundSkipped ? "Skipped" : why));
+  pairing = undefined;
+  stopCountdown();
   setup = { phase: "checking", device };
   pushSetup();
-  const p = await savePairing(device, token);
-  try { setup = { phase: "ready", device: p, checks: await check(p) }; }
+  try { setup = { phase: "ready", device: p, checks: await check((await paired()).find((d) => d.id === p.id) ?? p, soundWhy) }; }
   catch (e) { setup = { phase: "ready", device: p, checks: [{ ok: false, what: "Connection", detail: `Paired, but the connection failed: ${plain(e)}` }] }; }
   push();
 }
@@ -113,6 +143,7 @@ export async function setupPick(action: string | undefined, ctx?: Ctx): Promise<
       break;
     }
     case "retry": if (setup.phase === "failed") askAllow(setup.device); break;
+    case "skip": soundSkipped = true; pairing?.cancel(); break;
     case "back": pairing?.cancel(); pairing = undefined; stopCountdown(); setup = { phase: "find", scanning: false }; break;
     case "remote": return { push: { extension: NAME, palette: "remote" } };
     case "apps": return { push: { extension: NAME, palette: "apps" } };
@@ -133,4 +164,25 @@ export async function setupPick(action: string | undefined, ctx?: Ctx): Promise<
   return { view: await view() };
 }
 
-export const cancelPairing = () => { pairing?.cancel(); stopCountdown(); };
+// ---- sound control alone, from the remote ----------------------------------------------------------
+
+/** The remote's offer to pair sound control: `until` while the TV's prompt is up, `error` the last try's failure. */
+export const soundAsk: { until?: number; error?: string } = {};
+let soundPairing: Pairing | undefined;
+let soundTick: ReturnType<typeof setInterval> | undefined;
+
+/** Ask the current TV's IP Control for sound control, the wait counting down in the remote. */
+export async function askSound(): Promise<void> {
+  const dev = current(await paired());
+  if (!dev || soundAsk.until) return;
+  soundAsk.until = Date.now() + ALLOW_MS; soundAsk.error = undefined;
+  soundTick = setInterval(push, 1000);
+  push();
+  const why = await askSoundToken(dev, (p) => { soundPairing = p; });
+  soundPairing = undefined;
+  clearInterval(soundTick); soundTick = undefined;
+  soundAsk.until = undefined; soundAsk.error = why && `${why}.`;
+  push();
+}
+
+export const cancelPairing = () => { pairing?.cancel(); stopCountdown(); soundPairing?.cancel(); if (soundTick) clearInterval(soundTick); };

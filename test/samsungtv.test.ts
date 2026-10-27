@@ -4,7 +4,8 @@
 // anything is paired, the guided setup (discovery, Allow, the check of what
 // works), the remote's keys and what each sends, the volume, power and
 // inputs as controls (published, run through pal, and rebound by a group to
-// another device's volume), typing while the TV shows its keyboard, a
+// another device's volume), the sound outputs (pairing sound control from
+// the remote, switching, a token the TV forgot), typing while the TV shows its keyboard, a
 // change on the TV pushed into the open remote and the bar item, the apps
 // and the dock, the root commands, and the links.
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
@@ -27,15 +28,18 @@ const APPS = [
   { id: "3201606009684", name: "Spotify" },
   { id: "3202010022079", name: "Internet" },
 ];
-const TV: FakeTv = { found: [LIVING, BEDROOM], token: "11122233", power: "on", volume: 10, muted: false, apps: APPS, front: "111299001912", keyboard: { open: false } };
+const SPEAKERS = [{ id: "QSYM-RECEIVER", name: "Q-Symphony" }, { id: "RCV-1", name: "Q6C Series Soundbar(HDMI-eARC)" }];
+// IP Remote off at first: no `ipcToken`.
+const TV: FakeTv = { found: [LIVING, BEDROOM], token: "11122233", power: "on", volume: 10, muted: false, apps: APPS, front: "111299001912", keyboard: { open: false }, speakers: SPEAKERS, speaker: "QSYM-RECEIVER" };
 
 const provider = { key: E, device: "Living Room" };
 const served = { volume: { device: "Living Room", level: 0.1, muted: false, provider } as Served<"volume">, power: { device: "Living Room", on: true, provider } as Served<"power">, inputs: { device: "Living Room", list: [{ id: "hdmi", name: "Next HDMI" }, { id: "source", name: "Input menu" }], provider } as Served<"inputs"> };
 
 describe("pure parts", () => {
   const base: RemoteState = { layout: "wide", conn: "up", power: "on", device: { name: "Living Room", model: "QE75QN85DBTXTK" }, dock: APPS.map((a, i) => ({ ...a, art: letterTile(a.name), front: i === 0 })), volume: served.volume, powerSlot: served.power, inputs: served.inputs, keyboard: { open: false } };
+  const sound = { outputs: [{ id: "internal", name: "TV Speaker" }, ...SPEAKERS], current: "QSYM-RECEIVER" };
   test("the remote's trees pass the host's checks in every state and layout; a flash lights only its cell", () => {
-    for (const st of [base, { ...base, layout: "compact" as const }, { ...base, unpaired: true, remote: "Apple TV" }, { ...base, conn: "down" as const, error: "No route", wakeable: true, remote: "Apple TV" }, { ...base, conn: "connecting" as const }, { ...base, power: "standby" as const }, { ...base, keyboard: { open: true, text: "ha" }, typing: true }, { ...base, media: { state: "playing" as const, title: "Clip", position: 10, duration: 100, at: 0 }, position: 12 }, { ...base, volume: null, powerSlot: null, inputs: null }]) {
+    for (const st of [base, { ...base, layout: "compact" as const, sound }, { ...base, sound: { pair: true as const, left: 20 } }, { ...base, layout: "compact" as const, sound: { pair: true as const, error: "IP Remote is off" } }, { ...base, unpaired: true, remote: "Apple TV" }, { ...base, conn: "down" as const, error: "No route", wakeable: true, remote: "Apple TV" }, { ...base, conn: "connecting" as const }, { ...base, power: "standby" as const }, { ...base, keyboard: { open: true, text: "ha" }, typing: true }, { ...base, media: { state: "playing" as const, title: "Clip", position: 10, duration: 100, at: 0 }, position: 12 }, { ...base, volume: null, powerSlot: null, inputs: null }]) {
       expect(() => checkView(renderRemote(st), "remote")).not.toThrow();
     }
     const lit = JSON.stringify(dpad({ ...base, flash: "left" }, 176));
@@ -58,9 +62,17 @@ describe("pure parts", () => {
     const both = renderRemote({ ...base, remote: "Apple TV" });
     expect(both.actions.find((a) => a.id === "other-remote")).toMatchObject({ shortcut: "o" });
     expect(JSON.stringify(both.tree)).toContain('"action":"other-remote"');
+    // The sound outputs: b moves to the next, each one by name; before sound control is paired, b pairs it; nothing while the TV is in standby.
+    expect(ids.some((id) => id.startsWith("sound:"))).toBe(false);
+    const out = renderRemote({ ...base, sound });
+    expect(out.actions.find((a) => a.shortcut === "b")).toMatchObject({ id: "sound:next" });
+    expect(out.actions.find((a) => a.id === "sound:RCV-1")).toMatchObject({ title: "Sound to Q6C Series Soundbar(HDMI-eARC)" });
+    expect(JSON.stringify(out.tree)).toContain('"key":"snd-QSYM-RECEIVER","direction":"row","align":"center","padding":1,"surface":"#4F8AE866"');
+    expect(renderRemote({ ...base, sound: { pair: true } }).actions.find((a) => a.shortcut === "b")).toMatchObject({ id: "sound:pair" });
+    expect(renderRemote({ ...base, power: "standby", sound }).actions.map((a) => a.id)).not.toContain("sound:next");
   });
   test("the setup's trees pass the checks; the Allow step counts down", () => {
-    for (const st of [{ phase: "find", scanning: true }, { phase: "find", scanning: false, error: "x" }, { phase: "allow", device: LIVING, until: 35_000 }, { phase: "checking", device: LIVING }, { phase: "failed", device: LIVING, error: "Denied", hint: "y" }] as const) {
+    for (const st of [{ phase: "find", scanning: true }, { phase: "find", scanning: false, error: "x" }, { phase: "allow", device: LIVING, until: 35_000 }, { phase: "sound", device: LIVING, until: 35_000 }, { phase: "checking", device: LIVING }, { phase: "failed", device: LIVING, error: "Denied", hint: "y" }] as const) {
       expect(() => checkView(renderSetup(st as never, [LIVING], [], undefined, 0), "setup")).not.toThrow();
     }
     expect(JSON.stringify(renderSetup({ phase: "allow", device: LIVING, until: 20_000 }, [], [], undefined, 0).tree)).toContain("20 s");
@@ -117,7 +129,7 @@ describe("over the host against the stand-in TV", () => {
     expect(await host.render(E, "tv")).toEqual({ hidden: true });
   });
 
-  test("setup: finds both TVs, Allow on the TV, then the check; the token and the MAC are kept", async () => {
+  test("setup: finds both TVs, Allow on the TV, then sound control (IP Remote off: said, the setup finishes), then the check; the token and the MAC are kept", async () => {
     await view("setup");
     await host.until(() => ops("scan").length > 0, 2000, "a scan");
     await host.until(async () => text(await view("setup")).includes("Bedroom"), 2000, "the list");
@@ -131,8 +143,11 @@ describe("over the host against the stand-in TV", () => {
     const ready = text(await view("setup"));
     expect(ready).toContain("3 apps found");
     expect(ready).toContain("10 now; the slider sets it");
-    const devices = stored.get(`${E}\0devices`) as { id: string; token: string; mac?: string }[];
+    expect(ops("pairSound")).toEqual([{ op: "pairSound", address: LIVING.address }]);
+    expect(ready).toContain("IP Remote is off on the TV (Settings › Connections › Network › Expert Settings): turn it on, then b on the remote pairs it");
+    const devices = stored.get(`${E}\0devices`) as { id: string; token: string; mac?: string; ipcToken?: string }[];
     expect(devices).toEqual([expect.objectContaining({ id: LIVING.id, token: "11122233", mac: LIVING.mac })]);
+    expect(devices[0].ipcToken).toBeUndefined();
     await host.until(() => host.written.get(E)?.device === LIVING.name, 2000, "the device setting");
     expect(await pick("setup", "remote")).toEqual({ push: { extension: E, palette: "remote" } });
   });
@@ -176,6 +191,28 @@ describe("over the host against the stand-in TV", () => {
     expect(v.actions.map((a) => a.id)).not.toContain("other-remote");
     expect(await pick("remote", "other-remote")).toEqual({ push: { extension: "appletv", palette: "remote" } });
     setTv((tv) => { tv.muted = false; });
+  });
+
+  test("sound: the remote offers to pair it, b asks the TV; then a chip per output, the current lit, a click switches; a token the TV forgot is dropped and offered again", async () => {
+    const devices = () => stored.get(`${E}\0devices`) as { ipcToken?: string }[];
+    expect(text(await view("remote"))).toContain("Move the sound between the TV and a soundbar");
+    setTv((tv) => { tv.ipcToken = "ipc-1"; });
+    await pick("remote", "sound:pair");
+    await host.until(() => devices()[0].ipcToken === "ipc-1", 2000, "the sound token kept");
+    await host.until(async () => text(await view("remote")).includes("Q-Symphony"), 2000, "the outputs");
+    const v = await view("remote");
+    expect(text(v)).toContain('"key":"snd-QSYM-RECEIVER","direction":"row","align":"center","padding":1,"surface":"#4F8AE866"');
+    expect(v.actions.find((a) => a.shortcut === "b")).toMatchObject({ id: "sound:next" });
+    await pick("remote", "sound:next");
+    expect(ops("sound").at(-1)).toEqual({ op: "sound", id: "RCV-1" });
+    await host.until(async () => text(await view("remote")).includes('"key":"snd-RCV-1","direction":"row","align":"center","padding":1,"surface":"#4F8AE866"'), 2000, "the soundbar lit");
+    await pick("remote", "sound:internal");
+    expect(tvNow().speaker).toBe("internal");
+    // The TV forgot the token (a reset): the switch fails in words, the token goes, the offer is back.
+    setTv((tv) => { tv.ipcToken = "ipc-2"; });
+    expect((await pick("remote", "sound:RCV-1")).toast).toMatchObject({ style: "failure" });
+    await host.until(() => devices()[0].ipcToken === undefined, 2000, "the token dropped");
+    expect(text(await view("remote"))).toContain("Move the sound between the TV and a soundbar");
   });
 
   test("typing: offered only while the TV shows its keyboard; then the field opens by itself and Enter sends and submits", async () => {

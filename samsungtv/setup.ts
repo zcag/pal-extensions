@@ -2,8 +2,9 @@
 // states with it). Three steps along the top, the one in progress lit:
 // Find (the TVs on the network, a digit pairs one, or an address typed),
 // Allow (the TV asks "Allow pal?" on its screen; a small drawing of that
-// prompt says where to look, and the wait counts down) and Ready (a check
-// of what works, read from the TV itself, with the next steps).
+// prompt says where to look, and the wait counts down; then once more for
+// sound control, which can be skipped) and Ready (a check of what works,
+// read from the TV itself, with the next steps).
 import { column, keyHint, keycap, row, text, type Action, type View, type ViewNode } from "@zcag/pal";
 import { G } from "./remote.ts";
 import type { Found, Paired } from "./types.ts";
@@ -14,6 +15,8 @@ export type SetupState =
   | { phase: "find"; scanning: boolean; error?: string }
   /** The TV shows its Allow prompt; `until` is when it gives up (unix ms). */
   | { phase: "allow"; device: Found; until: number }
+  /** Allowed; now IP Control asks too, for the sound output. */
+  | { phase: "sound"; device: Found; until: number }
   /** Allowed: connecting and reading what works. */
   | { phase: "checking"; device: Found }
   | { phase: "ready"; device: Paired; checks: Check[] }
@@ -23,7 +26,7 @@ const STEPS = ["Find", "Allow", "Ready"] as const;
 
 function stepOf(st: SetupState): number {
   if (st.phase === "find") return 0;
-  if (st.phase === "allow" || st.phase === "failed") return 1;
+  if (st.phase === "allow" || st.phase === "sound" || st.phase === "failed") return 1;
   return 2;
 }
 
@@ -68,6 +71,7 @@ export function actions(st: SetupState, found: Found[], paired: Paired[]): Actio
       return acts;
     }
     case "allow": return [{ id: "back", title: "Cancel", shortcut: "escape" }];
+    case "sound": return [{ id: "skip", title: "Skip sound control", shortcut: "escape" }];
     case "checking": return [];
     case "ready": return [{ id: "remote", title: "Open the remote" }, { id: "apps", title: "Browse the apps", shortcut: "a" }, { id: "bar", title: "Show it on the menu bar", shortcut: "b" }, { id: "back", title: "Pair another TV", shortcut: "p" }];
     case "failed": return [{ id: "retry", title: "Try again" }, { id: "back", title: "Back to the list", shortcut: "b" }];
@@ -100,15 +104,16 @@ function findBody(st: Extract<SetupState, { phase: "find" }>, found: Found[], pa
   return kids;
 }
 
-function allowBody(st: Extract<SetupState, { phase: "allow" }>, now: number): ViewNode[] {
+function allowBody(st: Extract<SetupState, { phase: "allow" | "sound" }>, now: number): ViewNode[] {
   const left = Math.max(0, Math.round((st.until - now) / 1000));
+  const sound = st.phase === "sound";
   return [row([
     column([
-      text("Press Allow on your TV", { style: "headline", key: "h-allow", transition: { enter: "fade" } }),
-      text(`${st.device.name} asks whether to allow pal. Choose Allow with its remote.`, { size: "sm" }),
-      text("This lets pal press its buttons, open its apps, type into it and set its volume. The TV keeps the answer: it does not ask again.", { style: "muted", size: "sm" }),
+      text(sound ? "Once more, for the sound" : "Press Allow on your TV", { style: "headline", key: `h-${st.phase}`, transition: { enter: "fade" } }),
+      text(sound ? `${st.device.name} asks again, for its sound output. Choose Allow with its remote.` : `${st.device.name} asks whether to allow pal. Choose Allow with its remote.`, { size: "sm" }),
+      text(sound ? "This lets pal move the sound between the TV's speakers and a soundbar. It needs IP Remote on in the TV's settings; without it, skip: the rest works, and this can be done later from the remote." : "This lets pal press its buttons, open its apps, type into it and set its volume. The TV keeps the answer: it does not ask again.", { style: "muted", size: "sm" }),
       row([{ type: "progress", key: "wait", value: Math.min(1, left / 35), width: 160 }, text(`${left} s`, { style: "mono", size: "xs", key: `left-${left}` })], { key: "wait-row", gap: 2 }),
-      row(keyHint("escape", "cancel"), { key: "keys", gap: 1 }),
+      row(keyHint("escape", sound ? "skip" : "cancel"), { key: "keys", gap: 1 }),
     ], { key: "allow-text", gap: 2, width: 380 }),
     { type: "spacer" },
     tvDrawing(st.device.name),
@@ -131,7 +136,7 @@ function readyBody(st: Extract<SetupState, { phase: "ready" }>): ViewNode[] {
 export function render(st: SetupState, found: Found[], paired: Paired[], typing?: string, now = Date.now()): View {
   let body: ViewNode[];
   if (st.phase === "find") body = findBody(st, found, paired);
-  else if (st.phase === "allow") body = allowBody(st, now);
+  else if (st.phase === "allow" || st.phase === "sound") body = allowBody(st, now);
   else if (st.phase === "checking") body = [text(`Connecting to ${st.device.name}`, { style: "headline" }), text("Reading what it can do: the apps, the volume, what is on.", { style: "muted", size: "sm" }), { type: "progress", key: "check", value: 0.6, width: 240 }];
   else if (st.phase === "ready") body = readyBody(st);
   else body = [
