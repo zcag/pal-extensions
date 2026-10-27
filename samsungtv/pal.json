@@ -20,6 +20,7 @@
   "author": "pal",
   "repo": "bundled",
   "license": "MIT",
+  "suggests": ["appletv"],
   "controls": [
     "volume",
     "power",
@@ -411,6 +412,7 @@
       "Turns the TV off, and on from standby or off (Wake-on-LAN)",
       "A menu bar item with the app on screen; its popover is the remote",
       "With an Apple TV in the same group, the Apple TV's remote sets this TV's volume and inputs and turns both on",
+      "With Apple TV installed too, o opens the Apple TV's remote over this one and Escape comes back",
       "Guided setup: finds the TV, you press Allow on it, and it checks what works"
     ],
     "permissions": [

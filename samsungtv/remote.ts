@@ -34,6 +34,8 @@ export type RemoteState = {
   /** No TV paired yet: the welcome. */
   unpaired?: boolean;
   device?: { name: string; model: string };
+  /** The other TV remote, when its extension is installed: its name, and `o` opens it. */
+  remote?: string;
   /** How many other TVs are paired (`d` switches). */
   others?: number;
   conn: "connecting" | "up" | "down";
@@ -203,7 +205,7 @@ function header(st: RemoteState): ViewNode {
 function hints(st: RemoteState): ViewNode {
   return row([
     ...keyHint(["up", "down", "left", "right"], "move"), ...keyHint("enter", "OK"), ...keyHint("backspace", "back"), ...keyHint("h", "home"),
-    ...keyHint(["-", "="], "volume"), ...keyHint("p", st.power === "on" ? "off" : "on"), ...keyHint("cmd+k", "more"),
+    ...keyHint(["-", "="], "volume"), ...keyHint("p", st.power === "on" ? "off" : "on"), ...otherHint(st), ...keyHint("cmd+k", "more"),
   ], { key: "hints", gap: 1, minHeight: 22 });
 }
 
@@ -214,7 +216,7 @@ function welcome(st: RemoteState): ViewNode {
     { type: "stack", key: "w-tile", width: 64, height: 64, surface: "elevated", radius: true, align: "center", justify: "center", children: [text(G.remote, { style: "glyph", size: "xl" })] },
     text("Control your Samsung TV from here", { style: "headline", align: "center" }),
     text("The arrows move, Enter is OK, your apps are a digit away, the volume and the inputs are a key, and you can type into the TV's search instead of hunting letters.", { style: "muted", size: "sm", align: "center", width: st.layout === "compact" ? 340 : 440 }),
-    row(keyHint("enter", "set it up: pal finds the TV, you press Allow on it"), { key: "w-keys", gap: 1, justify: "center" }),
+    row([...keyHint("enter", "set it up: pal finds the TV, you press Allow on it"), ...otherHint(st)], { key: "w-keys", gap: 1, justify: "center" }),
   ], { key: "welcome", padding: 6, gap: 3, align: "center", justify: "center", grow: true });
 }
 
@@ -225,16 +227,20 @@ function trouble(st: RemoteState): ViewNode {
     { type: "stack", key: "t-tile", width: 56, height: 56, surface: "sunken", radius: true, align: "center", justify: "center", children: [text(connecting ? G.tv : G.wifiOff, { style: "glyph", size: "xl", color: connecting ? "muted" : "red" })] },
     text(connecting ? `Connecting to ${name}` : `${name} did not answer`, { style: "headline", align: "center", key: `t-${st.conn}`, transition: { enter: "fade" } }),
     text(connecting ? "Asking the TV over the network." : st.error ?? "Is it on, and on this network?", { style: "muted", size: "sm", align: "center", width: 420 }),
-    ...(connecting ? [{ type: "progress", key: "t-spin", value: 0.35, width: 160 } as ViewNode] : [row([...keyHint("enter", "try again"), ...(st.wakeable ? keyHint("p", "turn it on") : []), ...keyHint("cmd+,", "setup")], { key: "t-keys", gap: 1, justify: "center" })]),
+    ...(connecting ? [{ type: "progress", key: "t-spin", value: 0.35, width: 160 } as ViewNode] : [row([...keyHint("enter", "try again"), ...(st.wakeable ? keyHint("p", "turn it on") : []), ...keyHint("cmd+,", "setup"), ...otherHint(st)], { key: "t-keys", gap: 1, justify: "center" })]),
   ], { key: "trouble", padding: 6, gap: 3, align: "center", justify: "center", grow: true });
 }
 
 // ---- actions -------------------------------------------------------------------------------------
 
+/** `o`: the other TV's remote, pushed over this one, so Escape comes back here. */
+const otherRemote = (st: RemoteState): Action[] => (st.remote ? [{ id: "other-remote", title: `${st.remote} remote`, shortcut: "o" }] : []);
+const otherHint = (st: RemoteState): ViewNode[] => (st.remote ? keyHint("o", st.remote, { action: "other-remote" }) : []);
+
 /** Every action the remote answers to; the first listed is Enter. */
 export function actions(st: RemoteState): Action[] {
-  if (st.unpaired) return [{ id: "setup", title: "Set up a Samsung TV" }];
-  if (st.conn !== "up") return [{ id: "reconnect", title: "Try again" }, ...(st.wakeable ? [{ id: "wake", title: "Turn it on (Wake-on-LAN)", shortcut: "p" } as Action] : []), { id: "setup", title: "Set up Samsung TV", shortcut: "cmd+," }];
+  if (st.unpaired) return [{ id: "setup", title: "Set up a Samsung TV" }, ...otherRemote(st)];
+  if (st.conn !== "up") return [{ id: "reconnect", title: "Try again" }, ...(st.wakeable ? [{ id: "wake", title: "Turn it on (Wake-on-LAN)", shortcut: "p" } as Action] : []), { id: "setup", title: "Set up Samsung TV", shortcut: "cmd+," }, ...otherRemote(st)];
   const acts: Action[] = [
     { id: "select", title: "OK" },
     { id: "back", title: "Back", shortcut: "backspace" },
@@ -258,6 +264,7 @@ export function actions(st: RemoteState): Action[] {
     ...(st.keyboard?.open ? [{ id: "type", title: "Type into the TV's field", shortcut: "t" } as Action] : []),
     { id: "apps", title: "All apps", shortcut: "a" },
     ...(st.others ? [{ id: "device", title: "Switch TV", shortcut: "d" } as Action] : []),
+    ...otherRemote(st),
     { id: "reconnect", title: "Reconnect", shortcut: "r" },
     { id: "setup", title: "Set up or pair another TV", shortcut: "cmd+," },
   ];

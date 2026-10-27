@@ -6,7 +6,7 @@
 // 160 ms), the controls the TV provides (its volume, power, inputs and
 // what is on, which a group may hand to another device's remote), the
 // bar item, the list palettes and the links; pairing.ts is the setup.
-import { controls, settings, toast, type BarCtx, type BarItem, type Ctx, type Effect, type Extension, type Item, type LinkParams } from "@zcag/pal";
+import { controls, extensions, settings, toast, type BarCtx, type BarItem, type Ctx, type Effect, type Extension, type Item, type LinkParams } from "@zcag/pal";
 import { DOCK_WIDE, G, positionAt, render as renderRemote, type DockApp, type Flash, type Layout, type RemoteState } from "./remote.ts";
 import { SETUP_ROW, appRow, commandRows, noTv } from "./rows.ts";
 import { cancelPairing, setupPick, setupView } from "./pairing.ts";
@@ -42,11 +42,19 @@ function dockOf(apps: App[]): DockApp[] {
   return picked.slice(0, DOCK_WIDE).map((a) => ({ id: a.id, name: a.name, art: artOf(a), front: a.id === front }));
 }
 
+/** The other TV's remote (suggested in the manifest): offered while that extension is installed and on, looked up each time a remote opens. */
+const OTHER = { extension: "appletv", title: "Apple TV" };
+let otherHere = false;
+async function lookForOther(): Promise<void> {
+  otherHere = ((await extensions.list().catch(() => null)) ?? []).some((e) => e.name === OTHER.extension && e.loaded);
+}
+
 /** The remote's whole state for a layout, from what the connection last said and what is served to it. */
 async function remoteState(layout: Layout): Promise<RemoteState> {
   const list = await paired();
   const dev = current(list);
   const base: RemoteState = { layout, conn: tv.state, error: tv.error, power: "unknown", dock: [] };
+  if (otherHere) base.remote = OTHER.title;
   if (!dev) return { ...base, unpaired: true };
   base.device = { name: dev.name, model: dev.model };
   base.others = list.length - 1;
@@ -110,6 +118,7 @@ async function act(action: string, ctx?: Ctx | BarCtx): Promise<Effect | undefin
     }
     case "type:cancel": dismissed = true; return undefined;
     case "apps": return { push: { extension: NAME, palette: "apps" } };
+    case "other-remote": return { push: { extension: OTHER.extension, palette: "remote" } };
     case "setup": return { push: { extension: NAME, palette: "setup" } };
     case "reconnect": await drop(); await ensure().catch(() => {}); return undefined;
     case "device": {
@@ -305,7 +314,7 @@ export default {
   palettes: {
     remote: {
       title: "Samsung TV Remote",
-      view: async (ctx) => { await warm(); return renderRemote(await remoteState(ctx?.compact ? "compact" : "wide")); },
+      view: async (ctx) => { await Promise.all([warm(), lookForOther()]); return renderRemote(await remoteState(ctx?.compact ? "compact" : "wide")); },
       pick: (_id, action, ctx) => remotePick(action, ctx, ctx?.compact ? "compact" : "wide"),
     },
     apps: {
@@ -339,7 +348,7 @@ export default {
         return barItem();
       },
       onAction: async (action, ctx) => remotePick(action, ctx, "compact"),
-      onShown: (ctx) => { barCfg = { ...barCfg, ...(ctx.settings as Partial<BarSettings>) }; return ensure().then(() => {}).catch(() => {}); },
+      onShown: (ctx) => { barCfg = { ...barCfg, ...(ctx.settings as Partial<BarSettings>) }; void lookForOther().then(push); return ensure().then(() => {}).catch(() => {}); },
     },
   },
   link,

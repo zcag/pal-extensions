@@ -49,7 +49,10 @@ back, `h` is Home, `space` plays or pauses, `,` and `.` rewind and fast
 forward, `cmd+left`/`cmd+right` previous and next, `-` and `=` the volume,
 `m` mutes, `p` turns the TV off (standby) or on, `i` moves to the next
 HDMI input, `[` and `]` the channel, `s` the TV's settings, `g` the guide,
-`e` exit, `a` all apps, `d` the next paired TV, `r` reconnects.
+`e` exit, `a` all apps, `d` the next paired TV, `r` reconnects. With the
+Apple TV extension installed (it is in `suggests`), `o` opens its remote
+over this one and Escape comes back here; the Apple TV's remote has the
+same `o` back to this one.
 
 The card shows the app on screen with its tile, what a DLNA sender plays
 with its position, or that the TV is in standby. The dock is the

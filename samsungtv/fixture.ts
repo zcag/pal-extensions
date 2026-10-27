@@ -32,7 +32,7 @@ const power: Served<"power"> = { device: DEVICE, on: true, provider };
 const inputs: Served<"inputs"> = { device: DEVICE, list: INPUTS.map((i) => ({ id: i.id, name: i.name })), provider };
 
 const base: RemoteState = {
-  layout: "wide", conn: "up", power: "on", device: { name: DEVICE, model: "QE65QN90DATXTK" }, others: 1, wakeable: true,
+  layout: "wide", conn: "up", power: "on", device: { name: DEVICE, model: "QE65QN90DATXTK" }, others: 1, wakeable: true, remote: "Apple TV",
   front: { id: front.id, name: front.name, art: art(front) }, volume, powerSlot: power, inputs, dock, keyboard: { open: false },
 };
 const remote = renderRemote(base);

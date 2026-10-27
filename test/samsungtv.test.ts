@@ -35,7 +35,7 @@ const served = { volume: { device: "Living Room", level: 0.1, muted: false, prov
 describe("pure parts", () => {
   const base: RemoteState = { layout: "wide", conn: "up", power: "on", device: { name: "Living Room", model: "QE75QN85DBTXTK" }, dock: APPS.map((a, i) => ({ ...a, art: letterTile(a.name), front: i === 0 })), volume: served.volume, powerSlot: served.power, inputs: served.inputs, keyboard: { open: false } };
   test("the remote's trees pass the host's checks in every state and layout; a flash lights only its cell", () => {
-    for (const st of [base, { ...base, layout: "compact" as const }, { ...base, unpaired: true }, { ...base, conn: "down" as const, error: "No route", wakeable: true }, { ...base, conn: "connecting" as const }, { ...base, power: "standby" as const }, { ...base, keyboard: { open: true, text: "ha" }, typing: true }, { ...base, media: { state: "playing" as const, title: "Clip", position: 10, duration: 100, at: 0 }, position: 12 }, { ...base, volume: null, powerSlot: null, inputs: null }]) {
+    for (const st of [base, { ...base, layout: "compact" as const }, { ...base, unpaired: true, remote: "Apple TV" }, { ...base, conn: "down" as const, error: "No route", wakeable: true, remote: "Apple TV" }, { ...base, conn: "connecting" as const }, { ...base, power: "standby" as const }, { ...base, keyboard: { open: true, text: "ha" }, typing: true }, { ...base, media: { state: "playing" as const, title: "Clip", position: 10, duration: 100, at: 0 }, position: 12 }, { ...base, volume: null, powerSlot: null, inputs: null }]) {
       expect(() => checkView(renderRemote(st), "remote")).not.toThrow();
     }
     const lit = JSON.stringify(dpad({ ...base, flash: "left" }, 176));
@@ -53,6 +53,11 @@ describe("pure parts", () => {
     expect(open.input).toMatchObject({ submit: "type:send", cancel: "type:cancel" });
     // Nobody serves the volume: no row, no keys for it.
     expect(renderRemote({ ...base, volume: null }).actions.map((a) => a.id)).not.toContain("controls:volume:step:1");
+    // The Apple TV remote is a key away only while that extension is installed.
+    expect(ids).not.toContain("other-remote");
+    const both = renderRemote({ ...base, remote: "Apple TV" });
+    expect(both.actions.find((a) => a.id === "other-remote")).toMatchObject({ shortcut: "o" });
+    expect(JSON.stringify(both.tree)).toContain('"action":"other-remote"');
   });
   test("the setup's trees pass the checks; the Allow step counts down", () => {
     for (const st of [{ phase: "find", scanning: true }, { phase: "find", scanning: false, error: "x" }, { phase: "allow", device: LIVING, until: 35_000 }, { phase: "checking", device: LIVING }, { phase: "failed", device: LIVING, error: "Denied", hint: "y" }] as const) {
@@ -168,6 +173,8 @@ describe("over the host against the stand-in TV", () => {
     expect(await pick("remote", "launch:0")).toMatchObject({ hud: "Opening YouTube" });
     expect(ops("launch").at(-1)).toEqual({ op: "launch", id: "111299001912" });
     expect(await pick("remote", "apps")).toEqual({ push: { extension: E, palette: "apps" } });
+    expect(v.actions.map((a) => a.id)).not.toContain("other-remote");
+    expect(await pick("remote", "other-remote")).toEqual({ push: { extension: "appletv", palette: "remote" } });
     setTv((tv) => { tv.muted = false; });
   });
 
