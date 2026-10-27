@@ -39,9 +39,9 @@ const served = { volume: { device: "Living Room", level: 0.1, muted: false, prov
 
 describe("pure parts", () => {
   const base: RemoteState = { layout: "wide", conn: "up", power: "on", device: { name: "Living Room", model: "QE75QN85DBTXTK" }, dock: APPS.map((a, i) => ({ ...a, art: letterTile(a.name), front: i === 0 })), volume: served.volume, powerSlot: served.power, inputs: served.inputs, keyboard: { open: false } };
-  const sound = { outputs: [{ id: "internal", name: "TV Speaker" }, ...SPEAKERS], current: "QSYM-RECEIVER" };
+  const outputs = { device: "Living Room", list: [{ id: "internal", name: "TV Speaker" }, { id: "QSYM-RECEIVER", name: "Q-Symphony" }, { id: "RCV-1", name: "Soundbar" }], current: "QSYM-RECEIVER", reconnect: true, provider } as Served<"outputs">;
   test("the remote's trees pass the host's checks in every state and layout; a flash lights only its cell", () => {
-    for (const st of [base, { ...base, layout: "compact" as const, sound }, { ...base, sound: { pair: true as const, left: 20 } }, { ...base, layout: "compact" as const, sound: { pair: true as const, error: "IP Remote is off" } }, { ...base, unpaired: true, remote: "Apple TV" }, { ...base, conn: "down" as const, error: "No route", wakeable: true, remote: "Apple TV" }, { ...base, conn: "connecting" as const }, { ...base, power: "standby" as const }, { ...base, keyboard: { open: true, text: "ha" }, typing: true }, { ...base, media: { state: "playing" as const, title: "Clip", position: 10, duration: 100, at: 0 }, position: 12 }, { ...base, volume: null, powerSlot: null, inputs: null }]) {
+    for (const st of [base, { ...base, layout: "compact" as const, outputs }, { ...base, pair: { left: 20 } }, { ...base, layout: "compact" as const, pair: { error: "IP Remote is off" } }, { ...base, unpaired: true, remote: "Apple TV" }, { ...base, conn: "down" as const, error: "No route", wakeable: true, remote: "Apple TV" }, { ...base, conn: "connecting" as const }, { ...base, power: "standby" as const }, { ...base, keyboard: { open: true, text: "ha" }, typing: true }, { ...base, media: { state: "playing" as const, title: "Clip", position: 10, duration: 100, at: 0 }, position: 12 }, { ...base, volume: null, powerSlot: null, inputs: null }]) {
       expect(() => checkView(renderRemote(st), "remote")).not.toThrow();
     }
     const lit = JSON.stringify(dpad({ ...base, flash: "left" }, 176));
@@ -64,22 +64,22 @@ describe("pure parts", () => {
     const both = renderRemote({ ...base, remote: "Apple TV" });
     expect(both.actions.find((a) => a.id === "other-remote")).toMatchObject({ shortcut: "o" });
     expect(JSON.stringify(both.tree)).toContain('"action":"other-remote"');
-    // The sound outputs: b moves to the next, each one by name; before sound control is paired, b pairs it; nothing while the TV is in standby.
+    // The sound outputs as served (pal's part): b moves to the next, each one by name, shift+S reconnects while the TV offers it; before IP Control is paired, b pairs it; nothing while the TV is in standby.
     expect(ids.some((id) => id.startsWith("sound:"))).toBe(false);
-    const out = renderRemote({ ...base, sound });
+    const out = renderRemote({ ...base, outputs });
     expect(out.actions.find((a) => a.shortcut === "b")).toMatchObject({ id: "sound:next" });
-    expect(out.actions.find((a) => a.id === "sound:RCV-1")).toMatchObject({ title: "Sound to Soundbar" });
-    expect(out.actions.find((a) => a.shortcut === "shift+s")).toMatchObject({ id: "sound:reconnect" });
-    expect(renderRemote({ ...base, sound: { ...sound, current: "internal" } }).actions.map((a) => a.id)).not.toContain("sound:reconnect");
+    expect(out.actions.find((a) => a.id === "controls:outputs:set:RCV-1")).toMatchObject({ title: "Sound to Soundbar" });
+    expect(out.actions.find((a) => a.shortcut === "shift+s")).toMatchObject({ id: "controls:outputs:reconnect" });
+    expect(renderRemote({ ...base, outputs: { ...outputs, current: "internal", reconnect: undefined } }).actions.map((a) => a.id)).not.toContain("controls:outputs:reconnect");
     // IP Control: the picture on v, a web page on w in the search row, the card says where it plays.
-    const ipc = renderRemote({ ...base, sound, ipc: true, front: undefined, showing: { input: "Apple TV", port: "HDMI 1", output: "Q-Symphony", mode: "Filmmaker" }, field: { kind: "open", value: "https://example.com" } });
+    const ipc = renderRemote({ ...base, outputs, ipc: true, front: undefined, showing: { input: "Apple TV", port: "HDMI 1", output: "Q-Symphony", mode: "Filmmaker" }, field: { kind: "open", value: "https://example.com" } });
     expect(ipc.actions.filter((a) => ["v", "w"].includes(String(a.shortcut))).map((a) => a.id)).toEqual(["picture", "open"]);
     expect(ipc.input).toMatchObject({ value: "https://example.com", submit: "open:send", cancel: "field:cancel" });
     expect(JSON.stringify(ipc.tree)).toContain('"value":"HDMI 1 · Q-Symphony · Filmmaker"');
     expect(() => checkView(ipc, "remote")).not.toThrow();
-    expect(JSON.stringify(out.tree)).toContain('"key":"snd-QSYM-RECEIVER","direction":"row","align":"center","padding":1,"surface":"#4F8AE866"');
-    expect(renderRemote({ ...base, sound: { pair: true } }).actions.find((a) => a.shortcut === "b")).toMatchObject({ id: "sound:pair" });
-    expect(renderRemote({ ...base, power: "standby", sound }).actions.map((a) => a.id)).not.toContain("sound:next");
+    expect(JSON.stringify(out.tree)).toContain('"key":"out-QSYM-RECEIVER","direction":"row","gap":1,"align":"center","padding":1,"surface":"#4F8AE866"');
+    expect(renderRemote({ ...base, pair: {} }).actions.find((a) => a.shortcut === "b")).toMatchObject({ id: "sound:pair" });
+    expect(renderRemote({ ...base, power: "standby", outputs }).actions.map((a) => a.id)).not.toContain("sound:next");
   });
   test("the setup's trees pass the checks; the Allow step counts down", () => {
     for (const st of [{ phase: "find", scanning: true }, { phase: "find", scanning: false, error: "x" }, { phase: "allow", device: LIVING, until: 35_000 }, { phase: "sound", device: LIVING, until: 35_000 }, { phase: "checking", device: LIVING }, { phase: "failed", device: LIVING, error: "Denied", hint: "y" }] as const) {
@@ -127,7 +127,7 @@ describe("over the host against the stand-in TV", () => {
   });
   afterAll(() => { host.kill(); delete process.env.PAL_SAMSUNGTV_FAKE; rmSync(dir, { recursive: true, force: true }); });
 
-  test("loads with five palettes, the bar item, nine links and the four controls, no warnings", () => {
+  test("loads with five palettes, the bar item, nine links and the five controls, no warnings", () => {
     const l = host.loaded().find((x) => x.extension === E)!;
     expect(l.warnings).toEqual([]);
     expect(l.palettes.map((p) => p.name)).toEqual(["remote", "picture", "apps", "commands", "setup"]);
@@ -135,7 +135,7 @@ describe("over the host against the stand-in TV", () => {
     expect(l.palettes.find((p) => p.name === "commands")).toMatchObject({ tier: "primary" });
     expect(l.bar?.map((b) => b.id)).toEqual(["tv"]);
     expect(Object.keys(l.manifest.links!).sort()).toEqual(["input", "key", "launch", "open", "picture", "power", "sound", "type", "volume"]);
-    expect(l.manifest.controls).toEqual(["volume", "power", "inputs", "player"]);
+    expect(l.manifest.controls).toEqual(["volume", "power", "inputs", "outputs", "player"]);
   });
 
   test("nothing paired: the lists are the setup row, the remote is the welcome, the bar item hides", async () => {
@@ -216,17 +216,18 @@ describe("over the host against the stand-in TV", () => {
     setTv((tv) => { tv.ipcToken = "ipc-1"; tv.input = "HDMI1"; tv.picture = { mode: "FilmmakerMode", values: { backlight: 50, contrast: 40 }, tone: "Warm2" }; });
     await pick("remote", "sound:pair");
     await host.until(() => devices()[0].ipcToken === "ipc-1", 2000, "the sound token kept");
-    await host.until(async () => text(await view("remote")).includes("Q-Symphony"), 2000, "the outputs");
+    await host.until(async () => text(await view("remote")).includes('"key":"out-QSYM-RECEIVER"'), 2000, "the outputs");
     const v = await view("remote");
-    expect(text(v)).toContain('"key":"snd-QSYM-RECEIVER","direction":"row","align":"center","padding":1,"surface":"#4F8AE866"');
+    expect(text(v)).toContain('"key":"out-QSYM-RECEIVER","direction":"row","gap":1,"align":"center","padding":1,"surface":"#4F8AE866"');
     expect(v.actions.find((a) => a.shortcut === "b")).toMatchObject({ id: "sound:next" });
     await pick("remote", "sound:next");
     expect(ops("sound").at(-1)).toEqual({ op: "sound", id: "RCV-1" });
-    await host.until(async () => text(await view("remote")).includes('"key":"snd-RCV-1","direction":"row","align":"center","padding":1,"surface":"#4F8AE866"'), 2000, "the soundbar lit");
-    await pick("remote", "sound:internal");
+    await host.until(async () => text(await view("remote")).includes('"key":"out-RCV-1","direction":"row","gap":1,"align":"center","padding":1,"surface":"#4F8AE866"'), 2000, "the soundbar lit");
+    await pick("remote", "controls:outputs:set:internal");
     expect(tvNow().speaker).toBe("internal");
-    await pick("remote", "sound:QSYM-RECEIVER");
-    await pick("remote", "sound:reconnect");
+    await pick("remote", "controls:outputs:set:QSYM-RECEIVER");
+    await host.until(() => pub("outputs")?.reconnect === true, 2000, "reconnect offered while Q-Symphony plays");
+    await pick("remote", "controls:outputs:reconnect");
     expect(ops("sound").slice(-2).map((o) => o.id)).toEqual(["internal", "QSYM-RECEIVER"]);
     // The card says where it plays; the root has each output and Reconnect Sound.
     await host.until(async () => text(await view("remote")).includes("On 75\\\" Neo QLED · Q-Symphony · Filmmaker"), 2000, "the card's line");
@@ -267,9 +268,9 @@ describe("over the host against the stand-in TV", () => {
     expect(ops("open").at(-1)).toEqual({ op: "open", url: "https://example.com" });
     // The TV forgot the token (a reset): the switch fails in words, the token goes, the offer is back.
     setTv((tv) => { tv.ipcToken = "ipc-2"; });
-    expect((await pick("remote", "sound:RCV-1")).toast).toMatchObject({ style: "failure" });
+    expect((await pick("remote", "controls:outputs:set:RCV-1")).toast).toMatchObject({ style: "failure" });
     await host.until(() => devices()[0].ipcToken === undefined, 2000, "the token dropped");
-    expect(text(await view("remote"))).toContain("pair sound and picture");
+    await host.until(async () => text(await view("remote")).includes("pair sound and picture"), 2000, "the offer back");
   });
 
   test("typing: offered only while the TV shows its keyboard; then the field opens by itself and Enter sends and submits", async () => {

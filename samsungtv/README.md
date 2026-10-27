@@ -124,17 +124,20 @@ here, so typing is only offered while the TV's keyboard is up.
 
 ## Controls: driving it from another remote
 
-The TV provides four controls (`docs/design/controls.md`): `volume` (the
+The TV provides five controls (`docs/design/controls.md`): `volume` (the
 level 0..1 and mute), `power` (offered even when the TV is off, as long as
 its MAC is known: Wake-on-LAN), `inputs` (with IP Control the ports by
 their names, the one on screen as `current`; else Next HDMI, the input
-menu, TV) and `player` (the app on screen, or what a DLNA sender plays).
+menu, TV), `outputs` (with IP Control: where the sound plays, by the
+chips' names, `reconnect` while it plays elsewhere than the TV's speakers;
+protocol 9) and `player` (the app on screen, or what a DLNA sender plays).
 With IP Control the volume carries its level with the sound on a soundbar
 too, so a group's other remote gets the slider there as well. Put it in a
 group with an Apple TV in Settings › Groups, the volume and the inputs
 served by the TV, and the Apple TV's remote sets this TV's volume,
-switches its inputs and turns both on. The remote here draws the volume,
-power and inputs from what it is served too: in a group with a soundbar
+switches its inputs, moves its sound (`b`, `shift+S`) and turns both on.
+The remote here draws the volume, power, inputs and sound outputs from
+what it is served too: in a group with a soundbar
 of its own, the slider is the soundbar's.
 
 ## The other palettes

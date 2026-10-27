@@ -2,7 +2,8 @@
 // current, the one connection to it (opened on first use, kept while a
 // view, the bar item or Stay connected wants it, closed once nothing has
 // for a while), the TV's apps with their pictures, the controls it
-// provides (published whenever they change) and the ones served to it
+// provides (published whenever they change: volume, power, inputs, the
+// sound outputs, what plays) and the ones served to it
 // (its own, or a group's device's: `controls.get`), and the redraw loop:
 // every view level of ours that is open is redrawn by the renderer its
 // palette registered whenever the TV or a served control says something
@@ -11,7 +12,7 @@
 import { bar, controls, errorMessage, failed, settings, state, storage, view as liveView, type BarItem, type ControlName, type ControlStates, type Effect, type Served, type View } from "@zcag/pal";
 import { iconData, letterTile } from "./art.ts";
 import { fakeDriver } from "./fake.ts";
-import { inputId, modeName } from "./protocol/ipc.ts";
+import { INTERNAL, inputId, modeName } from "./protocol/ipc.ts";
 import { outputName } from "./remote.ts";
 import type { App, Conn, Driver, Input, Paired } from "./types.ts";
 
@@ -217,13 +218,15 @@ export function provided(): { [C in ControlName]: ControlStates[C] | null } {
   const dev = current(), c = tv.conn, on = c?.power() === "on";
   const device = dev?.name;
   const v = on ? c!.volume() : undefined;
-  const m = on ? c!.media() : undefined, front = on ? frontApp() : undefined;
+  const m = on ? c!.media() : undefined, front = on ? frontApp() : undefined, s = on ? c!.sound() : undefined;
   return {
     // The keys always step it; a level only while the TV takes one (`levelSettable`: not with its sound on the soundbar).
     volume: on ? { device, ...(v !== undefined && c!.levelSettable() !== false && { level: v / 100 }), muted: c!.muted() ?? false } : null,
     // A TV that is off is still woken by Wake-on-LAN: its power stays offered while its MAC is known.
     power: dev && (c || dev.mac) ? { device, on: !!on, ...(tv.waking && { busy: true }) } : null,
     inputs: on ? { device, list: c!.inputs().map((i) => ({ id: i.id, name: inputName(i) })), ...(c!.input() && { current: c!.input() }) } : null,
+    // IP Control's: where the sound plays; reconnect while it plays elsewhere than the TV's speakers.
+    outputs: s?.outputs.length ? { device, list: s.outputs.map((o) => ({ id: o.id, name: outputName(o, s.outputs) })), ...(s.current && { current: s.current }), ...(s.current && s.current !== INTERNAL && { reconnect: true }) } : null,
     player: on && (m || front) ? {
       device, app: front?.name, title: m?.title ?? front?.name, palette: "remote",
       ...(m && { state: m.state === "playing" ? "playing" : m.state === "paused" ? "paused" : "stopped", position: m.position, at: m.at, duration: m.duration }),
@@ -242,10 +245,10 @@ function publishControls(): void {
 }
 
 /** The controls as they are served to this TV's remote: its own, or what its group binds (another device's volume). */
-export const served: { volume?: Served<"volume"> | null; power?: Served<"power"> | null; inputs?: Served<"inputs"> | null } = {};
+export const served: { volume?: Served<"volume"> | null; power?: Served<"power"> | null; inputs?: Served<"inputs"> | null; outputs?: Served<"outputs"> | null } = {};
 async function refreshServed(): Promise<void> {
-  const [volume, power, inputs] = await Promise.all((["volume", "power", "inputs"] as const).map((c) => controls.get(c, NAME).catch(() => null)));
-  Object.assign(served, { volume, power, inputs });
+  const [volume, power, inputs, outputs] = await Promise.all((["volume", "power", "inputs", "outputs"] as const).map((c) => controls.get(c, NAME).catch(() => null)));
+  Object.assign(served, { volume, power, inputs, outputs });
   push();
 }
 controls.onChange((c) => { if (c.mine) void refreshServed(); }, NAME);

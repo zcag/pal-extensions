@@ -78,7 +78,8 @@ async function remoteState(layout: Layout): Promise<RemoteState> {
     media, position: positionAt(media, Date.now()),
     volume: served.volume, powerSlot: served.power, inputs: served.inputs,
     keyboard: c.keyboard(), typing: c.keyboard().open && !dismissed,
-    sound: c.ipcToken ? c.sound() : { pair: true, left: soundAsk.until ? Math.max(0, Math.round((soundAsk.until - Date.now()) / 1000)) : undefined, error: soundAsk.error },
+    outputs: served.outputs,
+    ...(!c.ipcToken && { pair: { left: soundAsk.until ? Math.max(0, Math.round((soundAsk.until - Date.now()) / 1000)) : undefined, error: soundAsk.error } }),
     ...(c.ipcToken && { ipc: true, showing: { ...on, ...(port && on.input !== port.name && { port: port.name }) } }),
     field,
     dock: dockOf(appLists.get(dev.id) ?? []),
@@ -176,16 +177,21 @@ async function copiedLink(): Promise<string | undefined> {
 }
 const withScheme = (s: string) => { const t = s.trim(); return !t ? "" : /^[a-z]+:\/\//i.test(t) ? t : `https://${t}`; };
 
-/** `pair` sound control, `reconnect` the output in use, the `next` output, or the output with this id; the TV is waited on to report it. */
+/**
+ * `pair` IP Control, `reconnect` the output in use, the output with this id
+ * (the root's rows and the links, on this TV), or `next`: the output after
+ * the one playing among those served to the remote, through pal like its chips.
+ */
 async function soundAct(id: string): Promise<Effect | undefined> {
   if (id === "pair") { void askSound(); return undefined; }
+  if (id === "next") {
+    const o = served.outputs;
+    if (!o?.list?.length) return toast("No sound outputs", "Nothing serves them to this remote", "failure");
+    const next = o.list[(o.list.findIndex((x) => x.id === o.current) + 1) % o.list.length];
+    try { await controls.run("outputs", "set", next.id); return undefined; } catch (e) { return toast("Could not switch the sound", plain(e), "failure"); }
+  }
   if (id === "reconnect") return withConn("reconnect the sound", (c) => c.reconnectSound());
-  return withConn("switch the sound", (c) => {
-    const s = c.sound();
-    if (id !== "next") return c.setSoundOutput(id);
-    if (!s?.outputs.length) throw new Error("The TV has not said its sound outputs yet");
-    return c.setSoundOutput(s.outputs[(s.outputs.findIndex((o) => o.id === s.current) + 1) % s.outputs.length].id);
-  });
+  return withConn("switch the sound", (c) => c.setSoundOutput(id));
 }
 
 /** A remote action from the panel view or the popover: done means a new tree in place. */
@@ -259,6 +265,10 @@ const handlers: Extension["controls"] = {
   },
   power: { set: async (on: boolean) => { if (on) await turnOn(); else await (await ensure()).turnOff(); } },
   inputs: { set: async (id: string) => { await switchInput(await ensure(), id as Input["id"]); } },
+  outputs: {
+    set: async (id: string) => { await (await ensure()).setSoundOutput(id); },
+    reconnect: async () => { await (await ensure()).reconnectSound(); },
+  },
   player: {
     play_pause: async () => { await (await ensure()).key("play_pause"); },
     next: async () => { await (await ensure()).key("next"); },

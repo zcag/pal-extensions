@@ -10,7 +10,7 @@ import { sampleApp } from "./art.ts";
 import { PORTS } from "./device.ts";
 import manifest from "./pal.json" with { type: "json" };
 import { render as renderPicture } from "./picture.ts";
-import { render as renderRemote, type RemoteState } from "./remote.ts";
+import { outputName, render as renderRemote, type RemoteState } from "./remote.ts";
 import { appRow, commandRows } from "./rows.ts";
 import { render as renderSetup } from "./setup.ts";
 import type { App, Found } from "./types.ts";
@@ -36,7 +36,7 @@ const OUTPUTS = [{ id: "internal", name: "TV Speaker" }, { id: "QSYM-RECEIVER", 
 const base: RemoteState = {
   layout: "wide", conn: "up", power: "on", device: { name: DEVICE, model: "QE65QN90DATXTK" }, others: 1, wakeable: true, remote: "Apple TV",
   front: { id: front.id, name: front.name, art: art(front) }, volume, powerSlot: power, inputs, dock, keyboard: { open: false },
-  sound: { outputs: OUTPUTS, current: "QSYM-RECEIVER" }, ipc: true, showing: { input: "Apple TV", port: "HDMI 1", output: "Q-Symphony", mode: "Filmmaker" },
+  outputs: { device: DEVICE, list: OUTPUTS.map((o) => ({ id: o.id, name: outputName(o, OUTPUTS) })), current: "QSYM-RECEIVER", reconnect: true, provider }, ipc: true, showing: { input: "Apple TV", port: "HDMI 1", output: "Q-Symphony", mode: "Filmmaker" },
 };
 const picture = renderPicture({ device: DEVICE, at: 2, refused: [], picture: { mode: "FilmmakerMode", values: { backlight: 42, contrast: 40, brightness: 0, sharpness: 0, color: 25, tint: 0 }, tone: "Warm2" } });
 const remote = renderRemote(base);

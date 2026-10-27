@@ -1,7 +1,7 @@
 {
   "name": "samsungtv",
   "title": "Samsung TV",
-  "description": "A remote for your Samsung TV under the keys, spoken to the TV on your network: the arrows and OK, your apps a digit away, the volume as a slider, the inputs as chips, typing into the TV's own keyboard from yours, turning it on and off, and the menu bar. With IP Remote on in the TV's settings it also knows the input on screen and jumps straight to one, moves the sound between the TV's speakers, Q-Symphony and a soundbar (and reconnects a soundbar gone quiet), sets the exact volume on the soundbar, changes the picture mode and the picture, and opens a web page on the TV. Pairs by pressing Allow on the TV. Its volume, power and inputs can drive another device's remote too (Settings › Groups).",
+  "description": "A remote for your Samsung TV under the keys, spoken to the TV on your network: the arrows and OK, your apps a digit away, the volume as a slider, the inputs as chips, typing into the TV's own keyboard from yours, turning it on and off, and the menu bar. With IP Remote on in the TV's settings it also knows the input on screen and jumps straight to one, moves the sound between the TV's speakers, Q-Symphony and a soundbar (and reconnects a soundbar gone quiet), sets the exact volume on the soundbar, changes the picture mode and the picture, and opens a web page on the TV. Pairs by pressing Allow on the TV. Its volume, power, inputs and sound output can drive another device's remote too (Settings › Groups).",
   "keywords": [
     "samsung",
     "tv",
@@ -25,6 +25,7 @@
     "volume",
     "power",
     "inputs",
+    "outputs",
     "player"
   ],
   "settings": [
@@ -514,7 +515,7 @@
       "When the TV shows its keyboard, a field opens here: type with your keyboard, Enter sends it",
       "Turns the TV off, and on from standby or off (Wake-on-LAN)",
       "A menu bar item with the app on screen; its popover is the remote",
-      "With an Apple TV in the same group, the Apple TV's remote sets this TV's volume and inputs and turns both on",
+      "With an Apple TV in the same group, the Apple TV's remote sets this TV's volume, inputs and sound output and turns both on",
       "With Apple TV installed too, o opens the Apple TV's remote over this one and Escape comes back",
       "Guided setup: finds the TV, you press Allow on it (once more for sound and picture), and it checks what works"
     ],

@@ -8,12 +8,12 @@
 // buttons and the volume, the inputs, the sound outputs, the dock). The d-pad is
 // made of stacks, so every part is a click target as well as a key, each
 // lit for a moment in the accent when its key is pressed (`flash`). The
-// volume, the power button and the inputs are pal's control parts
+// volume, the power button, the inputs and the sound outputs are pal's control parts
 // (docs/design/controls.md), drawn from what `controls.get` answered: a
 // group may hand them to another device, and then they drive that one.
 // Nothing here waits on the TV.
-import { CONTROL_LIT, POPOVER_W, column, controlButton, inputsRow, keyHint, keycap, powerButton, row, text, volumeRow, withControls, type Action, type Served, type TagColor, type View, type ViewNode } from "@zcag/pal";
-import type { Keyboard, Media, Power, Sound } from "./types.ts";
+import { CONTROL_LIT, POPOVER_W, column, controlButton, inputsRow, keyHint, keycap, outputsRow, powerButton, row, text, volumeRow, withControls, type Action, type Served, type TagColor, type View, type ViewNode } from "@zcag/pal";
+import type { Keyboard, Media, Power } from "./types.ts";
 
 /** Nerd Font glyphs (Material Design) the remote is drawn with. */
 export const G = {
@@ -63,12 +63,10 @@ export type RemoteState = {
   powerSlot?: Served<"power"> | null;
   inputs?: Served<"inputs"> | null;
   keyboard?: Keyboard;
-  /**
-   * The sound outputs, once sound control (IP Control) is paired: a chip
-   * each, the current one lit. Before that `pair`: offered on `b`, with the
-   * seconds `left` while the TV's prompt is up, or the last try's `error`.
-   */
-  sound?: Sound | { pair: true; left?: number; error?: string };
+  /** The sound outputs as they are served to this TV: its own once IP Control is paired, or a group's device's. */
+  outputs?: Served<"outputs"> | null;
+  /** IP Control is not paired: offered on `b`, with the seconds `left` while the TV's prompt is up, or the last try's `error`. */
+  pair?: { left?: number; error?: string };
   /** What IP Control says the TV shows, by name: the input (`port` its own name under a given one), the sound output, the picture mode. */
   showing?: { input?: string; port?: string; output?: string; mode?: string };
   /** IP Control is paired: the picture page on `v`, a web page on `w`, naming the input. */
@@ -202,21 +200,13 @@ function dock(st: RemoteState, max: number, side: number): ViewNode {
   return row(tiles, { key: "dock", gap: 2, align: "start" });
 }
 
-/** The sound outputs as chips like the inputs, the current one lit; or, before sound control is paired, the offer to pair it. */
+/** The sound outputs (pal's part, so a group's device may serve them), or, before IP Control is paired, the offer to pair it. */
 function soundRow(st: RemoteState, width: number): ViewNode | undefined {
-  const s = st.sound;
-  if (!s || st.power !== "on") return undefined;
+  if (st.power !== "on") return undefined;
+  if (st.outputs?.list?.length) return outputsRow(st.outputs, width);
+  const s = st.pair;
+  if (!s) return undefined;
   const glyph = text(G.speaker, { style: "glyph", size: "sm", color: "muted" });
-  if ("outputs" in s) {
-    const back = reconnectable(st);
-    const share = Math.floor((width - 28 - (back ? 96 : 0)) / Math.max(1, s.outputs.length)) - 12;
-    const chips = s.outputs.map((o): ViewNode => {
-      const on = o.id === s.current, name = outputName(o, s.outputs);
-      return { type: "stack", key: `snd-${o.id}`, direction: "row", align: "center", padding: 1, surface: on ? CONTROL_LIT : "elevated", radius: true, action: `sound:${o.id}`, children: [text(name, { size: "xs", color: on ? "accent" : undefined, weight: on ? "semibold" : undefined, ...(name.length * 6.5 > share && { width: share }) })] };
-    });
-    const again: ViewNode[] = back ? [{ type: "spacer" }, { type: "stack", key: "snd-again", direction: "row", align: "center", padding: 1, surface: "elevated", radius: true, action: "sound:reconnect", gap: 1, children: [text(G.reconnect, { style: "glyph", size: "xs", color: "muted" }), text("reconnect", { size: "xs", color: "muted" })] }] : [];
-    return row([glyph, row(chips, { key: "sound-chips", gap: 1 }), ...again], { key: "sound-row", gap: 2, width });
-  }
   const waiting = s.left !== undefined;
   const line = waiting ? `Press Allow on the TV, for its sound and picture · ${s.left} s` : s.error ?? "Sound output, the input, the exact volume and the picture, from here";
   return row([
@@ -226,9 +216,6 @@ function soundRow(st: RemoteState, width: number): ViewNode | undefined {
     ...(waiting ? [] : keyHint("b", s.error ? "try again" : "pair sound and picture", { action: "sound:pair" })),
   ], { key: "sound-row", gap: 2, width });
 }
-
-/** The output plays elsewhere than the TV's speakers: ↻ (and shift+S) moves it there and back. */
-const reconnectable = (st: RemoteState) => !!st.sound && "outputs" in st.sound && !!st.sound.current && st.sound.current !== "internal";
 
 /** What the remote does beyond the buttons, as clickable hints. */
 function extras(st: RemoteState): ViewNode {
@@ -293,16 +280,16 @@ function trouble(st: RemoteState): ViewNode {
 const otherRemote = (st: RemoteState): Action[] => (st.remote ? [{ id: "other-remote", title: `${st.remote} remote`, shortcut: "o" }] : []);
 const otherHint = (st: RemoteState): ViewNode[] => (st.remote ? keyHint("o", st.remote, { action: "other-remote" }) : []);
 
-/** `b`: the next sound output, each one by name in ⌘K; or pairing sound control. Only while the TV is on, as the row. */
+/** `b`: the next sound output, each one by name in ⌘K, shift+S reconnects (spelled as the control's actions, so a group's device answers them); or pairing IP Control. Only while the TV is on, as the row. */
 function soundActions(st: RemoteState): Action[] {
-  const s = st.sound;
-  if (!s || st.power !== "on") return [];
-  if (!("outputs" in s)) return s.left === undefined ? [{ id: "sound:pair", title: "Pair sound and picture", shortcut: "b" }] : [];
-  return [
+  if (st.power !== "on") return [];
+  const o = st.outputs;
+  if (o?.list?.length) return [
     { id: "sound:next", title: "Next sound output", shortcut: "b" },
-    ...(reconnectable(st) ? [{ id: "sound:reconnect", title: "Reconnect sound", shortcut: "shift+s" } as Action] : []),
-    ...s.outputs.map((o): Action => ({ id: `sound:${o.id}`, title: `Sound to ${outputName(o, s.outputs)}`, hidden: true })),
+    ...(o.reconnect && o.current ? [{ id: "controls:outputs:reconnect", title: "Reconnect sound", shortcut: "shift+s" } as Action] : []),
+    ...o.list.map((x): Action => ({ id: `controls:outputs:set:${x.id}`, title: `Sound to ${x.name}`, hidden: true })),
   ];
+  return st.pair && st.pair.left === undefined ? [{ id: "sound:pair", title: "Pair sound and picture", shortcut: "b" }] : [];
 }
 
 /** With IP Control: the picture page, a web page on the TV, a name for the input on screen. */
