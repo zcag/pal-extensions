@@ -2,9 +2,11 @@
 // port, Safari and Chrome over AppleScript on macOS, Firefox's session
 // file) as one live listing. Enter focuses: the tab is selected inside the
 // browser, then the browser window comes up through the `focus` effect so
-// the panel hides first. Order is the browser's, never a ranking.
+// the panel hides first. Order is the browser's, never a ranking. With
+// the Apple TV extension on, a YouTube video's row plays it on the TV
+// (its `play` link), from where the tab is when it has started.
 import { existsSync } from "node:fs";
-import { failed, hint, home, settings, tabs, type Accessory, type Action, type Detail, type Extension, type Item } from "@zcag/pal";
+import { extensions, failed, hint, home, settings, tabs, type Accessory, type Action, type Detail, type Extension, type Item } from "@zcag/pal";
 
 const EXT = "browser-tabs";
 const MAC = process.platform === "darwin";
@@ -26,6 +28,28 @@ const MARKDOWN: Action = { id: "copy-markdown", title: "Copy as markdown link", 
 const MUTE: Action = { id: "mute", title: "Mute", multi: true }, UNMUTE: Action = { id: "unmute", title: "Unmute", multi: true };
 const mute = (muted: boolean): Action[] => [{ ...(muted ? UNMUTE : MUTE), shortcut: "cmd+m" }, muted ? MUTE : UNMUTE];
 
+// The Apple TV (suggested in the manifest): offered while that extension is installed and on, looked up on each listing.
+const TV = "appletv";
+let tvHere = false;
+const YOUTUBE_VIDEO = /^https:\/\/((www|m)\.)?(youtube\.com\/(watch\?|shorts\/|live\/)|youtu\.be\/)/;
+const timecode = (s: number) => [Math.floor(s / 3600), Math.floor(s / 60) % 60, s % 60].map((n, i) => (i ? String(n).padStart(2, "0") : String(n))).join(":").replace(/^0:0?/, "");
+/** The tab's url starting `at` seconds in, or from the very start without. */
+function startingAt(url: string, at?: number): string {
+  const u = new URL(url);
+  u.searchParams.delete("t");
+  u.searchParams.delete("start");
+  if (at) u.searchParams.set("t", `${at}s`);
+  return u.toString();
+}
+/** Play on the TV: from where the tab is once its video started (and from the start, second), else as it is. */
+function tvActions(t: tabs.Tab): Action[] {
+  if (!tvHere || !YOUTUBE_VIDEO.test(t.url)) return [];
+  const at = t.media?.position;
+  return at
+    ? [{ id: "tv", title: `Play on Apple TV from ${timecode(at)}`, shortcut: "cmd+t" }, { id: "tv:start", title: "Play on Apple TV from the start", shortcut: "cmd+shift+t" }]
+    : [{ id: "tv", title: "Play on Apple TV", shortcut: "cmd+t" }];
+}
+
 // ---- rows -------------------------------------------------------------------------
 
 const hostOf = (url: string) => { try { const u = new URL(url); return u.protocol.startsWith("http") ? u.host : url; } catch { return url; } };
@@ -46,7 +70,8 @@ function item(t: tabs.Tab, browsers: number, windowsOf: number): Item {
   if (sound) accessories.push(sound);
   // Close is destructive, so it sits last (the brief) and never on cmd+enter.
   const [flip, other] = mute(!!t.media?.muted);
-  const actions = t.src === "cdp" ? [FOCUS, COPY, flip!, MARKDOWN, CLOSE, other!] : t.src === "as" ? [FOCUS, COPY, MARKDOWN, CLOSE] : [{ ...FOCUS, title: "Focus window" }, COPY, MARKDOWN];
+  const tv = tvActions(t);
+  const actions = t.src === "cdp" ? [FOCUS, ...tv, COPY, flip!, MARKDOWN, CLOSE, other!] : t.src === "as" ? [FOCUS, ...tv, COPY, MARKDOWN, CLOSE] : [{ ...FOCUS, title: "Focus window" }, ...tv, COPY, MARKDOWN];
   const app = MAC ? appPath(t.browser) : undefined;
   return {
     id: t.id,
@@ -77,7 +102,7 @@ function detail(id: string): Detail | undefined {
 
 async function list(filter = "all"): Promise<Item[]> {
   const s = settings.get<tabs.Settings>(EXT);
-  const { tabs: every, over, front, scriptError } = await tabs.gather(s);
+  const [{ tabs: every, over, front, scriptError }] = await Promise.all([tabs.gather(s), extensions.list().then((l) => { tvHere = l.some((e) => e.name === TV && e.loaded); }, () => {})]);
   const hints: Item[] = [];
   if (scriptError) hints.push(scriptError.automation
     ? row("automation", "Automation permission needed", "pal may not control the browser yet: allow it under Privacy & Security, Automation", [{ id: "settings", title: "Open System Settings" }])
@@ -113,6 +138,10 @@ export default {
         // The marked tabs still open, in marking order; just this one on a single pick.
         const all = (ctx?.ids ?? [id]).map((x) => tabs.known(x)).filter((x): x is NonNullable<typeof x> => !!x);
         switch (action) {
+          case "tv": case "tv:start": {
+            const at = t.media?.position, url = action === "tv:start" ? startingAt(t.url) : at ? startingAt(t.url, at) : t.url;
+            return { open: `pal://${TV}/play?url=${encodeURIComponent(url)}` };
+          }
           case "copy-url": return { copy: all.map((x) => x.url).join("\n") };
           case "copy-markdown": return { copy: all.map((x) => `[${x.title || x.url}](${x.url})`).join("\n") };
           case "close":

@@ -8,10 +8,12 @@
 // the palette itself lists, newest first, the offer, the browser tab in
 // front when it plays something, every link in the clipboard history, and
 // what was played before. A YouTube video opens in the TV's YouTube app
-// at its start time.
+// at its start time; the browser tab's video starts where the tab is (the
+// DevTools probe's position), and a tab playing what the TV now plays is
+// paused.
 import { clipboard, imageData, storage, tabs, toast, type Ctx, type Effect, type Item } from "@zcag/pal";
 import { G } from "./remote.ts";
-import { LINK_APPS, describe, findLink, linkKey, linkLabel, parseLink, startLabel, target, type LinkInfo, type MediaLink } from "./links.ts";
+import { LINK_APPS, describe, findLink, linkKey, linkLabel, parseLink, startLabel, tabLink, target, type LinkInfo, type MediaLink } from "./links.ts";
 import { current, paired, push, withConn, NAME } from "./tv.ts";
 
 /** A copied link waiting to be played: shown by the bar item, the remote and the Now section. */
@@ -74,12 +76,22 @@ export async function playLink(l: MediaLink, o: { fromStart?: boolean; title?: s
   });
   if (e) return e;
   done.add(linkKey(l));
+  void pauseInBrowser(l);
   if (offer && linkKey(offer.link) === linkKey(l)) offer = undefined;
   history ??= ((await storage.get("played", NAME)) as Played[] | null) ?? [];
   history = [{ url: l.url, title: what, at: Date.now() }, ...history.filter((h) => h.url !== l.url)].slice(0, 30);
   await storage.set("played", history, NAME).catch(() => {});
   push();
   return { hud: `Playing “${what.length > 48 ? `${what.slice(0, 47)}…` : what}” on ${dev.name}`, keep: true };
+}
+
+/** The TV takes over: a browser tab playing the same video pauses. */
+async function pauseInBrowser(l: MediaLink): Promise<void> {
+  const open = (await tabs.gather().catch(() => undefined))?.tabs ?? [];
+  for (const t of open) {
+    const there = t.media?.playing ? parseLink(t.url) : undefined;
+    if (there && linkKey(there) === linkKey(l)) await tabs.pause(t).catch(() => {});
+  }
 }
 
 // ---- the palette ----------------------------------------------------------------------------------------
@@ -126,9 +138,12 @@ export async function listPlay(query: string, ctx?: Ctx): Promise<Item[]> {
   const seen = new Set<string>();
   const found: { l: MediaLink; where: string; at?: number; section: string }[] = [];
   const add = (l: MediaLink | undefined, where: string, section: string, at?: number) => { if (l && !seen.has(linkKey(l))) { seen.add(linkKey(l)); found.push({ l, where, at, section }); } };
-  if (offer) add(offer.link, "Just copied", "Copied", offer.at);
   const tab = await tabs.active(600).catch(() => undefined);
-  add(tab ? parseLink(tab.url) : undefined, `Open in ${tab?.browser ?? "the browser"}`, "Browser");
+  const inTab = tabLink(tab), addTab = () => add(inTab, `${tab?.media?.playing ? "Playing" : tab?.media?.position ? "Paused" : "Open"} in ${tab?.browser ?? "the browser"}`, "Browser");
+  // The tab partway through a video leads, so the copied same video does not start it over.
+  if (inTab?.start) addTab();
+  if (offer) add(offer.link, "Just copied", "Copied", offer.at);
+  addTab();
   for (const e of await clipboard.list({ kind: "text", limit: 200 }).catch(() => [])) add(findLink(e.text), "Copied", "Copied", e.at);
   history ??= ((await storage.get("played", NAME)) as Played[] | null) ?? [];
   for (const h of history) add(parseLink(h.url), "Played", "Played before", h.at);
@@ -164,7 +179,7 @@ export async function suggestPlay(): Promise<Item[]> {
 
 /** `pal://appletv/play`: the url given, else the copied link, else the browser tab in front. */
 export async function linkPlay(url?: string): Promise<Effect> {
-  const l = url ? findLink(url) ?? parseLink(url) : offer?.link ?? findLink((await clipboard.current().catch(() => null))?.text) ?? parseLink((await tabs.active(800).catch(() => undefined))?.url ?? "");
+  const l = url ? findLink(url) ?? parseLink(url) : offer?.link ?? findLink((await clipboard.current().catch(() => null))?.text) ?? tabLink(await tabs.active(800).catch(() => undefined));
   if (!l) throw new Error(url ? `not a link the Apple TV plays: ${url}` : "no link copied, and the browser tab in front plays nothing");
   const e = await playLink(l);
   if (e.toast?.style === "failure") throw new Error(e.toast.message ?? e.toast.title);

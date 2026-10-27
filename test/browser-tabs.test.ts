@@ -29,8 +29,8 @@ const targets: Target[] = [
   { id: "D1", type: "page", title: "DevTools", url: "devtools://devtools/bundled/inspector.html" },
   { id: "S1", type: "service_worker", title: "sw", url: "https://github.com/sw.js" },
 ];
-const media: Record<string, { playing: boolean; audible: boolean; muted: boolean }> = {
-  T1: { playing: true, audible: true, muted: false },
+const media: Record<string, { playing: boolean; audible: boolean; muted: boolean; position?: number }> = {
+  T1: { playing: true, audible: true, muted: false, position: 754 },
   T4: { playing: true, audible: false, muted: true },
   T2: { playing: false, audible: false, muted: false },
 };
@@ -131,11 +131,12 @@ writeFileSync(ffFile, mozlz4(ffSession));
 // ---- host ---------------------------------------------------------------------------------
 
 const base = { port, apps: ["Safari"], firefox: true, firefox_session: ffFile };
+let installed: { name: string; loaded: boolean }[] = [];
 let host: Host;
 beforeAll(async () => {
   const path = process.env.PATH;
   process.env.PATH = `${dir}:${path}`;
-  try { host = await Host.bundled({ settings: { "browser-tabs": { settings: base } } }); } finally { process.env.PATH = path; }
+  try { host = await Host.bundled({ settings: { "browser-tabs": { settings: base } }, core: { "extensions.list": () => installed } }); } finally { process.env.PATH = path; }
 });
 afterAll(() => { host.kill(); server.stop(true); rmSync(dir, { recursive: true, force: true }); });
 
@@ -231,6 +232,23 @@ describe("browser-tabs", () => {
     expect(evals[1]).toContain("e.muted=false");
     expect(evals[2]).toContain("e.muted=true");
     expect(evals[3]).toContain("e.muted=true");
+  });
+
+  test("with Apple TV on, a YouTube video plays on the TV from where the tab is, or from the start; other tabs and no Apple TV offer nothing", async () => {
+    installed = [{ name: "appletv", loaded: true }];
+    try {
+      const [yt, gh] = (await list()).filter((i) => i.id.startsWith("cdp:"));
+      expect(yt.actions!.slice(0, 3)).toEqual([{ id: "focus", title: "Focus" }, { id: "tv", title: "Play on Apple TV from 12:34", shortcut: "cmd+t" }, { id: "tv:start", title: "Play on Apple TV from the start", shortcut: "cmd+shift+t" }]);
+      expect(gh.actions!.map((a) => a.id)).not.toContain("tv");
+      expect(await pick("cdp:T1", "tv")).toEqual({ open: `pal://appletv/play?url=${encodeURIComponent("https://www.youtube.com/watch?v=1&t=754s")}` });
+      expect(await pick("cdp:T1", "tv:start")).toEqual({ open: `pal://appletv/play?url=${encodeURIComponent("https://www.youtube.com/watch?v=1")}` });
+      // Not started yet: one action, the url as it is.
+      delete media.T1.position;
+      expect((await list()).find((i) => i.id === "cdp:T1")!.actions![1]).toEqual({ id: "tv", title: "Play on Apple TV", shortcut: "cmd+t" });
+      expect(await pick("cdp:T1", "tv")).toEqual({ open: `pal://appletv/play?url=${encodeURIComponent("https://www.youtube.com/watch?v=1")}` });
+      installed = [{ name: "appletv", loaded: false }];
+      expect((await list()).find((i) => i.id === "cdp:T1")!.actions!.map((a) => a.id)).not.toContain("tv");
+    } finally { installed = []; media.T1.position = 754; }
   });
 
   test("a Firefox tab's focus needs a Firefox window; none open is a failure toast", async () => {

@@ -262,7 +262,7 @@
     },
     "play": {
       "title": "Play on Apple TV",
-      "description": "Send a link to the TV in one key: a YouTube video (at its start time), a Netflix title or an Apple TV+ page. Lists the link just copied, the browser tab in front, every link in the clipboard history and what was played before; a link typed or pasted at the root is offered there too.",
+      "description": "Send a link to the TV in one key: a YouTube video (at its start time), a Netflix title or an Apple TV+ page. Lists the link just copied, the browser tab in front (a YouTube video from where it is in the tab, which pauses as the TV takes over), every link in the clipboard history and what was played before; a link typed or pasted at the root is offered there too.",
       "kind": "input",
       "keywords": [
         "youtube",
@@ -611,6 +611,7 @@
       "The clickpad on the arrows, Enter selects, Backspace goes back, h is the TV button; swipes on shift and the arrows",
       "Now Playing in full: the cover's colour behind it, chapters on the position bar, hold-to-scrub, speed, subtitles and audio, Up Next, lyrics",
       "Play a link on the TV in one key: copy a YouTube link and pal offers it, or paste one at the root",
+      "The YouTube video in your browser carries on on the TV from where you were, and the tab pauses (Chrome with its DevTools port on; Browser Tabs' rows offer it too)",
       "Your dock of apps on the digits, drawn as the TV's own tvOS icons; every app at the root: type `youtube`, press Enter",
       "Type into the TV's search from the keyboard instead of hunting letters on screen",
       "Sleep and wake, Control Center, the app switcher, the screen saver, switching users",

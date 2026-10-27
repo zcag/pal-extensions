@@ -15,7 +15,7 @@ import type { FakeTv } from "../appletv/fake.ts";
 import { clickpad, positionAt, render as renderRemote, titles, type RemoteState } from "../appletv/remote.ts";
 import { render as renderSetup } from "../appletv/setup.ts";
 import { letterTile, placeholderArt, wideArt } from "../appletv/art.ts";
-import { findLink, linkKey, parseLink, seconds, target } from "../appletv/links.ts";
+import { findLink, linkKey, parseLink, seconds, tabLink, target } from "../appletv/links.ts";
 
 import { actions as nowActions, chapterAt, panels, render as renderNow, type NowState } from "../appletv/nowplaying.ts";
 import { backdrop, dominant, pngData, rounded } from "../appletv/image.ts";
@@ -103,6 +103,14 @@ describe("links, Now Playing and pictures", () => {
     expect(l).toMatchObject({ kind: "youtube", id: "abc", start: 5 });
     expect(linkKey(l)).toBe(linkKey(parseLink("https://www.youtube.com/watch?v=abc&feature=share")!));
     expect(findLink("nothing here https://example.com")).toBeUndefined();
+  });
+  test("tabLink: a YouTube tab partway through starts where it is, in its url too; a tab not started, not YouTube or not a link stays as it is", () => {
+    expect(tabLink({ url: "https://www.youtube.com/watch?v=abc&t=5&start=9&list=PL1", media: { position: 754 } })).toMatchObject({ id: "abc", start: 754, list: "PL1", url: "https://www.youtube.com/watch?v=abc&t=754s&list=PL1" });
+    expect(parseLink(tabLink({ url: "https://youtu.be/abc", media: { position: 61 } })!.url)).toMatchObject({ id: "abc", start: 61 });
+    expect(tabLink({ url: "https://www.youtube.com/watch?v=abc&t=30", media: {} })).toMatchObject({ start: 30 });
+    expect(tabLink({ url: "https://www.netflix.com/watch/8005", media: { position: 100 } })).toEqual({ kind: "netflix", id: "8005", url: "https://www.netflix.com/watch/8005" });
+    expect(tabLink({ url: "https://example.com/" })).toBeUndefined();
+    expect(tabLink(undefined)).toBeUndefined();
   });
   test("target: each kind reaches the TV its own way; a start time is dropped when asked to play from the start", () => {
     const yt = parseLink("https://youtu.be/abc?t=90")!;

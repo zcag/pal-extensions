@@ -12,6 +12,7 @@
   "author": "pal",
   "repo": "bundled",
   "license": "MIT",
+  "suggests": ["appletv"],
   "settings": [
     {
       "kind": "number",
@@ -59,6 +60,7 @@
       "While a browser is in front, its tabs come first in the main search",
       "Filters for All, Playing sound and This window",
       "Close (`cmd+w`), mute (`cmd+m`), copy the address (`cmd+c`) or a markdown link (`cmd+shift+c`)",
+      "With Apple TV installed, a YouTube video plays on the TV (`cmd+t`), from where the tab is once it has started",
       "Firefox tabs can be listed and focused, but not closed or muted"
     ],
     "permissions": [
@@ -96,6 +98,11 @@
         "title": "Focus",
         "description": "Selects the tab in the browser, then raises its window; for Firefox only the window.",
         "keys": "enter"
+      },
+      {
+        "title": "Play on Apple TV",
+        "description": "A YouTube video, with Apple TV installed: from where the tab is once it has started (from the start on cmd+shift+t). The tab pauses as the TV takes over.",
+        "keys": "cmd+t"
       },
       {
         "title": "Copy URL",
@@ -141,6 +148,10 @@
         {
           "keys": "enter",
           "title": "Switch to the tab"
+        },
+        {
+          "keys": "cmd+t",
+          "title": "Play a YouTube video on the Apple TV, from where it is"
         },
         {
           "keys": "cmd+w",

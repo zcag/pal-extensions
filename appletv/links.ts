@@ -68,6 +68,17 @@ export function findLink(text: string | null | undefined): MediaLink | undefined
   return undefined;
 }
 
+/** The video in a browser tab: a YouTube video partway through starts where the tab is (its url's `t` says so too, so a row's id carries it). */
+export function tabLink(tab: { url: string; media?: { position?: number } } | undefined): MediaLink | undefined {
+  const l = tab ? parseLink(tab.url) : undefined;
+  const at = tab?.media?.position;
+  if (l?.kind !== "youtube" || !l.id || !at) return l;
+  const u = new URL(l.url);
+  u.searchParams.delete("start");
+  u.searchParams.set("t", `${at}s`);
+  return { ...l, url: u.toString(), start: at };
+}
+
 /** A link's identity: the same video copied twice, or with another tracking parameter, is one link. */
 export const linkKey = (l: MediaLink): string => `${l.kind}:${l.id ?? l.list ?? l.url}`;
 
