@@ -15,7 +15,7 @@ import type { FakeTv } from "../appletv/fake.ts";
 import { clickpad, positionAt, render as renderRemote, titles, type RemoteState } from "../appletv/remote.ts";
 import { render as renderSetup } from "../appletv/setup.ts";
 import { letterTile, placeholderArt, wideArt } from "../appletv/art.ts";
-import { findLink, linkKey, parseLink, seconds, tabLink, target } from "../appletv/links.ts";
+import { findLink, linkKey, parseLink, seconds, startLabel, tabLink, target } from "../appletv/links.ts";
 
 import { actions as nowActions, chapterAt, panels, render as renderNow, type NowState } from "../appletv/nowplaying.ts";
 import { backdrop, dominant, pngData, rounded } from "../appletv/image.ts";
@@ -115,6 +115,7 @@ describe("links, Now Playing and pictures", () => {
     expect(tabLink({ url: "https://www.netflix.com/watch/8005", media: { position: 100 } })).toEqual({ kind: "netflix", id: "8005", url: "https://www.netflix.com/watch/8005" });
     expect(tabLink({ url: "https://example.com/" })).toBeUndefined();
     expect(tabLink(undefined)).toBeUndefined();
+    expect([startLabel(90), startLabel(3725), startLabel(undefined)]).toEqual(["1:30", "1:02:05", undefined]);
   });
   test("target: each kind reaches the TV its own way; a start time is dropped when asked to play from the start", () => {
     const yt = parseLink("https://youtu.be/abc?t=90")!;

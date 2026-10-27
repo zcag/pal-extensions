@@ -7,6 +7,8 @@
 // TV takes the request and never fetches the file) and Twitch (its app
 // refuses every link form).
 
+import { clock } from "./remote.ts";
+
 export type LinkKind = "youtube" | "netflix" | "appletv";
 export type MediaLink = {
   kind: LinkKind;
@@ -112,8 +114,8 @@ export function describe(l: MediaLink): Promise<LinkInfo | undefined> {
   return p;
 }
 
-/** `1:30` for a start time. */
-export const startLabel = (s?: number) => (s ? `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}` : undefined);
+/** `1:30`, `1:02:05` for a start time. */
+export const startLabel = (s?: number) => (s ? clock(s) : undefined);
 
 /**
  * How each kind reaches the TV: the app opened at a link it takes. YouTube
