@@ -75,6 +75,8 @@ export type Session = {
   pages?: Link[];
   pinned?: boolean;
   parked?: boolean;
+  /** The app it is a run of (a scheduled or preset agent), not a conversation. */
+  app?: string;
   /** Its final reply summed up, once atc's model has read it; only ever for the reply it holds now. */
   summary?: Summary;
   /** A summary of the current reply is on its way. */

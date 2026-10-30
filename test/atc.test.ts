@@ -188,8 +188,8 @@ describe("atc", () => {
     await expect(host.surfaceSend(X, "terminal", { op: "open", cols: 100, rows: 30 }, { session: TERMINAL })).rejects.toThrow("It runs in its own terminal");
   });
 
-  test("bar: a count per state, the lead's ask in the tooltip, the states published; the popover's keys; the stream redraws it", async () => {
-    mock.sessions = initial();
+  test("bar: a count per state (an app's run not counted), the lead's ask in the tooltip, the states published; the popover's keys; the stream redraws it", async () => {
+    mock.sessions = [...initial(), { ...initial()[0], sessionId: "inbox-run", title: "email", app: "email" }];
     const item = await host.render(X, "sessions", { reason: "every" });
     // The week's limit joins once atc warns about it; the tooltip names what the finished turns said.
     expect(item.segments!.map((s) => [s.id, s.text, s.color])).toEqual([["needs", "3", "red"], ["turn", "2", "amber"], ["working", "1", "blue"], ["limit", "82%", "amber"]]);

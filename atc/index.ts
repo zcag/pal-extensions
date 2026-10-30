@@ -640,7 +640,7 @@ const TOOLTIP_TURNS = 3;
 export function barItem(list: Session[], problem?: string, l?: Limits): BarItem {
   const menu = { view: renderPopover(popoverState()) };
   if (problem && !list.length) return { hidden: true, ...(server().url && { empty: { icon: MARK, tooltip: problem, menu } }) };
-  const shown = list.filter((s) => !s.parked && s.state !== "past");
+  const shown = list.filter((s) => counted(s) && s.state !== "past");
   const n = (st: string) => shown.filter((s) => s.state === st).length;
   const needs = n("needs-you"), turn = n("your-turn"), working = n("working");
   if (!needs && !turn && !working) return { hidden: true, empty: { icon: MARK, tooltip: "Nothing running", menu } };
@@ -663,11 +663,13 @@ export function barItem(list: Session[], problem?: string, l?: Limits): BarItem 
   return { icon: MARK, segments, ...(problem && { stale: true }), tooltip: lines.join("\n"), menu };
 }
 
+const counted = (s: Session) => !s.parked && !s.app;
+
 /** The counts as states (`atc/needs_you`, `atc/your_turn`, `atc/working`) and the week's share of the plan (`atc/week_used`), for a rule or a state of the user's to compose. */
 function publish(list: Session[], l?: Limits) {
   const week = l?.windows.find((w) => w.key === "weekly_all");
   if (week) state.set("week_used", Math.round(week.percent), EXT).catch(() => {});
-  const n = (st: string) => list.filter((s) => !s.parked && s.state === st).length;
+  const n = (st: string) => list.filter((s) => counted(s) && s.state === st).length;
   state.set("needs_you", n("needs-you"), EXT).catch(() => {});
   state.set("your_turn", n("your-turn"), EXT).catch(() => {});
   state.set("working", n("working"), EXT).catch(() => {});
