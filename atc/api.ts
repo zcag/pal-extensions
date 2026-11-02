@@ -50,7 +50,7 @@ export type Session = {
   sessionId: string;
   host?: string;
   id?: string;
-  kind: "background" | "interactive" | "transcript" | string;
+  kind: "background" | "interactive" | "transcript" | "hub" | string;
   state: State;
   attachable: boolean;
   pid?: number;

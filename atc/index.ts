@@ -626,7 +626,7 @@ async function limits(): Promise<Limits | undefined> {
 }
 
 function popoverState(): PopoverState {
-  const st: PopoverState = { sessions: lastList, cursor, now: now(), problem: lastProblem, limits: lastLimits };
+  const st: PopoverState = { sessions: lastList.filter(onBar), cursor, now: now(), problem: lastProblem, limits: lastLimits };
   const c = current(st);
   cursor = c && keyOf(c);
   return st;
@@ -663,7 +663,9 @@ export function barItem(list: Session[], problem?: string, l?: Limits): BarItem 
   return { icon: MARK, segments, ...(problem && { stale: true }), tooltip: lines.join("\n"), menu };
 }
 
-const counted = (s: Session) => !s.parked && !s.app;
+/** atc's hubs (the assistant, the guests) are channels, not work: like atc's own page, the bar shows one only while it needs you. */
+const onBar = (s: Session) => s.kind !== "hub" || s.state === "needs-you";
+const counted = (s: Session) => onBar(s) && !s.parked && !s.app;
 
 /** The counts as states (`atc/needs_you`, `atc/your_turn`, `atc/working`) and the week's share of the plan (`atc/week_used`), for a rule or a state of the user's to compose. */
 function publish(list: Session[], l?: Limits) {
