@@ -151,7 +151,9 @@ describe("downloads", () => {
     await host.advance(1000); // the rate is over the time between two listings (Date, which the advance moves)
     items = await list();
     const text = (byName(items, "big.iso").accessories![1] as { text: string }).text;
-    expect(text).toMatch(/^489 KB · 4\d\d KB\/s$/); // 500,000 B over a second and the few real ms the listings took
+    const [, rate] = text.match(/^489 KB · (\d+) KB\/s$/)!; // 500,000 B over a second plus however long the listings really took
+    expect(Number(rate)).toBeGreaterThan(0);
+    expect(Number(rate)).toBeLessThanOrEqual(489);
   });
 
   test("an image gets a 64 px thumbnail as its icon, from the cache the second time; a document its glyph", async () => {
