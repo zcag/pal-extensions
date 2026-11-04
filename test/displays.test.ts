@@ -497,7 +497,7 @@ describe("displays: Linux on Hyprland", () => {
     expect(await call("input", { source: "hdmi1" })).toEqual({ hud: "Dell Inc. DELL U2720Q ABC1234: HDMI 1" });
     expect(await host.pick("displays", "displays", "mode:2560x1440@59.95Hz", "apply", { args: { display: "DP-1", level: "modes" } })).toEqual({ hud: "Dell Inc. DELL U2720Q ABC1234: 2560×1440 @ 60 Hz" });
     expect(await host.pick("displays", "displays", "rot:90", "apply", { args: { display: "eDP-1", level: "rotation" } })).toEqual({ hud: "BOE 0x0BCA rotated 90°" });
-    expect(logOf(f)).toEqual(["brightnessctl -q set 50%", "ddcutil setvcp 10 55 --display 1", "ddcutil setvcp 60 x11 --display 1", "hyprctl keyword monitor DP-1,2560x1440@60,1440x0,1.5", "hyprctl keyword monitor eDP-1,2880x1800@120,0x0,2,transform,1"]);
+    expect(logOf(f)).toEqual(["brightnessctl -q set 50%", "ddcutil setvcp 10 55 --display 1", "ddcutil setvcp 60 x11 --display 1", 'hyprctl eval hl.monitor({ output = "DP-1", mode = "2560x1440@60", position = "1440x0", scale = 1.5 })', 'hyprctl eval hl.monitor({ output = "eDP-1", mode = "2880x1800@120", position = "0x0", scale = 2, transform = 1 })']);
     const item = await host.render("displays", "brightness");
     expect(item).toMatchObject({ title: "55%", states: { brightness: 55, external: 1, count: 2, settable: true } });
     expect(sliders(viewOf(item)).map((s) => s.action)).toEqual(["set:DP-1", "set:eDP-1"]);

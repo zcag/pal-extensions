@@ -234,12 +234,20 @@ export const canArrange = (t: Tools): boolean => !!(MAC ? t.displayplacer : t.co
 const rotateWord = (deg: number) => ({ 0: "normal", 90: "90", 180: "180", 270: "270" }[deg] ?? "normal");
 const xrandrRotate = (deg: number) => ({ 0: "normal", 90: "left", 180: "inverted", 270: "right" }[deg] ?? "normal");
 
+/** What `hyprctl eval` takes since Hyprland 0.57, which dropped `keyword`. */
+function hyprMonitor(x: Screen, mode: string, pos: string): string {
+  const fields = x.enabled === false
+    ? ["disabled = true"]
+    : [`mode = "${mode}"`, `position = "${x.mirrorOf ? "auto" : pos}"`, `scale = ${x.scale ?? 1}`, ...(x.mirrorOf ? [`mirror = "${x.mirrorOf}"`] : x.rotation ? [`transform = ${[0, 90, 180, 270].indexOf(x.rotation)}`] : [])];
+  return `hl.monitor({ output = "${x.id}", ${fields.join(", ")} })`;
+}
+
 /** One argv per output that reproduces `s` as it is (Linux); the whole snapshot's is the preset. */
 function linuxArgv(s: Screen, t: Tools, over: Partial<Screen> = {}): string[] {
   const x = { ...s, ...over };
   const mode = `${x.w}x${x.h}${x.hz ? `@${x.hz}` : ""}`;
   const pos = `${x.origin?.x ?? 0}x${x.origin?.y ?? 0}`;
-  if (t.compositor === "hyprctl") return ["hyprctl", "keyword", "monitor", [x.id, x.enabled === false ? "disable" : mode, ...(x.mirrorOf ? ["auto", String(x.scale ?? 1), "mirror", x.mirrorOf] : [pos, String(x.scale ?? 1), ...(x.rotation ? ["transform", String([0, 90, 180, 270].indexOf(x.rotation))] : [])])].join(",")];
+  if (t.compositor === "hyprctl") return ["hyprctl", "eval", hyprMonitor(x, mode, pos)];
   if (t.compositor === "wlr-randr") return ["wlr-randr", "--output", x.id, ...(x.enabled === false ? ["--off"] : ["--on", "--mode", `${mode}Hz`, "--pos", `${x.origin?.x ?? 0},${x.origin?.y ?? 0}`, "--scale", String(x.scale ?? 1), "--transform", rotateWord(x.rotation ?? 0)])];
   return ["xrandr", "--output", x.id, ...(x.enabled === false ? ["--off"] : ["--mode", `${x.w}x${x.h}`, ...(x.hz ? ["--rate", String(x.hz)] : []), "--pos", pos, "--rotate", xrandrRotate(x.rotation ?? 0), ...(x.main ? ["--primary"] : []), ...(x.mirrorOf ? ["--same-as", x.mirrorOf] : [])])];
 }
