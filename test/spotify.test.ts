@@ -743,6 +743,12 @@ describe("spotify, signed in", () => {
       await host.advance(3 * TICK_MS);
       await quiet();
       expect(views().length).toBe(n);
+      // The same view pushed from the commands palette ("Show lyrics" there) is fed on its own level.
+      const fromCommands = h.nextViewUpdate("spotify", { palette: "commands" }, (u) => (u.spec as any).id === "now");
+      h.viewShown("spotify", { palette: "commands" }, "now");
+      await host.advance(TICK_MS);
+      await fromCommands;
+      h.viewHidden("spotify", { palette: "commands" }, "now");
       // The popover's own level: shown feeds it, hidden ends the window before TICK_WINDOW_MS.
       const before = h.updates("spotify", "playing").length;
       h.viewShown("spotify", { bar: "playing" }, "now", true);

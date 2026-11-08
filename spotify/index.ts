@@ -23,8 +23,9 @@
 // `view/hidden` or `TICK_WINDOW_MS` as the fallback), and the panel's
 // lyrics view gets a `view.update` of the wide tree whenever it differs
 // from the last one pushed (every second while playing, since the clock
-// moves; on a state change while paused), from `view/shown` of
-// `now-playing` until its `view/hidden`. The manifest's `refresh: 5` on
+// moves; on a state change while paused), from `view/shown` of the
+// view's level (`now-playing`'s own, or the one `commands` pushes) until
+// its `view/hidden`. The manifest's `refresh: 5` on
 // the view is the safety net: the panel re-asks `view()` on that cadence
 // too. Outside the popover's window the item asks to be rendered again at
 // the next lyric line (`refresh`), so the strip changes line on time
@@ -35,7 +36,7 @@ import { EXTENSION, ITEM, NotSignedIn, conf, log, signIn, signOut, signedIn, sto
 import { ApiError, Offline, RateLimited, addToPlaylist, api, contains, devices as listDevices, enqueue, like, liked as likedTracks, me, next, pause, play, player, playlistTracks, playlists as myPlaylists, positionOf, previous, queue as readQueue, recent, search as apiSearch, seek, setRepeat, setShuffle, setVolume, toTrack, topArtists, topTracks, transfer, unlike, type Artist, type Album, type Player, type Playlist, type Show, type Track } from "./api.ts";
 import { tintOf, type Tint } from "./color.ts";
 import { cachedLyrics, currentLine, lyricsFor, searchUrl, type Lyrics } from "./lyrics.ts";
-import { QUEUE_ROWS, STATUS_TEXT, clock, render, type Layout, type NowState, type QueueTrack, type Status } from "./view.ts";
+import { NOW_VIEW, QUEUE_ROWS, STATUS_TEXT, clock, render, type Layout, type NowState, type QueueTrack, type Status } from "./view.ts";
 
 /** Nerd Font glyphs (nf-md-*, nf-fa-spotify for the bar). */
 const G = {
@@ -388,8 +389,8 @@ let lyricTick: ReturnType<typeof setTimeout> | undefined;
 const lyricLookup = new Set<string>();
 /** Until when the popover is fed (`Date.now()` past it: not at all). */
 let tickUntil = 0;
-/** The panel's lyrics view is on top (`view/shown` of `now-playing`). */
-let viewOpen = false;
+/** The palette whose level is the lyrics view while it is on top: `now-playing`, or `commands` when opened from there. */
+let viewPalette: string | undefined;
 /** The wide tree last pushed, serialised: the next tick pushes only a different one. */
 let lastPushed: string | undefined;
 /** The item's `lyrics` setting as the last render or action got it (`ctx.settings`): the lyric ticker and the popover loop push with no ctx at hand. */
@@ -496,7 +497,7 @@ function startTick() {
   tick ??= setInterval(async () => {
     const popover = Date.now() <= tickUntil;
     if (!popover && tickUntil) { tickUntil = 0; bar.refresh(ITEM, EXTENSION).catch(() => {}); }
-    if (!popover && !viewOpen) { stopTick(); return; }
+    if (!popover && !viewPalette) { stopTick(); return; }
     try {
       const l = await readLive(SYNC_MS);
       if (popover) {
@@ -507,10 +508,10 @@ function startTick() {
           await bar.update(ITEM, barItem(l, st), EXTENSION);
         }
       }
-      if (viewOpen) {
+      if (viewPalette) {
         const v = render(await fullState(l, "wide", 200));
         const key = JSON.stringify(v);
-        if (key !== lastPushed) { lastPushed = key; await liveView.update(v, { extension: EXTENSION, palette: "now-playing" }); }
+        if (key !== lastPushed) { lastPushed = key; await liveView.update(v, { extension: EXTENSION, palette: viewPalette }); }
       }
     } catch (e) { log(`tick: ${errorMessage(e)}`); }
   }, TICK_MS);
@@ -523,11 +524,11 @@ function startPopover() { tickUntil = Date.now() + TICK_WINDOW_MS; startTick(); 
 // panel's lyrics view starts and stops the pushes, the item's own popover
 // level starts and ends its window (the window is the fallback).
 liveView.onShown((ev) => {
-  if (ev.palette === "now-playing") { viewOpen = true; lastPushed = undefined; startTick(); }
+  if (ev.palette && ev.id === NOW_VIEW) { viewPalette = ev.palette; lastPushed = undefined; startTick(); }
   else if (ev.bar === ITEM) startPopover();
 }, EXTENSION);
 liveView.onHidden((ev) => {
-  if (ev.palette === "now-playing") viewOpen = false;
+  if (ev.palette && ev.id === NOW_VIEW && viewPalette === ev.palette) viewPalette = undefined;
   else if (ev.bar === ITEM) tickUntil = 0;
 }, EXTENSION);
 
@@ -1026,5 +1027,5 @@ export default {
       seek: (s: number) => transport("seek", s),
     },
   },
-  dispose: () => { stopTick(); stopLyricTick(); follow(false); tickUntil = 0; viewOpen = false; stopListener(); },
+  dispose: () => { stopTick(); stopLyricTick(); follow(false); tickUntil = 0; viewPalette = undefined; stopListener(); },
 } satisfies Extension;

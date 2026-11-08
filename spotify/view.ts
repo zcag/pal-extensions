@@ -44,6 +44,8 @@ export type NowState = {
   queue?: QueueTrack[];
 };
 export type QueueTrack = { id: string; name: string; artist: string; cover?: string };
+/** The lyrics view's `View.id`, whichever palette shows it: its `view/shown` starts the live pushes. */
+export const NOW_VIEW = "now";
 /** Queue rows in the compact layout: next and then. */
 export const QUEUE_ROWS = 2;
 const QUEUE_LABELS = ["next", "then"];
@@ -276,5 +278,5 @@ export function render(st: NowState): View {
     );
   }
   const title = st.track ? `${st.track.name} · ${st.track.artist}` : "Now Playing";
-  return { tree, actions: actions(st), title: title.length > 72 ? `${title.slice(0, 71)}…` : title, id: "now", keys: "actions" };
+  return { tree, actions: actions(st), title: title.length > 72 ? `${title.slice(0, 71)}…` : title, id: NOW_VIEW, keys: "actions" };
 }
