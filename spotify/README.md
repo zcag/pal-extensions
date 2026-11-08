@@ -52,6 +52,12 @@ tag; the three Volume rows step the active device by 10 or mute it, and
 Set volume… takes a level (0 to 100) as its typed argument: with the
 cursor on it the bar shows the field, Tab into it, Enter sets it (a pick without the
 value, from `pal run` or a hotkey, asks in a form with the same field).
+**Play on the TV** (`t` in the view, `cmd+t` on the root's Now row) moves
+the playback to a TV on that list, the song carrying on from where it
+was. With no TV on it and the Apple TV extension on, it opens Spotify on
+the Apple TV first and moves the playback once the TV joins (in a few
+seconds; it gives up after 20). The TV's Spotify has to be signed in to
+the same account once, or it never joins.
 **Queue** lists what plays now and what comes next, numbered; the Web
 API has no way to remove a row from the queue, so the row's Enter skips
 to it instead.
@@ -92,6 +98,7 @@ theme.
 | `r` | repeat: all, one, off |
 | `q` | the queue (a level over the view) |
 | `d` | devices |
+| `t` | play on the TV (below) |
 | `cmd+right`, `cmd+left` | next or previous track |
 | `cmd+c` | copy the line playing (the track as `artist - title` without synced lyrics) |
 | `cmd+o` | open in Spotify |

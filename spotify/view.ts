@@ -40,6 +40,8 @@ export type NowState = {
   cover?: string;
   tint?: Tint;
   status?: Status;
+  /** The TV "Play on" moves the playback to, when it is not already there. */
+  tv?: string;
   /** The queue's next tracks (compact: the first two are drawn); `cover` a data url; undefined while unknown, so nothing is drawn. */
   queue?: QueueTrack[];
 };
@@ -232,6 +234,7 @@ export function actions(st: NowState): Action[] {
     { id: "repeat", title: st.repeat === "off" ? "Repeat all" : st.repeat === "context" ? "Repeat one" : "Repeat off", shortcut: "r" },
     { id: "queue", title: "Queue", shortcut: "q" },
     { id: "devices", title: "Devices", shortcut: "d" },
+    ...(st.tv ? [{ id: "tv", title: `Play on ${st.tv}`, shortcut: "t" }] : []),
     { id: "copy", title: st.lyrics?.synced?.length ? "Copy current line" : "Copy track", shortcut: "cmd+c" },
     { id: "open", title: "Open in Spotify", shortcut: "cmd+o" },
   ];

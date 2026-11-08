@@ -13,6 +13,7 @@
   },
   "author": "pal",
   "repo": "bundled",
+  "suggests": ["appletv"],
   "settings": [
     {
       "kind": "text",
@@ -78,6 +79,10 @@
         {
           "keys": "d",
           "title": "Devices"
+        },
+        {
+          "keys": "t",
+          "title": "Play on the TV: the song carries on there, opened on the Apple TV first when Spotify is not running on it"
         },
         {
           "keys": "cmd+right, cmd+left",
@@ -423,6 +428,7 @@
       "Search tracks, artists, albums, playlists and podcasts as you type; `enter` plays, `cmd+enter` queues",
       "Like with `cmd+l`, add to a playlist with `cmd+p`, open in Spotify with `cmd+o`",
       "Your playlists, liked songs, recently played, top tracks, devices and the queue",
+      "Play on the TV in one key: the song carries on there from where it was, and with Apple TV installed pal opens Spotify on the TV first",
       "Synced lyrics around the line playing, with the cover, progress and playback on keys",
       "Play, pause, skip and like from the root, plus a row for each pinned playlist",
       "A bar item with the track or the lyric line playing"

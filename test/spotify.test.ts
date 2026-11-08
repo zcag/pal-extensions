@@ -14,6 +14,7 @@ import { encode } from "../spotify/node_modules/jpeg-js/index.js";
 import { challenge } from "../spotify/auth.ts";
 import { hostname } from "node:os";
 import { Host, stored } from "../.pal/host/test/harness.ts";
+import type { View } from "@zcag/pal";
 
 // ---- fixtures -----------------------------------------------------------------
 
@@ -449,6 +450,26 @@ describe("spotify, signed in", () => {
       expect(calls("PUT", "/v1/me/player/volume?volume_percent=50")).toHaveLength(1);
       expect(await pick("devices", "volume:mute")).toMatchObject({ toast: { title: "hornet at 0%" } });
       state.player = { ...state.player, device: DEVICES[0] };
+      // Play on the TV: one on the list takes the playback as it is; one that is not yet is opened by the Apple TV extension and taken once it joins.
+      const tv = { id: "d4", name: "Apple TV", type: "TV", is_active: false, volume_percent: null, is_restricted: false, supports_volume: false };
+      DEVICES.push(tv);
+      const moved = await host.through(pick("now-playing", "now", "tv"), SKIP_SETTLE_MS);
+      expect(calls("PUT", "/v1/me/player").at(-1)!.body).toEqual({ device_ids: ["d4"], play: true });
+      expect((moved.view as View).actions!.map((a) => a.id)).not.toContain("tv");
+      DEVICES.pop();
+      state.player = { ...state.player, device: DEVICES[0] };
+      const n = effects.length, puts = calls("PUT", "/v1/me/player").length;
+      const going = pick("now-playing", "now", "tv");
+      await host.until(() => effects.length > n);
+      expect(effects.at(-1)).toEqual({ effect: { open: "pal://appletv/launch?app=com.spotify.client" } });
+      await host.advance(1000);
+      DEVICES.push(tv);
+      await host.advanceUntil(1000, () => calls("PUT", "/v1/me/player").length > puts, "the transfer once the TV joined");
+      expect(calls("PUT", "/v1/me/player").at(-1)!.body).toEqual({ device_ids: ["d4"], play: true });
+      await host.through(going, SKIP_SETTLE_MS);
+      DEVICES.pop();
+      state.player = { ...state.player, device: DEVICES[0] };
+      expect(((await pick("now-playing", "now", "retry")).view as View).actions).toContainEqual({ id: "tv", title: "Play on Apple TV", shortcut: "t" });
     });
 
     test("Set volume: the level typed in the bar goes to the active device as it is; without values a form with the same field; a level off the scale is refused in it", async () => {

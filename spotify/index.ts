@@ -31,7 +31,7 @@
 // the next lyric line (`refresh`), so the strip changes line on time
 // without a poll.
 import { hostname } from "node:os";
-import { argsForm, bar, controls, errorMessage, failed, hint, toast, view as liveView, type Accessory, type Action, type Arg, type BarCtx, type BarItem, type Ctx, type Effect, type Extension, type Item, type PlayerState, type View } from "@zcag/pal";
+import { argsForm, bar, controls, effects, errorMessage, extensions, failed, hint, toast, view as liveView, type Accessory, type Action, type Arg, type BarCtx, type BarItem, type Ctx, type Effect, type Extension, type Item, type PlayerState, type View } from "@zcag/pal";
 import { EXTENSION, ITEM, NotSignedIn, conf, log, signIn, signOut, signedIn, stopListener } from "./auth.ts";
 import { ApiError, Offline, RateLimited, addToPlaylist, api, contains, devices as listDevices, enqueue, like, liked as likedTracks, me, next, pause, play, player, playlistTracks, playlists as myPlaylists, positionOf, previous, queue as readQueue, recent, search as apiSearch, seek, setRepeat, setShuffle, setVolume, toTrack, topArtists, topTracks, transfer, unlike, type Artist, type Album, type Player, type Playlist, type Show, type Track } from "./api.ts";
 import { tintOf, type Tint } from "./color.ts";
@@ -299,13 +299,14 @@ function stateOf(l: Live, layout: Layout): NowState {
     ...base, track: t, liked: likes.get(t.id), device: p.device ? { name: p.device.name, volume: p.device.volume } : undefined,
     lyrics: t.kind === "track" ? cachedLyrics(t.id) : null, cover: c?.data, tint: c?.tint,
     ...(layout === "compact" && queueCache && { queue: queueCache.tracks }),
+    ...(tvFor(p) && { tv: tvFor(p) }),
   };
 }
 
 /** The state with the cover, the like, the lyrics and (compact) the queue fetched, waiting at most `wait` ms for them. */
 async function fullState(l: Live, layout: Layout, wait: number): Promise<NowState> {
   const t = l.player?.track;
-  if (t) await Promise.race([Promise.all([coverOf(t), likedOf(t), askLyrics(t), ...(layout === "compact" ? [queueFor()] : [])]), Bun.sleep(wait)]);
+  if (t) await Promise.race([Promise.all([coverOf(t), likedOf(t), askLyrics(t), tvTarget(), ...(layout === "compact" ? [queueFor()] : [])]), Bun.sleep(wait)]);
   return stateOf(l, layout);
 }
 
@@ -340,6 +341,7 @@ async function act(action: string, layout: Layout): Promise<Effect> {
     case "queue": return { push: { extension: EXTENSION, palette: "queue" } };
     case "devices": return { push: { extension: EXTENSION, palette: "devices" } };
     case "lyrics": return { view: await viewOf(l, layout) };
+    case "tv": return call("Could not play on the TV", toTv, undefined, true);
   }
   if (!p) return { view: await viewOf(l, layout) };
   // A queue row clicked in the popover: as many Nexts as its place, as the queue palette does.
@@ -862,6 +864,38 @@ async function pickDevice(id: string, action?: string, ctx?: Ctx): Promise<Effec
   } catch (e) { return failed("change the device", e); }
 }
 
+// ---- the TV ----------------------------------------------------------------------
+
+// A TV that is a Spotify device takes the playback as it is (the track, the
+// place in it, the queue); the Apple TV extension opens Spotify on a TV that
+// is not one yet, which then joins the account's devices in a few seconds.
+const APPLE_TV = "appletv", TV_APP = "com.spotify.client";
+const TV_CACHE_MS = 30_000, TV_JOIN_MS = 20_000, TV_POLL_MS = 1000;
+/** Which TV "Play on" names: a TV on the device list, else the Apple TV when its extension is on; read at most every `TV_CACHE_MS`. */
+let tvCache: { name?: string; at: number } | undefined;
+/** The TV to offer while `p` plays somewhere else. */
+const tvFor = (p: Player) => (p.device?.type === "TV" ? undefined : tvCache?.name);
+const tvDevice = async () => (await listDevices()).find((d) => d.type === "TV" && d.id);
+
+async function tvTarget(): Promise<void> {
+  if (tvCache && Date.now() - tvCache.at < TV_CACHE_MS) return;
+  tvCache = { name: tvCache?.name, at: Date.now() };
+  const [tv, appleTv] = await Promise.all([tvDevice().catch(() => undefined), extensions.list().then((l) => !!l?.some((e) => e.name === APPLE_TV && e.loaded), () => false)]);
+  tvCache = { name: tv?.name ?? (appleTv ? "Apple TV" : undefined), at: Date.now() };
+}
+
+async function toTv(): Promise<void> {
+  let tv = await tvDevice();
+  if (!tv) {
+    await effects.run({ open: `pal://${APPLE_TV}/launch?app=${TV_APP}` });
+    for (const until = Date.now() + TV_JOIN_MS; !tv && Date.now() < until; ) { await Bun.sleep(TV_POLL_MS); tv = await tvDevice(); }
+    if (!tv) throw new Error("Spotify on the Apple TV did not join your devices; open it there once and sign in");
+  }
+  await transfer(tv.id!, true);
+  tvCache = { name: tv.name, at: Date.now() };
+  holdUntil = 0;
+}
+
 // ---- queue -----------------------------------------------------------------------
 
 async function queueRows(): Promise<Item[]> {
@@ -956,10 +990,11 @@ export default {
         const l = await readLive(SYNC_MS);
         const p = l.player, t = p?.track;
         if (!p || !t) return [];
+        void tvTarget();
         return [{
           id: "now", name: t.name, subtitle: `${t.artist} · Spotify`, icon: picture(t, G.spotify),
           accessories: [{ text: `${clock(positionOf(p) / 1000)} / ${ms(t.duration)}` }, ...(p.playing ? [] : [{ tag: "paused", color: "amber" }])],
-          actions: [{ id: "lyrics", title: "Show lyrics" }, { id: "toggle", title: p.playing ? "Pause" : "Play", shortcut: "cmd+enter" }, { id: "next", title: "Next track", shortcut: "cmd+right" }],
+          actions: [{ id: "lyrics", title: "Show lyrics" }, { id: "toggle", title: p.playing ? "Pause" : "Play", shortcut: "cmd+enter" }, { id: "next", title: "Next track", shortcut: "cmd+right" }, ...(tvFor(p) ? [{ id: "tv", title: `Play on ${tvFor(p)}`, shortcut: "cmd+t" }] : [])],
         }];
       },
     },
