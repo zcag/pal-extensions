@@ -69,6 +69,11 @@ describe("audio", () => {
     try {
       devices = devices.filter((d) => d.kind !== "input");
       expect(await host.render("audio", "microphone")).toMatchObject({ icon: "\u{f036e}", tooltip: "No input device", states: { input: "none" } });
+      // Inputs, none of them the default (a Linux box with only a webcam's mic): the popover lists them to pick from, so its focus clicks reach a row.
+      devices = saved.map((d) => d.kind === "input" ? { ...d, default: false } : d);
+      const unset = viewOf(await host.render("audio", "microphone"));
+      expect(walk(unset.tree).filter((n) => (n as { action?: string }).action?.startsWith("focus:")).map((n) => (n as { action?: string }).action)).toEqual(unset.actions.filter((a) => a.id.startsWith("focus:")).map((a) => a.id));
+      expect(unset.actions.some((a) => a.id.startsWith("focus:"))).toBe(true);
       devices = saved.map((d) => d.kind === "input" ? { ...d, muted: true } : d);
       expect(await host.render("audio", "microphone")).toMatchObject({ icon: "\u{f036d}", states: { input: "muted" }, click: "open" });
       devices = saved.filter((d) => d.kind !== "output");

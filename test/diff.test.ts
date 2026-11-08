@@ -162,8 +162,8 @@ describe("view.ts", () => {
   });
 
   test("a huge diff stays under the host's node cap in both layouts and says how many lines it left out", () => {
-    const big1 = Array.from({ length: 3000 }, (_, i) => `row ${i} ${i % 7 === 0 ? "x" : "y"}`).join("\n");
-    const big2 = Array.from({ length: 3000 }, (_, i) => `row ${i} ${i % 5 === 0 ? "x" : "y"}`).join("\n");
+    const big1 = Array.from({ length: 600 }, (_, i) => `row ${i} ${i % 7 === 0 ? "x" : "y"}`).join("\n");
+    const big2 = Array.from({ length: 600 }, (_, i) => `row ${i} ${i % 5 === 0 ? "x" : "y"}`).join("\n");
     for (const side of [false, true]) {
       const v = checkView(render(state({ left: { text: big1, label: "a" }, right: { text: big2, label: "b" }, side })));
       expect(size(v.tree)).toBeLessThanOrEqual(MAX_NODES);

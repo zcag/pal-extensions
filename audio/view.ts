@@ -140,8 +140,9 @@ export function render(st: BarState): View {
     tree = column([
       { type: "tile", key: "none", width: 48, height: 48, text: st.kind === "output" ? GLYPH.muted : GLYPH.micMuted, color: "red", fill: "soft" },
       text(`No ${st.kind} device`, { style: "title", key: "none-t" }),
-      text("Nothing is plugged in, or the audio backend did not answer", { style: "muted", size: "sm", align: "center" }),
-      row([...keyHint("p", "pal")], { key: "hints", gap: 1, minHeight: 22 }),
+      text(others.length ? `None is in use; Enter on one makes it the ${st.kind}` : "Nothing is plugged in, or the audio backend did not answer", { style: "muted", size: "sm", align: "center" }),
+      ...(others.length ? [column(others.map((x) => deviceRow(x, st.devices[st.focus]?.id === x.id)), { key: "others", gap: 0, surface: "sunken", radius: true })] : []),
+      row([...(others.length ? [...keyHint(["up", "down"], "move"), ...keyHint("enter", "use")] : []), ...keyHint("p", "pal")], { key: "hints", gap: 1, minHeight: 22 }),
     ], { key: "compact", padding: 3, gap: 2, align: "center" });
   } else {
     tree = column([
