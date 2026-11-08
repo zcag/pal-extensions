@@ -40,7 +40,7 @@ Host *
 Match host marko
   User other
 
-Host bare
+Host bare.invalid
 `);
 writeFileSync(join(dir, "conf.d", "work.conf"), "Host work\n  HostName work.example.com\n  User me\n");
 writeFileSync(join(dir, "extra"), "Host extra\n  hostname extra.example.com\n");
@@ -75,7 +75,7 @@ describe("ssh", () => {
 
   test("Host names in file order, includes one level, patterns and Match blocks skipped; the file is the section", async () => {
     const items = await list();
-    expect(items.map((i) => i.id)).toEqual(["work", "extra", "marko", "deck", "steamdeck", "inner", "loop", "bare"]);
+    expect(items.map((i) => i.id)).toEqual(["work", "extra", "marko", "deck", "steamdeck", "inner", "loop", "bare.invalid"]);
     const dirName = dir.slice(dir.lastIndexOf("/") + 1);
     // The section is the file, relative to the config's directory (`.ssh/config`, `.ssh/conf.d/work.conf` in real life).
     expect(items.map((i) => i.section)).toEqual([`${dirName}/conf.d/work.conf`, `${dirName}/extra`, ...Array(6).fill(`${dirName}/config`)]);
@@ -92,8 +92,8 @@ describe("ssh", () => {
     expect(by.steamdeck.subtitle).toBe("deck@192.168.1.9");
     expect(by.work).toMatchObject({ subtitle: "me@work.example.com", accessories: [] });
     expect(by.extra.subtitle).toBe("extra.example.com");
-    expect(by.bare.subtitle).toBeUndefined();
-    expect(by.bare.accessories).toEqual([]);
+    expect(by["bare.invalid"].subtitle).toBeUndefined();
+    expect(by["bare.invalid"].accessories).toEqual([]);
     expect(by.marko.actions!.map((a) => a.id)).toEqual(["connect", "copy-host", "copy-command", "ping"]);
     // Connect takes one optional argument in the bar: the command to run there.
     expect(by.marko.args).toEqual([{ id: "command", placeholder: "Command (blank: a shell)" }]);
@@ -143,11 +143,11 @@ describe("ssh", () => {
     if (!Bun.which("ping")) return;
     const ok = await pick("loop", "ping");
     expect(ok).toMatchObject({ keep: true, toast: { title: expect.stringMatching(/^127\.0\.0\.1: [\d.]+ ms$/) } });
-    const bad = await pick("bare", "ping");
-    expect(bad).toMatchObject({ keep: true, toast: { title: "bare did not answer", style: "failure" } });
+    const bad = await pick("bare.invalid", "ping");
+    expect(bad).toMatchObject({ keep: true, toast: { title: "bare.invalid did not answer", style: "failure" } });
     // Marked hosts: pinged at once, one toast naming each.
-    const both = await host.pick("ssh", "ssh", "loop", "ping", { ids: ["loop", "bare"] });
-    expect(both).toMatchObject({ keep: true, toast: { title: "1 of 2 did not answer", style: "failure", message: expect.stringMatching(/^127\.0\.0\.1: [\d.]+ ms, bare: no answer$/) } });
+    const both = await host.pick("ssh", "ssh", "loop", "ping", { ids: ["loop", "bare.invalid"] });
+    expect(both).toMatchObject({ keep: true, toast: { title: "1 of 2 did not answer", style: "failure", message: expect.stringMatching(/^127\.0\.0\.1: [\d.]+ ms, bare\.invalid: no answer$/) } });
   });
 
   test("a missing config lists one hint row rather than failing", async () => {
