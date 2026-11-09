@@ -311,7 +311,7 @@ describe("today helpers", () => {
     const soon = ev("s", "Standup", t0 + 12 * MIN, t0 + 42 * MIN, { conference_url: ZOOM, calendar: cals[0] });
     const item = upcomingItem([soon], t0, s);
     // The `when` segment has no colour of its own: on either target it takes the item's, so it reads amber here.
-    expect(item).toMatchObject({ title: "Standup", segments: [{ id: "when", text: "in 12m" }], badge: "dot", tooltip: `Standup, ${timeRange(soon)} (Work), Enter joins`, click: "open", menu: { view: { id: "upcoming", keys: "actions" } }, states: { phase: "warning", minutes: 12, call: true } });
+    expect(item).toMatchObject({ title: "Standup", segments: [{ id: "when", text: "in 12m" }], tooltip: `Standup, ${timeRange(soon)} (Work), Enter joins`, click: "open", menu: { view: { id: "upcoming", keys: "actions" } }, states: { phase: "warning", minutes: 12, call: true } });
     expect(item.segments![0].color).toBeUndefined();
     expect(item.stale).toBeUndefined();
     const long = ev("l", "A very long meeting title that goes on and on and on", t0 + 3 * H, t0 + 4 * H);
@@ -328,10 +328,10 @@ describe("today helpers", () => {
     const cur = ev("c", "Weekly sync", t0 - 18 * MIN, t0 + 12 * MIN, { conference_url: ZOOM, calendar: cals[0] });
     const review = ev("r", "Design review", t0 + 20 * MIN, t0 + 80 * MIN, { calendar: cals[1] });
     // Alone: the name, `12m left` in the running colour, no second segment.
-    expect(upcomingItem([cur], t0, s)).toMatchObject({ title: "Weekly sync", segments: [{ id: "when", text: "12m left" }], states: { phase: "running" }, badge: "dot", tooltip: `Weekly sync, ${timeRange(cur)} (Work), Enter joins` });
+    expect(upcomingItem([cur], t0, s)).toMatchObject({ title: "Weekly sync", segments: [{ id: "when", text: "12m left" }], states: { phase: "running" }, tooltip: `Weekly sync, ${timeRange(cur)} (Work), Enter joins` });
     // The next due inside the horizon: `in 20m`, muted past the warning, its words after `; then` in the tooltip.
     const both = upcomingItem([review, cur], t0, s);
-    expect(both).toMatchObject({ title: "Weekly sync", states: { phase: "running" }, badge: "dot", tooltip: `Weekly sync, ${timeRange(cur)} (Work), Enter joins; then Design review, ${timeRange(review)} (Home)` });
+    expect(both).toMatchObject({ title: "Weekly sync", states: { phase: "running" }, tooltip: `Weekly sync, ${timeRange(cur)} (Work), Enter joins; then Design review, ${timeRange(review)} (Home)` });
     expect(both.segments).toEqual([{ id: "when", text: "12m left" }, { id: "next", text: "in 20m", color: "muted", tooltip: `Design review, ${timeRange(review)} (Home)` }]);
     // Eight minutes on: `4m left`, the review inside the warning, amber; inside the urgent, red.
     expect(upcomingItem([review, cur], t0 + 8 * MIN, s).segments).toEqual([{ id: "when", text: "4m left" }, { id: "next", text: "in 12m", color: "amber", tooltip: `Design review, ${timeRange(review)} (Home)` }]);
@@ -710,7 +710,7 @@ describe("today palette and the upcoming bar item", () => {
 
   test("the bar item: the running call with what is left and the Dentist due after it, a dot, a minute tick from the cache in under 5 ms, the rest fetch", async () => {
     const first = await host.render(E, "upcoming", { reason: "load" });
-    expect(first).toMatchObject({ icon: "\u{f00ed}", title: "Standup", states: { phase: "running" }, badge: "dot", click: "open", tooltip: "Standup, 10:20 – 10:50 (Work), Enter joins; then Dentist, 11:12 – 11:42 (Home)", menu: { view: { id: "upcoming", keys: "actions", title: "Today · Wed 16 Sep" } } });
+    expect(first).toMatchObject({ icon: "\u{f00ed}", title: "Standup", states: { phase: "running" }, click: "open", tooltip: "Standup, 10:20 – 10:50 (Work), Enter joins; then Dentist, 11:12 – 11:42 (Home)", menu: { view: { id: "upcoming", keys: "actions", title: "Today · Wed 16 Sep" } } });
     expect(first.segments).toEqual([{ id: "when", text: "20m left" }, { id: "next", text: "in 42m", color: "muted", tooltip: "Dentist, 11:12 – 11:42 (Home)" }]);
     expect(first.stale).toBeUndefined();
     const before = eventsCalls();

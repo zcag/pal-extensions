@@ -208,7 +208,6 @@ export function upcomingItem(events: CalendarEvent[], now: number, s: Settings &
     icon: ICON,
     title: barName(e),
     segments,
-    badge: e.conference_url ? "dot" : undefined,
     states: { phase, minutes: Math.round((e.start - now) / MIN), call: !!e.conference_url },
     stale: stale ? true : undefined,
     tooltip: `${about(e)}${e.conference_url ? ", Enter joins" : ""}${next ? `; then ${about(next)}` : ""}`,

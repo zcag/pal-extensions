@@ -103,7 +103,7 @@ const ruled = (item: BarItem): BarItem => {
 };
 const itemAt = (t: number, st = freshPopover(false, true)) => ruled(upcomingItem(events, t, settings, undefined, st));
 const item = itemAt(NOW);
-/** A state patches over `item`: what the item at that moment leaves out (the call's dot) goes as null, not inherited. */
+/** A state patches over `item`: what the item at that moment leaves out goes as null, not inherited. */
 const state = (id: string, t: number, st?: ReturnType<typeof freshPopover>) => {
   const s = Object.fromEntries(Object.entries(itemAt(t, st)).filter(([, v]) => v !== undefined));
   return { id, item: { ...Object.fromEntries(Object.entries(item).filter(([, v]) => v !== undefined).map(([k]) => [k, null])), ...s } };
@@ -122,12 +122,12 @@ const bar = {
     state("tomorrow", at(17), { ...freshPopover(false, true), expanded: true, cursor: 1 }),
   ],
   shots: {
-    "menubar": { target: "menubar", caption: "On the menu bar: the next event and how long until it, the glyph amber inside fifteen minutes, a dot for a call to join" },
+    "menubar": { target: "menubar", caption: "On the menu bar: the next event and how long until it, the glyph amber inside fifteen minutes" },
     "menubar-urgent": { target: "menubar", state: "urgent", caption: "Inside five minutes the glyph turns red" },
     "popover": { target: "menubar", popover: true, caption: "A click opens the day: what is still to come with the time, the place and the people, Join on the calls, tomorrow folded under its header" },
     "popover-now": { target: "menubar", popover: true, state: "now", caption: "While a call runs its row sits on a card with what is left of it, the strip green; Enter joins" },
     "popover-tomorrow": { target: "menubar", popover: true, state: "tomorrow", caption: "Late in the day: what is left, and t opens tomorrow in the same shape; the arrows walk the rows" },
-    "sketchybar": { target: "sketchybar", caption: "On sketchybar: the same item, amber with the call's dot" },
+    "sketchybar": { target: "sketchybar", caption: "On sketchybar: the same item, amber" },
   },
 };
 writeFixture("bar-calendar", bar);

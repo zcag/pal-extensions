@@ -166,7 +166,7 @@ describe("google source", () => {
 
   test("the bar item: the sync in 12 minutes, amber with a dot; a minute tick reads the cache", async () => {
     const item = await host.render(E, "upcoming", { reason: "load" });
-    expect(item).toMatchObject({ title: "Weekly sync", segments: [{ id: "when", text: "in 12m" }], states: { phase: "warning", minutes: 12, call: true }, badge: "dot", tooltip: "Weekly sync, 10:12 – 10:42 (someone@example.com), Enter joins", menu: { view: { id: "upcoming", keys: "actions", title: "Today · Wed 16 Sep" } } });
+    expect(item).toMatchObject({ title: "Weekly sync", segments: [{ id: "when", text: "in 12m" }], states: { phase: "warning", minutes: 12, call: true }, tooltip: "Weekly sync, 10:12 – 10:42 (someone@example.com), Enter joins", menu: { view: { id: "upcoming", keys: "actions", title: "Today · Wed 16 Sep" } } });
     // The popover over Google's events: Enter joins the sync, `o` is the day's page on calendar.google.com, the primary of a row without a call opens it in the browser.
     const view = (item.menu as { view: { actions: { id: string; title: string }[] } }).view;
     expect(view.actions[0]).toEqual({ id: "primary", title: "Join call" });

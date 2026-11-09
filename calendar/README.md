@@ -171,7 +171,7 @@ state is `far` (outside `near_minutes`), `near`, `warning` (from
 `warn_minutes`), `critical` (from `urgent_minutes`) or `running`; the
 boundaries are inclusive. The default colours retain the original
 behaviour: `muted`, `muted`, `amber`, `red`, then `green`, each a
-manifest rule over `calendar.phase` that Settings > Bar overrides by id. `badge: "dot"` when there is a call.
+manifest rule over `calendar.phase` that Settings > Bar overrides by id.
 The tooltip is the title, the time range and the calendar. sketchybar
 draws the same colours through the bar module's map.
 

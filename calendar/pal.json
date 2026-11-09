@@ -153,7 +153,7 @@
       },
       {
         "file": "bar-menubar.png",
-        "caption": "On the menu bar: the next event and how long until it, the glyph amber inside fifteen minutes, a dot for a call to join",
+        "caption": "On the menu bar: the next event and how long until it, the glyph amber inside fifteen minutes",
         "kind": "bar"
       },
       {
@@ -196,7 +196,7 @@
       },
       {
         "file": "bar-sketchybar.png",
-        "caption": "On sketchybar: the same item, amber with the call's dot",
+        "caption": "On sketchybar: the same item, amber",
         "kind": "bar"
       }
     ],
@@ -323,7 +323,7 @@
   "bar": {
     "upcoming": {
       "title": "Upcoming",
-      "description": "The next event's name with `in 12m` beside it, `25m left` while it runs (and `in 8m` for the one due next); hidden when nothing starts within the horizon; a dot when there is a call to join. The colour follows the rules: muted far off and near, amber from Warning from, red from Critical from, green while it runs. A click joins the call, or opens Calendar; a hover peek opens the day with Join on the calls, the running event on a card, tomorrow folded.",
+      "description": "The next event's name with `in 12m` beside it, `25m left` while it runs (and `in 8m` for the one due next); hidden when nothing starts within the horizon. The colour follows the rules: muted far off and near, amber from Warning from, red from Critical from, green while it runs. A click joins the call, or opens Calendar; a hover peek opens the day with Join on the calls, the running event on a card, tomorrow folded.",
       "mocks": {
         "far": {
           "title": "Starts in 3 hours",
@@ -336,8 +336,7 @@
                 "text": "in 3h"
               }
             ],
-            "color": "muted",
-            "badge": "dot"
+            "color": "muted"
           }
         },
         "near": {
@@ -351,8 +350,7 @@
                 "text": "in 45m"
               }
             ],
-            "color": "muted",
-            "badge": "dot"
+            "color": "muted"
           }
         },
         "warning": {
@@ -366,8 +364,7 @@
                 "text": "in 12m"
               }
             ],
-            "color": "amber",
-            "badge": "dot"
+            "color": "amber"
           }
         },
         "critical": {
@@ -381,8 +378,7 @@
                 "text": "in 4m"
               }
             ],
-            "color": "red",
-            "badge": "dot"
+            "color": "red"
           }
         },
         "running": {
@@ -396,8 +392,7 @@
                 "text": "25m left"
               }
             ],
-            "color": "green",
-            "badge": "dot"
+            "color": "green"
           }
         },
         "running-next": {
@@ -418,7 +413,6 @@
               }
             ],
             "color": "green",
-            "badge": "dot",
             "tooltip": "Project review, 10:20 – 10:50 (Work), Enter joins; then Design sync, 11:00 – 11:30 (Team)"
           }
         }
