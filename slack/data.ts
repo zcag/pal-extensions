@@ -257,15 +257,16 @@ type Counts = {
 /** The run per conversation, remembered by (conversation, latest): a refresh where nothing moved re-fetches nothing. */
 const runs = new Map<string, { latest: string; top?: Msg; msgs: Msg[]; more: boolean; n: number }>();
 
-type ThreadView = { threads?: { root_msg?: RawMsg & { channel?: string; last_read?: string }; unread_replies?: RawMsg[] }[] };
+type ThreadView = { threads?: { root_msg?: RawMsg & { channel?: string; last_read?: string }; latest_replies?: RawMsg[] }[] };
 
-/** The followed threads with unread replies, from the app's Threads view (not a public method, so a refusal or a shape it no longer has is no threads: the counts stand). */
+/** The followed threads with unread replies, from the app's Threads view: each thread's newest replies, the unread ones those past the root's `last_read`. Not a public method, so a refusal or a shape it no longer has is no threads: the counts stand. */
 async function unreadThreads(s: Session) {
   try {
     const r = await call<ThreadView>(s, "subscriptions.thread.getView", { limit: MAX_DETAIL, org_wide_aware: true });
     return (r.threads ?? []).flatMap((t) => {
-      const root = t.root_msg, replies = [...(t.unread_replies ?? [])].sort((a, b) => a.ts.localeCompare(b.ts));
-      return root?.channel && replies.length ? [{ cid: root.channel, root, replies, lastRead: root.last_read ?? "" }] : [];
+      const root = t.root_msg, lastRead = root?.last_read ?? "";
+      const replies = (t.latest_replies ?? []).filter((m) => m.ts > lastRead).sort((a, b) => a.ts.localeCompare(b.ts));
+      return root?.channel && replies.length ? [{ cid: root.channel, root, replies, lastRead }] : [];
     });
   } catch (e) { log(`threads: ${errorMessage(e)}`); return []; }
 }

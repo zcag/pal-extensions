@@ -74,11 +74,12 @@ let counts: Counts = {
   threads: { unread_count_by_channel: { C_ENG: 3 } },
 };
 const ROOT = "1789580450.000250";
-/** The Threads view: the #eng thread on Mara's mention, three replies unread (Slack's order is not oldest first); off, the method is refused and the counts stand. */
+/** The Threads view as Slack answers it: the #eng thread on Mara's mention with its newest replies, three past the root's last_read (not oldest first), one read before; off, the method is refused and the counts stand. */
 let threadView = true;
 const THREADS = [{
-  root_msg: { ts: ROOT, thread_ts: ROOT, user: "U_MARA", text: "<@U_ME> the build on <#C_OPS|ops> is red", channel: "C_ENG", last_read: ROOT },
-  unread_replies: [
+  root_msg: { ts: ROOT, thread_ts: ROOT, user: "U_MARA", text: "<@U_ME> the build on <#C_OPS|ops> is red", channel: "C_ENG", last_read: "1789580500.000300" },
+  latest_replies: [
+    { ts: "1789580500.000300", thread_ts: ROOT, user: "U_ME", text: "looking" },
     { ts: "1789580600.000400", thread_ts: ROOT, user: "U_TOM", text: "fixed on main" },
     { ts: "1789580550.000350", thread_ts: ROOT, user: "U_MARA", text: "still red here" },
     { ts: "1789580580.000360", thread_ts: ROOT, user: "U_TOM", text: "retrying" },
