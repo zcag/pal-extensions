@@ -158,10 +158,9 @@ describe("audio", () => {
     expect((await host.render("audio", "volume")).title).toBeUndefined();
     await host.barAction("audio", "volume", "down");
     expect((await host.render("audio", "volume")).title).toBe("56%");
-    // Short of the timer by more than the real time the steps take (render reads Date too, which is real plus advanced): still up.
-    await host.advance(FLASH_MS - 100);
+    await host.advance(FLASH_MS - 1);
     expect((await host.render("audio", "volume")).title).toBe("56%");
-    await host.advance(100);
+    await host.advance(1);
     expect((await host.render("audio", "volume")).title).toBeUndefined();
   });
 

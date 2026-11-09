@@ -37,7 +37,7 @@ type VolumeSettings = { level: "flash" | "always" | "never" };
 let volumeSettings: VolumeSettings = { level: "flash" };
 const remember = (ctx?: BarCtx) => { if (ctx?.settings) volumeSettings = ctx.settings as VolumeSettings; };
 
-let flashUntil = 0;
+let flashing = false;
 let collapse: ReturnType<typeof setTimeout> | undefined;
 /** Which device the popover's keys act on, per direction, between renders: the device's id, not an index, so a list that changes under it keeps its place. */
 const barFocus: Record<BarKind, string | undefined> = { output: undefined, input: undefined };
@@ -64,9 +64,9 @@ async function barState(kind: BarKind): Promise<BarState> {
  */
 function flash(): void {
   if (volumeSettings.level !== "flash") return;
-  flashUntil = Date.now() + FLASH_MS;
+  flashing = true;
   clearTimeout(collapse);
-  collapse = setTimeout(() => { flashUntil = 0; bar.refresh(VOLUME_ITEM).catch(() => {}); }, FLASH_MS);
+  collapse = setTimeout(() => { flashing = false; bar.refresh(VOLUME_ITEM).catch(() => {}); }, FLASH_MS);
   collapse.unref?.();
 }
 
@@ -120,7 +120,7 @@ function outputBar(d: AudioDevice | undefined, menu: View): BarItem {
   // moment after a change and then collapses back to a one-glyph item; the
   // standing answer is the popover, against the device it applies to.
   const level = volumeSettings.level;
-  const showLevel = d.volume !== null && (level === "always" || (level === "flash" && Date.now() < flashUntil));
+  const showLevel = d.volume !== null && (level === "always" || (level === "flash" && flashing));
   return {
     icon: outputGlyph(d),
     title: showLevel ? `${d.volume}%` : undefined,
