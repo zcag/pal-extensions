@@ -87,7 +87,7 @@ export class CompanionLink {
       socket.connect(this.port, this.host, () => { clearTimeout(timer); resolve(); });
     });
     socket.setNoDelay(true);
-    socket.on("data", (d) => this.data(d));
+    socket.on("data", (d) => this.data(d as Buffer));
     socket.on("error", () => {});
     socket.on("close", () => this.shut(new CompanionError("The Apple TV closed the connection")));
     await this.verify();
