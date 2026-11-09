@@ -355,7 +355,7 @@
         "caption": "A click opens the popover: direct messages, mentions and thread replies with the sender, the message and the time, the channels also unread, the keys",
         "kind": "bar",
         "box": [
-          434,
+          438,
           64,
           840,
           960
@@ -366,7 +366,7 @@
         "caption": "r turns the search row into a reply field; Enter posts it to the conversation",
         "kind": "bar",
         "box": [
-          434,
+          438,
           64,
           840,
           960

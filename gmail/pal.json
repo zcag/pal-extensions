@@ -329,7 +329,7 @@
         "caption": "A click opens the popover: every unread message with the sender, subject and time, a star or a paperclip; m marks one read, a marks them all",
         "kind": "bar",
         "box": [
-          378,
+          382,
           64,
           840,
           796
@@ -340,7 +340,7 @@
         "caption": "Space reads the message before deciding: the whole text, who and when, the attachment, with Enter, m and s still working there",
         "kind": "bar",
         "box": [
-          378,
+          382,
           64,
           840,
           960

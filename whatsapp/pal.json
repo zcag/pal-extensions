@@ -379,7 +379,7 @@
         "caption": "A click opens the popover: direct messages then groups with the picture, the newest message and the time, the keys",
         "kind": "bar",
         "box": [
-          434,
+          438,
           64,
           840,
           718
@@ -390,7 +390,7 @@
         "caption": "Space reads the chat before deciding: the latest messages, with Enter, r and m still working there",
         "kind": "bar",
         "box": [
-          434,
+          438,
           64,
           840,
           960
@@ -401,7 +401,7 @@
         "caption": "r turns the search row into a message field (send on); Enter sends it",
         "kind": "bar",
         "box": [
-          434,
+          438,
           64,
           840,
           718

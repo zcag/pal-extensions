@@ -585,7 +585,7 @@
         "caption": "A click opens the popover: the unread threads by repository with their reason and age; Enter opens one, m marks it read, a marks all read",
         "kind": "bar",
         "box": [
-          434,
+          438,
           64,
           840,
           960
@@ -596,7 +596,7 @@
         "caption": "A second account, named Work, gets its own crumb; the arrows walk the threads and the footer names what Enter does",
         "kind": "bar",
         "box": [
-          434,
+          438,
           64,
           840,
           856

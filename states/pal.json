@@ -59,7 +59,7 @@
         "caption": "A click opens the palette: every state with its value; Enter flips one, ⌘R resets it",
         "kind": "bar",
         "box": [
-          334,
+          338,
           64,
           840,
           960
