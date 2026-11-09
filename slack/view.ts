@@ -65,12 +65,12 @@ const initial = (name: string) => { const n = name.replace(/^#/, "").trim(); ret
 function avatar(r: BarRow): ViewNode {
   if (r.avatar) return { type: "image", key: "av", src: r.avatar, width: AVATAR, height: AVATAR, mask: "circle", alt: r.who ?? r.where, dot: r.dot };
   const name = r.who ?? r.where;
-  return { type: "tile", key: "av", width: AVATAR, height: AVATAR, text: r.kind === "thread" ? "#" : initial(name), color: avatarColor(name), fill: "solid" };
+  return { type: "tile", key: "av", width: AVATAR, height: AVATAR, text: r.kind === "thread" && !r.who ? "#" : initial(name), color: avatarColor(name), fill: "solid" };
 }
 
 /** A row; the first (`lead`: the most direct thing waiting on you) leads the popover, its name in the headline's face a size down and its line at row size. */
 function rowNode(r: BarRow, focused: boolean, replying: boolean, lead = false): ViewNode {
-  const line = r.kind === "thread" ? `${r.n} new ${r.n === 1 ? "reply" : "replies"} in threads you follow` : r.who && r.who !== r.where ? `${r.who}: ${r.text}` : r.text;
+  const line = r.kind === "thread" && !r.text ? `${r.n} new ${r.n === 1 ? "reply" : "replies"} in threads you follow` : r.who && r.who !== r.where ? `${r.who}: ${r.text}` : r.text;
   const count = r.kind === "thread" ? String(r.n) : r.n > 1 ? `${r.n}${r.more ? "+" : ""}` : undefined;
   const name = r.teamName ? `${r.where} · ${r.teamName}` : r.where;
   return row(

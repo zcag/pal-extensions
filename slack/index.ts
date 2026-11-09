@@ -104,8 +104,11 @@ const convIcon = (kind: Conversation["kind"]) => (kind === "private" ? ICON.priv
 /** The row's mark: the sender's avatar when the run was fetched, else the kind's glyph. */
 const unreadIcon = (u: Unread) => (u.top?.avatar ? { image: u.top.avatar } : u.kind === "channel" ? convIcon(u.ckind) : ICON[u.kind]);
 
+/** A thread row whose replies the Threads view gave: it reads and replies like a conversation; one that only has the count does neither. */
+const canReply = (u: Unread) => u.kind !== "thread" || !!u.top;
+
 function unreadSubtitle(u: Unread): string {
-  if (u.kind === "thread") return `${plural(u.n, "new reply", "new replies")}${u.teamName ? ` · ${u.teamName}` : ""}`;
+  if (u.kind === "thread" && !u.top) return `${plural(u.n, "new reply", "new replies")}${u.teamName ? ` · ${u.teamName}` : ""}`;
   // In a direct message the sender is the row's name already; a channel row says who. A quiet channel (no run fetched) says what it is for, else that there is something new.
   const line = u.top ? (u.top.who && u.top.who !== u.where ? `${u.top.who}: ${u.top.text}` : u.top.text) : u.kind === "channel" ? u.about || "New messages" : "";
   return [line || "(no text)", u.teamName].filter(Boolean).join(" · ");
@@ -127,7 +130,7 @@ const MESSAGE_ARGS: Arg[] = [{ id: "text", placeholder: "Message", required: tru
 function unreadActions(u: Unread): Action[] {
   return [
     { id: "open", title: "Open in Slack" },
-    ...(u.kind !== "thread" ? [{ id: "reply", title: "Reply", args: true as const }] : []),
+    ...(canReply(u) ? [{ id: "reply", title: "Reply", args: true as const }] : []),
     ...(u.kind !== "thread" && u.latest ? [{ id: "read", title: "Mark as read", shortcut: "cmd+shift+r", multi: true as const }] : []),
     { id: "browser", title: "Open in browser", shortcut: "cmd+shift+o", multi: true },
     { id: "copy", title: "Copy link", shortcut: "cmd+c", multi: true },
@@ -144,7 +147,7 @@ function unreadRow(u: Unread, dot?: Presence): Item {
     keywords: [u.where.replace(/^#/, ""), u.top?.who ?? "", u.kind === "dm" ? "dm" : u.kind].filter(Boolean),
     section: SECTION[u.kind],
     accessories: unreadAccessories(u, dot),
-    ...(u.kind !== "thread" && { args: MESSAGE_ARGS }),
+    ...(canReply(u) && { args: MESSAGE_ARGS }),
     actions: unreadActions(u),
   };
 }
@@ -165,7 +168,7 @@ async function unreadRows(ctx?: Ctx): Promise<Item[]> {
   return all.map((u) => unreadRow(u, p.get(u.id)));
 }
 
-/** The unread run as the pane: one paragraph per message, oldest first; a thread names the count; a row whose run was not fetched fetches it now. */
+/** The unread run as the pane: one paragraph per message, oldest first, a thread's under the message it answers; a thread with only a count names it; a row whose run was not fetched fetches it now. */
 async function unreadPane(u: Unread): Promise<Detail> {
   // The header: what kind and where (the workspace) over the conversation, the unread count as a chip; the metadata only when the newest came.
   const head: Detail = {
@@ -174,7 +177,7 @@ async function unreadPane(u: Unread): Promise<Detail> {
     ...(u.kind !== "channel" && { chips: [{ text: `${u.n}${u.more ? "+" : ""} unread`, color: u.kind === "thread" ? "blue" as const : "red" as const }] }),
     metadata: u.latest ? [{ label: "Latest", value: at(u.latest) }] : [],
   };
-  if (u.kind === "thread") return { ...head, markdown: `_${plural(u.n, "new reply", "new replies")} in threads you follow in ${u.where}; open Slack to read them._` };
+  if (u.kind === "thread" && !u.msgs.length) return { ...head, markdown: `_${plural(u.n, "new reply", "new replies")} in threads you follow in ${u.where}; open Slack to read them._` };
   let msgs: Msg[] = u.msgs;
   if (!msgs.length && u.lastRead) {
     const s = await sessionOf(u.team);
@@ -185,6 +188,7 @@ async function unreadPane(u: Unread): Promise<Detail> {
   if (!msgs.length) return { ...head, markdown: "_Nothing unread here any more._" };
   const parts = msgs.map((m) => `**${m.who || "app"}** · ${at(m.ts)}\n\n${m.text || "_(no text)_"}`);
   if (u.more) parts.push("_…and more before these._");
+  if (u.root) parts.unshift(`> **${u.root.who || "app"}** · ${at(u.root.ts)}\n>\n> ${u.root.text || "_(no text)_"}`);
   return { ...head, markdown: parts.join("\n\n---\n\n") };
 }
 
@@ -226,11 +230,11 @@ const fold = foldEffects;
 const MULTI_LINKS = new Set(["browser", "copy"]);
 
 async function pickUnread(u: Unread, action?: string, ctx?: Ctx): Promise<Effect> {
-  const ts = u.top?.ts;
+  const ts = u.top?.ts, thread = u.kind === "thread" ? u.top?.thread_ts : undefined;
   if (action && MULTI_LINKS.has(action) && ctx?.ids && ctx.ids.length > 1) return fold(await Promise.all(ctx.ids.map(async (id) => pickUnread(await findUnread(id), action))));
   switch (action) {
-    case "browser": return { open: webLink(u.domain, u.cid, ts) };
-    case "copy": return { copy: webLink(u.domain, u.cid, ts) };
+    case "browser": return { open: webLink(u.domain, u.cid, ts, thread) };
+    case "copy": return { copy: webLink(u.domain, u.cid, ts, thread) };
     // The bar's values ("reply"), or the form's on the way back ("send"); a bare pick (a hotkey, `pal run`) gets the form.
     case "reply": case "send": {
       if (!ctx?.values) return { form: replyForm(u) };
@@ -465,7 +469,7 @@ async function barState(i: Inbox): Promise<BarState> {
       id: rowId(u), kind: u.kind, where: u.where, who: u.top?.who || undefined, text: u.top?.text ?? (u.kind === "channel" ? u.about || "New messages" : ""), time: ts ? stamp(ts) : undefined, n: u.n, more: u.more,
       avatar: u.top?.avatar ? await imageData(u.top.avatar) : undefined,
       dot: p.has(u.id) ? dotColor(p.get(u.id)!) : undefined,
-      canReply: u.kind !== "thread", canRead: u.kind !== "thread" && !!u.latest, teamName: u.teamName || undefined,
+      canReply: canReply(u), canRead: u.kind !== "thread" && !!u.latest, teamName: u.teamName || undefined,
     };
   }));
   const focus = Math.max(0, rows.findIndex((r) => r.id === barFocus));

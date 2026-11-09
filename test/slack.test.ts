@@ -73,6 +73,17 @@ let counts: Counts = {
   mpims: [],
   threads: { unread_count_by_channel: { C_ENG: 3 } },
 };
+const ROOT = "1789580450.000250";
+/** The Threads view: the #eng thread on Mara's mention, three replies unread (Slack's order is not oldest first); off, the method is refused and the counts stand. */
+let threadView = true;
+const THREADS = [{
+  root_msg: { ts: ROOT, thread_ts: ROOT, user: "U_MARA", text: "<@U_ME> the build on <#C_OPS|ops> is red", channel: "C_ENG", last_read: ROOT },
+  unread_replies: [
+    { ts: "1789580600.000400", thread_ts: ROOT, user: "U_TOM", text: "fixed on main" },
+    { ts: "1789580550.000350", thread_ts: ROOT, user: "U_MARA", text: "still red here" },
+    { ts: "1789580580.000360", thread_ts: ROOT, user: "U_TOM", text: "retrying" },
+  ],
+}];
 const QUIET: Counts = { channels: [{ id: "C_GEN", last_read: "1", latest: "2", mention_count: 0, has_unreads: true }], ims: [], mpims: [], threads: {} };
 const NONE: Counts = { channels: [], ims: [], mpims: [], threads: {} };
 
@@ -115,6 +126,7 @@ const server = Bun.serve({
         const msgs = (HISTORY[body.channel] ?? []).filter((m: any) => m.ts > body.oldest);
         return Response.json({ ok: true, messages: msgs, has_more: body.channel === "C_ENG" });
       }
+      case "subscriptions.thread.getView": return Response.json(threadView ? { ok: true, threads: THREADS } : { ok: false, error: "unknown_method" });
       case "conversations.mark": return Response.json({ ok: true });
       case "chat.postMessage": return Response.json({ ok: true, ts: "1789590000.000001" });
       case "search.messages": return Response.json({ ok: true, messages: { matches: body.query.includes("nothing") ? [] : body.query.includes("late") ? [
@@ -213,9 +225,10 @@ describe("slack", () => {
       if (KEYCHAIN) expect(asks()).toBe(1);
       expect(calls("client.counts")).toHaveLength(1);
       expect(calls("client.counts")[0]).toMatchObject({ auth: "app", body: { thread_counts_by_channel: "true" } });
-      expect(ids(items)).toEqual(["dm:T1/D_MARA", "mention:T1/C_ENG", "thread:T1/C_ENG", "channel:T1/C_OPS", "channel:T1/C_GEN"]);
+      expect(ids(items)).toEqual(["dm:T1/D_MARA", "mention:T1/C_ENG", "thread:T1/C_ENG/1789580450.000250", "channel:T1/C_OPS", "channel:T1/C_GEN"]);
+      expect(calls("subscriptions.thread.getView")).toEqual([expect.objectContaining({ auth: "app" })]);
       expect(items.map((i) => i.section)).toEqual(["Direct messages", "Mentions", "Threads", "Channels", "Channels"]);
-      // History only for the two addressed conversations with a run, never for the quiet channels or the thread.
+      // History only for the two addressed conversations with a run, never for the quiet channels or the thread (the view brought its replies).
       expect(calls("conversations.history").map((c) => c.body.channel).sort()).toEqual(["C_ENG", "D_MARA"]);
       expect(calls("conversations.history")[0].body).toMatchObject({ oldest: expect.any(String), inclusive: "false", limit: "60" });
     });
@@ -225,19 +238,27 @@ describe("slack", () => {
       expect(dm).toMatchObject({ name: "mara", subtitle: "and the doc is up", icon: { image: USERS.U_MARA.avatar } });
       expect(dm.accessories).toEqual([{ tag: "2", color: "red" }, { tag: "●", color: "green" }, { date: 1789580400000 }]);
       expect(dm.actions!.map((a) => a.id)).toEqual(["open", "reply", "read", "browser", "copy", "ignore"]);
-      // The reply is the row's typed argument (Enter still opens); a thread row has neither.
+      // The reply is the row's typed argument (Enter still opens).
       expect(dm.actions![1]).toEqual({ id: "reply", title: "Reply", args: true });
       expect(dm.args).toEqual([{ id: "text", placeholder: "Message", required: true }]);
-      expect((await list("unreads")).find((i) => i.id.startsWith("thread:"))!.args).toBeUndefined();
       expect(dm.keywords).toEqual(expect.arrayContaining(["mara", "dm"]));
     });
 
-    test("a mention row shows the message that names you, not the last one, and skips the join line; a thread row names the count and has no run", async () => {
+    test("a mention row shows the message that names you, not the last one, and skips the join line; a thread row is the thread, its newest reply, a reply into it; without the Threads view the count alone", async () => {
       const [, mention, thread] = await list("unreads");
       expect(mention).toMatchObject({ name: "#eng", subtitle: "mara: @cagdas the build on #ops is red", icon: { image: USERS.U_MARA.avatar } });
       expect(mention.accessories![0]).toEqual({ tag: "1+", color: "red" });
-      expect(thread).toMatchObject({ name: "#eng", subtitle: "3 new replies", icon: "\u{f028c}", accessories: [{ tag: "3", color: "blue" }] });
-      expect(thread.actions!.map((a) => a.id)).toEqual(["open", "browser", "copy", "ignore"]);
+      expect(thread).toMatchObject({ id: "thread:T1/C_ENG/1789580450.000250", name: "#eng", subtitle: "tomas: fixed on main", icon: { image: USERS.U_TOM.avatar }, accessories: [{ tag: "3", color: "blue" }, { date: 1789580600000 }] });
+      expect(thread.actions!.map((a) => a.id)).toEqual(["open", "reply", "browser", "copy", "ignore"]);
+      expect(thread.args).toEqual([{ id: "text", placeholder: "Message", required: true }]);
+      threadView = false;
+      try {
+        const bare = (await list("unreads", undefined, { refresh: true }))[2];
+        expect(bare).toMatchObject({ id: "thread:T1/C_ENG", subtitle: "3 new replies", icon: "\u{f028c}", accessories: [{ tag: "3", color: "blue" }] });
+        expect(bare.actions!.map((a) => a.id)).toEqual(["open", "browser", "copy", "ignore"]);
+        expect(bare.args).toBeUndefined();
+        expect((await host.detail("slack", "unreads", "thread:T1/C_ENG")).markdown).toContain("3 new replies in threads you follow in #eng");
+      } finally { threadView = true; await list("unreads", undefined, { refresh: true }); }
     });
 
     test("quiet channels: named with the channel's glyph (a lock for a private one), the topic or purpose as the subtitle (else that there are new messages), newest first, no count", async () => {
@@ -255,14 +276,14 @@ describe("slack", () => {
       expect(calls("conversations.history")).toHaveLength(hist);
     });
 
-    test("the pane: the unread run oldest first with who and when; a thread's pane names the count", async () => {
+    test("the pane: the unread run oldest first with who and when; a thread's under the message it answers", async () => {
       const d = await host.detail("slack", "unreads", "dm:T1/D_MARA");
       expect(d.markdown).toMatch(/^\*\*mara\*\* · .+\n\nhey @cagdas, can you look at the parser & the tests\?\n\n---\n\n\*\*mara\*\* · .+\n\nand the doc is up$/);
       // The header says what and where and how many; the metadata only the latest.
       expect(d).toMatchObject({ caption: expect.stringMatching(/^Direct message/), title: expect.any(String), chips: [{ text: expect.stringMatching(/unread$/), color: "red" }] });
       expect(d.metadata!.map((m) => m.label)).toEqual(["Latest"]);
-      const t = await host.detail("slack", "unreads", "thread:T1/C_ENG");
-      expect(t.markdown).toContain("3 new replies in threads you follow in #eng");
+      const t = await host.detail("slack", "unreads", "thread:T1/C_ENG/1789580450.000250");
+      expect(t.markdown).toMatch(/^> \*\*mara\*\* · .+\n>\n> @cagdas the build on #ops is red\n\n---\n\n\*\*mara\*\* · .+\n\nstill red here\n\n---\n\n\*\*tomas\*\* · .+\n\nretrying\n\n---\n\n\*\*tomas\*\* · .+\n\nfixed on main$/);
       const m = await host.detail("slack", "unreads", "mention:T1/C_ENG");
       expect(m.markdown).toContain("…and more before these.");
     });
@@ -271,15 +292,16 @@ describe("slack", () => {
       expect(await pick("unreads", "dm:T1/D_MARA")).toEqual({ open: "slack://channel?team=T1&id=D_MARA&message=1789580400.000200" });
       expect(await pick("unreads", "dm:T1/D_MARA", "browser")).toEqual({ open: "https://acme.slack.com/archives/D_MARA/p1789580400000200" });
       expect(await pick("unreads", "dm:T1/D_MARA", "copy")).toEqual({ copy: "https://acme.slack.com/archives/D_MARA/p1789580400000200" });
-      expect((await pick("unreads", "dm:T1/D_MARA", "browser", { ids: ["dm:T1/D_MARA", "thread:T1/C_ENG"] })).open).toHaveLength(2);
-      expect(await pick("unreads", "thread:T1/C_ENG")).toEqual({ open: "slack://channel?team=T1&id=C_ENG" });
+      expect((await pick("unreads", "dm:T1/D_MARA", "browser", { ids: ["dm:T1/D_MARA", "thread:T1/C_ENG/1789580450.000250"] })).open).toHaveLength(2);
+      expect(await pick("unreads", "thread:T1/C_ENG/1789580450.000250")).toEqual({ open: "slack://channel?team=T1&id=C_ENG&message=1789580600.000400" });
+      expect(await pick("unreads", "thread:T1/C_ENG/1789580450.000250", "copy")).toEqual({ copy: "https://acme.slack.com/archives/C_ENG/p1789580600000400?thread_ts=1789580450.000250&cid=C_ENG" });
       expect(await pick("unreads", "channel:T1/C_GEN")).toEqual({ open: "slack://channel?team=T1&id=C_GEN" });
     });
 
     test("mark as read over marked rows: one conversations.mark each, a thread among them skipped, the count in the toast", async () => {
       expect((await list("unreads")).find((i) => i.id === "dm:T1/D_MARA")!.actions!.find((a) => a.id === "read")).toMatchObject({ multi: true });
       const before = calls("conversations.mark").length;
-      const r = await pick("unreads", "dm:T1/D_MARA", "read", { ids: ["dm:T1/D_MARA", "mention:T1/C_ENG", "thread:T1/C_ENG"] });
+      const r = await pick("unreads", "dm:T1/D_MARA", "read", { ids: ["dm:T1/D_MARA", "mention:T1/C_ENG", "thread:T1/C_ENG/1789580450.000250"] });
       expect(r).toMatchObject({ keep: true, toast: { title: "Marked read", message: "2 conversations" } });
       expect(calls("conversations.mark").slice(before).map((c) => c.body.channel)).toEqual(["D_MARA", "C_ENG"]);
     });
@@ -305,6 +327,8 @@ describe("slack", () => {
       expect(calls("chat.postMessage").at(-1)!.body).toEqual({ token: TOKEN, channel: "D_MARA", text: "on it", as_user: "true" });
       await pick("unreads", "mention:T1/C_ENG", "send", { values: { text: "looking" } });
       expect(calls("chat.postMessage").at(-1)!.body).toMatchObject({ channel: "C_ENG", text: "looking", thread_ts: "1789580450.000250" });
+      await pick("unreads", "thread:T1/C_ENG/1789580450.000250", "reply", { values: { text: "thanks" } });
+      expect(calls("chat.postMessage").at(-1)!.body).toMatchObject({ channel: "C_ENG", text: "thanks", thread_ts: ROOT });
     });
 
     test("nothing addressed and nothing unread is one inert hint", async () => {
@@ -402,17 +426,16 @@ describe("slack", () => {
       // The sections and their rows, the cursor on the first, each row a control a click focuses.
       expect(texts(view).filter((t) => ["Direct messages", "Mentions", "Threads", "Also unread"].includes(t))).toEqual(["Direct messages", "Mentions", "Threads", "Also unread"]);
       const rows = all.filter((n): n is Extract<ViewNode, { type: "stack" }> => n.type === "stack" && !!n.action?.startsWith("focus:"));
-      expect(rows.map((r) => r.action)).toEqual(["focus:dm:T1/D_MARA", "focus:mention:T1/C_ENG", "focus:thread:T1/C_ENG"]);
+      expect(rows.map((r) => r.action)).toEqual(["focus:dm:T1/D_MARA", "focus:mention:T1/C_ENG", "focus:thread:T1/C_ENG/1789580450.000250"]);
       expect(rows.map((r) => !!r.selected)).toEqual([true, false, false]);
       // Every row can be marked; `m` (skipping the thread), Open in browser and Copy link run over the marks.
-      expect(marksOf(view.tree)).toEqual(["dm:T1/D_MARA", "mention:T1/C_ENG", "thread:T1/C_ENG"]);
+      expect(marksOf(view.tree)).toEqual(["dm:T1/D_MARA", "mention:T1/C_ENG", "thread:T1/C_ENG/1789580450.000250"]);
       expect(view.actions.filter((a) => a.multi).map((a) => a.id)).toEqual(["read", "ignore", "browser", "copy"]);
-      expect(texts(view)).toEqual(expect.arrayContaining(["mara", "and the doc is up", "#eng", "mara: @cagdas the build on #ops is red", "3 new replies in threads you follow"]));
-      // Mara's avatar was fetched once into a data url (the picture host needs no session); the thread row is a hash tile.
+      expect(texts(view)).toEqual(expect.arrayContaining(["mara", "and the doc is up", "#eng", "mara: @cagdas the build on #ops is red", "tomas: fixed on main"]));
+      // Each avatar was fetched once into a data url (the picture host needs no session), Tomas's for the thread's newest reply.
       const images = all.filter((n): n is Extract<ViewNode, { type: "image" }> => n.type === "image");
-      expect(images.map((i) => i.src.slice(0, 22))).toEqual(["data:image/png;base64,", "data:image/png;base64,"]);
+      expect(images.map((i) => i.src.slice(0, 22))).toEqual(Array(3).fill("data:image/png;base64,"));
       expect(avatarHits.filter((p) => p === "/mara.png")).toHaveLength(1);
-      expect(all.find((n) => n.type === "tile")).toMatchObject({ type: "tile", text: "#", fill: "solid" });
       // Counts: the DM run of 2 in red, the thread's 3 in blue; the quiet channels as badges a click opens.
       const badges = all.filter((n): n is Extract<ViewNode, { type: "badge" }> => n.type === "badge");
       expect(badges.map((b) => [b.text, b.color, b.action])).toEqual(expect.arrayContaining([["2", "red", undefined], ["3", "blue", undefined], ["#ops", "grey", "open:channel:T1/C_OPS"], ["#general", "grey", "open:channel:T1/C_GEN"]]));
@@ -421,14 +444,14 @@ describe("slack", () => {
     });
 
     test("keys: the cursor moves with the arrows and a click, Enter opens the focused row, the quiet badges open their channel, Open in pal pushes, Open Slack opens the app", async () => {
-      // Down twice lands on the thread row (no reply, no read there: those keys leave the hints).
+      // Down twice lands on the thread row (a reply goes into the thread; no read there, so that key leaves the hints).
       let r = await host.barAction("slack", "unreads", "down", ctx);
       const v1 = checkView(viewOf(r));
       expect(nodes(v1.tree).filter((n) => n.type === "stack" && !!n.selected).map((n) => n.action)).toEqual(["focus:mention:T1/C_ENG"]);
       r = await host.barAction("slack", "unreads", "down", ctx);
       const v2 = checkView(viewOf(r));
-      expect(keycaps(v2)).toEqual(["enter", "space", "i", "a", "p"]);
-      expect(await host.barAction("slack", "unreads", "open", ctx)).toEqual({ open: "slack://channel?team=T1&id=C_ENG" });
+      expect(keycaps(v2)).toEqual(["enter", "space", "r", "i", "a", "p"]);
+      expect(await host.barAction("slack", "unreads", "open", ctx)).toEqual({ open: "slack://channel?team=T1&id=C_ENG&message=1789580600.000400" });
       // A click on the first row: Enter opens it at the message.
       r = await host.barAction("slack", "unreads", "focus:dm:T1/D_MARA", ctx);
       expect(nodes(checkView(viewOf(r)).tree).filter((n) => n.type === "stack" && !!n.selected).map((n) => n.action)).toEqual(["focus:dm:T1/D_MARA"]);

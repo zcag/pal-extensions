@@ -7,7 +7,10 @@
 // a followed thread is someone asking for something and is counted; a
 // channel that is only unread is named under "Channels" and not counted.
 // One `client.counts` gives every conversation's `last_read`, `latest`,
-// `mention_count` and `has_unreads` and the thread counts by channel; a
+// `mention_count` and `has_unreads` and the thread counts by channel; while
+// a thread is unread, the app's own Threads view
+// (`subscriptions.thread.getView`) says which threads and what was replied,
+// a row each (a conversation it does not cover keeps its count alone); a
 // `conversations.history` is spent only on an addressed conversation, and
 // only once per change of its `latest` (memoised), so a refresh where
 // nothing moved is that one call. Names and avatars come from a directory
@@ -60,8 +63,10 @@ export type Unread = {
   lastRead: string;
   /** A quiet channel's topic or purpose, from the directory: its row's subtitle, since no run is fetched for it. */
   about?: string;
-  /** The message the row shows (the one naming you, in a channel; the newest, in a DM) and the unread run, oldest first. */
+  /** The message the row shows (the one naming you, in a channel; the newest, in a DM; the newest reply, in a thread) and the unread run, oldest first. */
   top?: Msg;
+  /** A thread's first message, the one the replies answer. */
+  root?: Msg;
   msgs: Msg[];
   more: boolean;
 };
@@ -252,6 +257,19 @@ type Counts = {
 /** The run per conversation, remembered by (conversation, latest): a refresh where nothing moved re-fetches nothing. */
 const runs = new Map<string, { latest: string; top?: Msg; msgs: Msg[]; more: boolean; n: number }>();
 
+type ThreadView = { threads?: { root_msg?: RawMsg & { channel?: string; last_read?: string }; unread_replies?: RawMsg[] }[] };
+
+/** The followed threads with unread replies, from the app's Threads view (not a public method, so a refusal or a shape it no longer has is no threads: the counts stand). */
+async function unreadThreads(s: Session) {
+  try {
+    const r = await call<ThreadView>(s, "subscriptions.thread.getView", { limit: MAX_DETAIL, org_wide_aware: true });
+    return (r.threads ?? []).flatMap((t) => {
+      const root = t.root_msg, replies = [...(t.unread_replies ?? [])].sort((a, b) => a.ts.localeCompare(b.ts));
+      return root?.channel && replies.length ? [{ cid: root.channel, root, replies, lastRead: root.last_read ?? "" }] : [];
+    });
+  } catch (e) { log(`threads: ${errorMessage(e)}`); return []; }
+}
+
 const mentionsMe = (s: Session, m: RawMsg) => new RegExp(`<@${s.user}[|>]|<!here|<!channel|<!everyone`).test(m.text ?? "");
 
 /** The counts for one workspace: `client.counts` for the app's session; per-conversation `conversations.info` for a token (no mentions, no threads). */
@@ -290,7 +308,14 @@ export async function inbox(): Promise<Inbox> {
       if (conv.mention_count) hot.push(base("mention", conv, conv.mention_count));
       else if (conv.has_unreads) { channels++; quiet.push(base("channel", conv, 1)); }
     }
-    for (const [cid, n] of Object.entries(c.threads?.unread_count_by_channel ?? {})) hot.push(base("thread", { id: cid }, n));
+    const threadCounts = Object.entries(c.threads?.unread_count_by_channel ?? {});
+    const threads = threadCounts.length && s.mode === "app" ? await unreadThreads(s) : [];
+    for (const t of threads) {
+      const replies = await Promise.all(t.replies.map((m) => toMsg(s, m)));
+      const top = replies.at(-1)!;
+      hot.push({ ...base("thread", { id: t.cid, latest: top.ts, last_read: t.lastRead }, replies.length), id: `${s.id}/${t.cid}/${t.root.ts}`, root: await toMsg(s, t.root), top: { ...top, thread_ts: t.root.ts }, msgs: replies.slice(-MAX_MSGS), more: replies.length > MAX_MSGS });
+    }
+    for (const [cid, n] of threadCounts) if (!threads.some((t) => t.cid === cid)) hot.push(base("thread", { id: cid }, n));
     // The run for the newest addressed conversations; the older ones keep their count and name.
     hot.sort((a, b) => b.latest.localeCompare(a.latest));
     await Promise.all(hot.map(async (u, i) => {
@@ -340,8 +365,8 @@ export const post = async (team: string, cid: string, text: string, threadTs?: s
 
 /** The desktop app's own scheme: the conversation, at a message when `ts` is known. */
 export const deepLink = (team: string, cid: string, ts?: string) => `slack://channel?team=${team}&id=${cid}${ts ? `&message=${ts}` : ""}`;
-/** The web client's archive url for the same place. */
-export const webLink = (domain: string, cid: string, ts?: string) => `https://${domain}.slack.com/archives/${cid}${ts ? `/p${ts.replace(".", "")}` : ""}`;
+/** The web client's archive url for the same place; a reply's carries its thread. */
+export const webLink = (domain: string, cid: string, ts?: string, thread?: string) => `https://${domain}.slack.com/archives/${cid}${ts ? `/p${ts.replace(".", "")}` : ""}${thread && thread !== ts ? `?thread_ts=${thread}&cid=${cid}` : ""}`;
 
 // ---- search -------------------------------------------------------------------------
 

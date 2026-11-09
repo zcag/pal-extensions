@@ -35,9 +35,12 @@ is the row's typed argument: Tab into the Message field in the bar, and
 `⌘Enter` posts it to the conversation, or into the thread for a threaded
 mention; a pick without it, from `pal run` or a hotkey, is a one-field
 form), Mark as read (`⌘⇧R`, up to the latest message), Open
-in browser (`⌘⇧O`, the archive page), Copy link (`⌘C`). Thread rows have
-no message text (Slack's counts name the channel, not the thread) and no
-Reply or Mark as read.
+in browser (`⌘⇧O`, the archive page), Copy link (`⌘C`). A thread row is
+one thread: its newest reply on the row, the message it answers above the
+unread replies in the pane, and Reply posts into it; it has no Mark as
+read. When Slack's Threads view does not answer (it is not a public
+method), a thread row is the conversation with the count only, and has
+no Reply either.
 
 **Channels** is every channel, private channel, group message and direct
 message you are in, channels first, then by name, with the topic or
@@ -101,7 +104,9 @@ Enter on it opens the extension's settings.
 ## Requests
 
 One `client.counts` per refresh gives every conversation's `last_read`,
-`latest`, mention count and unread flag and the thread counts. A
+`latest`, mention count and unread flag and the thread counts. While a
+thread is unread, one `subscriptions.thread.getView` (the app's own
+Threads view) gives which threads and their unread replies. A
 `conversations.history` is spent only on an addressed conversation
 (never on the quiet channels), only for the newest twelve, and only once
 per change of its `latest`, so a refresh where nothing moved is the one
@@ -184,9 +189,7 @@ succeeds; not signed in hides it.
 
 ## What it does not do
 
-- Read a thread's replies: Slack's counts say which channel has unread
-  replies in threads you follow, not which thread; the row names the
-  channel and the count, Enter opens the channel in Slack.
+- Mark a thread read.
 - Mentions and thread replies with a user token: only the desktop app's
   session has `client.counts`.
 - Reactions, files, huddles: a message that is only a file shows as
