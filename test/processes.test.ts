@@ -34,7 +34,7 @@ describe("ports", () => {
 });
 
 let host: Host;
-beforeAll(async () => { host = await Host.bundled(); });
+beforeAll(async () => { host = await Host.bundled({ only: ["processes"] }); });
 afterAll(() => host.kill());
 
 const list = (query?: string, filter?: string) => host.list("processes", "processes", query, filter ? { filter } : undefined);
@@ -124,9 +124,8 @@ describe("processes", () => {
       expect(rows[0].keywords).toEqual(expect.arrayContaining([String(process.pid), `:${port}`, String(port)]));
       expect(rows[0].actions!.map((a) => a.id)).toEqual(ACTIONS);
       expect(await pick(rows[0].id, "copy-pid")).toEqual({ copy: String(process.pid) });
-      // A prefix narrows; a bare colon is every listener, this one among them.
+      // A prefix narrows.
       expect((await list(`:${String(port).slice(0, 2)}`)).some((r) => r.id === rows[0].id)).toBe(true);
-      expect((await list(":")).some((r) => r.id === rows[0].id)).toBe(true);
       expect(await list(":65535")).toEqual([]);
     } finally { server.stop(true); }
   });

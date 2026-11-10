@@ -9,7 +9,7 @@
 // tested directly.
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import { tile } from "../.pal/sdk/src/icon.ts";
-import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { mkdtempSync, renameSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { SystemCommand, View } from "../.pal/sdk/src/index.ts";
@@ -112,11 +112,10 @@ describe("system", () => {
   });
 
   test("an unreadable Trash is a row without a count", async () => {
-    process.env.PAL_TRASH_DIR = join(trash, "nope");
-    const h = await Host.bundled({ only: ["system"], core: { "system.commands": () => COMMANDS, "selection.files": () => [], "states.get": () => null } });
-    expect((await h.list("system", "system")).find((i) => i.id === "empty-trash")!.accessories).toEqual([]);
-    h.kill();
-    process.env.PAL_TRASH_DIR = trash;
+    renameSync(trash, `${trash}.away`);
+    try {
+      expect((await list()).find((i) => i.id === "empty-trash")!.accessories).toEqual([]);
+    } finally { renameSync(`${trash}.away`, trash); }
   });
 
   test("destructive rows carry a confirm while the setting is on, not when it is off", async () => {

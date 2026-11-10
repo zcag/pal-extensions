@@ -14,6 +14,7 @@ const calls: string[] = [];
 let host: Host;
 beforeAll(async () => {
   host = await Host.bundled({
+    only: ["bluetooth"],
     core: {
       "bluetooth.devices": () => devices,
       "bluetooth.connect": (p) => { if (p.address === "50:ED:3C:E5:7F:02") throw new Error("could not connect to 50:ED:3C:E5:7F:02 (IOReturn 0xe00002d8)"); calls.push(`connect ${p.address}`); devices = devices.map((d) => (d.address === p.address ? { ...d, connected: true } : d)); return null; },
@@ -157,7 +158,7 @@ describe("bluetooth", () => {
   });
 
   test("no adapter: one inert row that says why", async () => {
-    const h = await Host.bundled({ core: { "bluetooth.devices": () => { throw new Error("no Bluetooth adapter"); } } });
+    const h = await Host.bundled({ only: ["bluetooth"], core: { "bluetooth.devices": () => { throw new Error("no Bluetooth adapter"); } } });
     try {
       expect(await h.list("bluetooth", "bluetooth")).toMatchObject([{ id: "hint:error", name: "Bluetooth is not available", subtitle: "no Bluetooth adapter", actions: [] }]);
     } finally {

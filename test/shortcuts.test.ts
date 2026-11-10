@@ -43,7 +43,7 @@ exit 2
 let host: Host;
 beforeAll(async () => {
   process.env.PAL_SHORTCUTS_BIN = bin;
-  host = await Host.bundled();
+  host = await Host.bundled({ only: ["shortcuts"] });
 });
 afterAll(() => { host.kill(); rmSync(dir, { recursive: true, force: true }); delete process.env.PAL_SHORTCUTS_BIN; });
 
@@ -104,7 +104,7 @@ describe("shortcuts", () => {
     expect(await pick("Adjust Clipboard", "clipboard")).toEqual({ hide: true });
     expect(await nextHud()).toBe(`Adjust Clipboard: got: ${fixtures.clipboard[0].text}`);
     expect(runs().pop()).toBe(`749DC7C9-9153-4FA6-8B1A-DE5755EB40D4\t${fixtures.clipboard[0].text}`);
-    const h = await Host.bundled({ core: { "clipboard.list": () => [] } });
+    const h = await Host.bundled({ only: ["shortcuts"], core: { "clipboard.list": () => [] } });
     await h.list("shortcuts", "shortcuts");
     expect(await h.pick("shortcuts", "shortcuts", "Adjust Clipboard", "clipboard")).toEqual({ keep: true, toast: { title: "Nothing on the clipboard", message: "Copy some text first, or use Run with input", style: "failure" } });
     h.kill();
@@ -133,7 +133,7 @@ describe("shortcuts", () => {
 
   test("with no tool (or off macOS) the palette is one inert row saying so", async () => {
     process.env.PAL_SHORTCUTS_BIN = join(dir, "no-such-tool");
-    const h = await Host.bundled();
+    const h = await Host.bundled({ only: ["shortcuts"] });
     const items = await h.list("shortcuts", "shortcuts");
     expect(items).toHaveLength(1);
     expect(items[0]).toMatchObject({ id: "hint:unavailable", name: "Apple Shortcuts is not available", actions: [] });
@@ -148,7 +148,7 @@ describe("shortcuts", () => {
     writeTool(bad, "#!/bin/bash\necho 'Error: no access' >&2\nexit 1\n");
 
     process.env.PAL_SHORTCUTS_BIN = bad;
-    const h = await Host.bundled();
+    const h = await Host.bundled({ only: ["shortcuts"] });
     const items = await h.list("shortcuts", "shortcuts");
     expect(items).toHaveLength(1);
     expect(items[0]).toMatchObject({ id: "hint:error", name: "Could not list shortcuts", subtitle: "Error: no access; cmd+r tries again", actions: [] });

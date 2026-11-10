@@ -25,6 +25,7 @@ const calls: { method: string; params: any }[] = [];
 let host: Host;
 beforeAll(async () => {
   host = await Host.bundled({
+    only: ["audio"],
     core: {
       "audio.devices": () => devices,
       "audio.set_default": (p) => { calls.push({ method: "set_default", params: p }); devices = devices.map((d) => ({ ...d, default: d.kind === p.kind ? d.id === p.id : d.default })); return null; },
@@ -224,7 +225,7 @@ describe("audio", () => {
   });
 
   test("no backend: one inert row that says why", async () => {
-    const h = await Host.bundled({ core: { "audio.devices": () => { throw new Error("neither wpctl nor pactl is installed"); } } });
+    const h = await Host.bundled({ only: ["audio"], core: { "audio.devices": () => { throw new Error("neither wpctl nor pactl is installed"); } } });
     try {
       const items = await h.list("audio", "audio");
       expect(items).toHaveLength(1);

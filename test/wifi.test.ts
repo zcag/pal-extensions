@@ -25,6 +25,7 @@ let location: PermissionStatus = "granted";
 let host: Host;
 beforeAll(async () => {
   host = await Host.bundled({
+    only: ["wifi"],
     core: {
       "permissions.status": () => ({ accessibility: true, calendar: "granted", input_monitoring: true, location }),
       "permissions.request": (p) => { calls.push({ method: "permission", params: p }); return { accessibility: true, calendar: "granted", input_monitoring: true, location }; },
@@ -179,7 +180,7 @@ describe("wifi", () => {
   });
 
   test("no interface: one inert row", async () => {
-    const h = await Host.bundled({ core: { "wifi.status": () => ({ interface: null, powered: false, current: null }) } });
+    const h = await Host.bundled({ only: ["wifi"], core: { "wifi.status": () => ({ interface: null, powered: false, current: null }) } });
     try {
       expect(await h.list("wifi", "wifi")).toMatchObject([{ id: "hint:error", name: "No Wi-Fi interface", actions: [] }]);
     } finally {
