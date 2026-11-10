@@ -345,16 +345,26 @@ function listen() {
 }
 
 /**
+ * The core renders the item every 30 s at most while a strip draws it; this
+ * long without one, nothing shows the poll's pushes and it rests until
+ * the next render.
+ */
+const IDLE_AFTER_MS = 120_000;
+let renderedAt = 0;
+
+/**
  * Polls while the strip had a player at the last look (playing or paused)
  * and the core does not stream (a
  * streaming core fires the `media` trigger itself); stops once it has
- * none, and the core's own timer restarts it when one comes back.
+ * none, or once nothing has rendered it for a while, and the core's next
+ * render restarts it.
  */
 function follow(np: Playing | undefined) {
   const p = np && playerForBar(np);
   last = signature(p);
   if (!p || np?.stream) { clearInterval(poll); poll = undefined; return; }
   poll ??= setInterval(async () => {
+    if (Date.now() - renderedAt > IDLE_AFTER_MS) { clearInterval(poll); poll = undefined; return; }
     let now: Playing;
     try { now = await nowPlaying(); } catch { return; }
     if (signature(playerForBar(now)) === last) return;
@@ -365,6 +375,7 @@ function follow(np: Playing | undefined) {
 
 async function renderBar(ctx?: BarCtx): Promise<BarItem> {
   if (ctx?.settings) itemSettings = ctx.settings as ItemSettings;
+  renderedAt = Date.now();
   listen();
   let np: Playing | undefined;
   try { np = await nowPlaying(); } catch { np = undefined; }

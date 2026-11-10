@@ -89,7 +89,20 @@ function ensure(): Promise<Sample> {
   return ensuring;
 }
 
+/**
+ * The core renders each item every minute while a strip or a glance card
+ * draws it; this long without one, nothing shows the pushes (no bar, or
+ * Linux with no page connected), and the loop rests until the next render.
+ */
+const IDLE_AFTER_MS = 150_000;
+let renderedAt = 0;
+
 async function push() {
+  if (Date.now() - renderedAt > IDLE_AFTER_MS && !open.size) {
+    clearInterval(timer);
+    timer = undefined;
+    return;
+  }
   const s = await tick();
   await Promise.all(ITEMS.map((id) => bar.update(id, itemOf(id, s), EXTENSION).catch(() => {})));
 }
@@ -199,7 +212,9 @@ export function itemOf(id: ItemId, s: Sample, ctx = live()): BarItem {
 async function render(id: ItemId, ctx: BarCtx): Promise<BarItem> {
   const label = ctx.settings?.label;
   if (typeof label === "string") (labels as Record<ItemId, string>)[id] = label;
+  renderedAt = Date.now();
   start();
+  if (!timer) follow();
   const s = await ensure();
   return itemOf(id, s);
 }
