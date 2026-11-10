@@ -20,6 +20,8 @@ beforeAll(async () => {
   process.env.PAL_CALC_OFFLINE = "1";
   seed("2026-09-15", Date.now());
   host = await Host.bundled({ only: ["calc"], settings: { calc: { settings: BASE } } });
+  // The first sum imports mathjs, from source here (~0.5 s, 1262 files; a package has it bundled): the file's setup, not the first test's.
+  await host.list("calc", "calc", "1+1");
 });
 afterAll(() => {
   host.kill();

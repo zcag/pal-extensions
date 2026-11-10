@@ -5,7 +5,7 @@
 
 import type { MathJsInstance } from "mathjs";
 
-// mathjs costs ~80 ms and ~65 MB to create (`create(all)` builds every
+// mathjs costs ~0.5 s to import and ~65 MB to create (`create(all)` builds every
 // function and unit table), so it is made on the first evaluation, not at
 // load: most sessions never type a sum, and the root's `match` keeps
 // ordinary queries away from here. A failed import surfaces from that
@@ -37,6 +37,7 @@ const UNITS: Record<string, string> = {
 const TEMP: Record<string, string> = { f: "degF", c: "degC", k: "K", "°f": "degF", "°c": "degC", degf: "degF", degc: "degC", celsius: "degC", fahrenheit: "degF", kelvin: "K" };
 const FUNCS = "sqrt|cbrt|sin|cos|tan|asin|acos|atan|sinh|cosh|tanh|log|ln|log10|log2|abs|exp|ceil|floor|round|sign";
 const NUM = "-?\\d+(?:\\.\\d+)?(?:e-?\\d+)?";
+const BARE_NUMBER = /^\d+(?:\.\d+)?$/;
 
 /** What mathjs sees: the idioms above rewritten into its syntax. */
 export function rewrite(q: string): string {
@@ -93,6 +94,7 @@ async function run(q: string): Promise<[MathJsInstance, any]> {
 }
 
 export async function evaluate(q: string): Promise<MathResult | undefined> {
+  if (BARE_NUMBER.test(q)) return { kind: "number", value: Number(q) };
   return result(...(await run(q)));
 }
 
