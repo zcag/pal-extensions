@@ -113,7 +113,7 @@ const withPath = async (bin: string, os: string, extraEnv: Record<string, string
   process.env.PATH = `${bin}:${dirname(process.execPath)}`;
   process.env.PAL_NETWORK_OS = os;
   Object.assign(process.env, extraEnv);
-  try { return await Host.bundled({ settings: { network: { settings } }, core }); }
+  try { return await Host.bundled({ only: ["network"], settings: { network: { settings } }, core }); }
   finally { for (const k of Object.keys(process.env)) if (!(k in saved)) delete process.env[k]; Object.assign(process.env, saved); }
 };
 
@@ -219,7 +219,8 @@ describe("network on macOS tools", () => {
 });
 
 describe("network on macOS with the SSID redacted", () => {
-  const fakes = (core?: CoreTable) => {
+  test("the core's in-process name stands in (pal's Location grant does not reach ipconfig); without one the row says what is missing", async () => {
+    let ssid: string | null = "Cafe Wifi";
     const bin = fakeBin({
       ifconfig: heredoc(IFCONFIG),
       networksetup: heredoc(PORTS),
@@ -228,48 +229,47 @@ describe("network on macOS with the SSID redacted", () => {
       scutil: `case "$1" in --dns) ${heredoc(SCUTIL_DNS)}\n;; --get) echo fakehost;; esac`,
     });
     dirs.push(bin);
-    return withPath(bin, "darwin", {}, { public_ip_url: "" }, core);
-  };
-  test("the core's in-process name stands in (pal's Location grant does not reach ipconfig); without one the row says what is missing", async () => {
-    const granted = await fakes({ "wifi.status": () => ({ interface: "en0", powered: true, current: { ssid: "Cafe Wifi", signal: 90, channel: "44", security: "WPA2 Personal", ip: "192.168.1.131" } }) });
+    const host = await withPath(bin, "darwin", {}, { public_ip_url: "" }, { "wifi.status": () => ({ interface: "en0", powered: true, current: { ssid, signal: ssid ? 90 : null, channel: "44", security: "WPA2 Personal", ip: "192.168.1.131" } }) });
     try {
-      const wifi = (await granted.list("network", "network"))[0];
-      expect(wifi).toMatchObject({ id: "if:en0:192.168.1.131", subtitle: "en0 · Wi-Fi · Cafe Wifi" });
-      expect(granted.coreCalls.some((c) => c.method === "wifi.status")).toBe(true);
-    } finally { granted.kill(); }
-    const none = await fakes({ "wifi.status": () => ({ interface: "en0", powered: true, current: { ssid: null, signal: null, channel: "44", security: "WPA2_PSK", ip: "192.168.1.131" } }) });
-    try {
-      const wifi = (await none.list("network", "network"))[0];
+      expect((await host.list("network", "network"))[0]).toMatchObject({ id: "if:en0:192.168.1.131", subtitle: "en0 · Wi-Fi · Cafe Wifi" });
+      expect(host.coreCalls.some((c) => c.method === "wifi.status")).toBe(true);
+      ssid = null;
+      const wifi = (await host.list("network", "network"))[0];
       expect(wifi.subtitle).toBe("en0 · Wi-Fi");
-      const d = await none.detail("network", "network", wifi.id);
+      const d = await host.detail("network", "network", wifi.id);
       expect(d.metadata).toContainEqual({ label: "SSID", value: "hidden by macOS until pal has Location access (the Wi-Fi palette asks)" });
-    } finally { none.kill(); }
+    } finally { host.kill(); }
   });
 });
 
 describe("network status: what the strip says about the network", () => {
-  /** The signal the core reports, read at each call: the one thing a bar may change without a host of its own. */
-  const live = new Map<string, number | null>();
-  const boot = (settings: Record<string, unknown>, opts: { ssid?: string; security?: string; signal?: number | null; route?: boolean; /** The interface carrying the default route; en5 is the cable. */ dev?: string } = {}, key = "") => {
-    const summary = SUMMARY.replace("SSID : Cafe Wifi", `SSID : ${opts.ssid ?? "Cafe Wifi"}`).replace("Security : WPA2_PSK", `Security : ${opts.security ?? "WPA2_PSK"}`);
+  type Link = { ssid?: string; security?: string; signal?: number | null; route?: boolean; /** The interface carrying the default route; en5 is the cable. */ dev?: string };
+  /** A host whose ipconfig, route and core Wi-Fi read the link `set` last gave, since a render runs the tools afresh: another link is a file write, not a host start. */
+  const boot = async (settings: Record<string, unknown>, link: Link = {}) => {
+    let now = link;
     const bin = fakeBin({
       ifconfig: heredoc(IFCONFIG),
       networksetup: heredoc(PORTS),
-      ipconfig: heredoc(summary),
-      route: opts.route === false ? "exit 1" : heredoc(ROUTE.replace("interface: en0", `interface: ${opts.dev ?? "en0"}`)),
+      ipconfig: `/bin/cat "$0.out"`,
+      route: `[ -s "$0.out" ] && /bin/cat "$0.out" || exit 1`,
       scutil: `case "$1" in --dns) ${heredoc(SCUTIL_DNS)}\n;; --get) echo fakehost;; esac`,
     });
     dirs.push(bin);
-    return withPath(bin, "darwin", {}, { public_ip_url: "", ...settings }, { "wifi.status": () => ({ interface: "en0", powered: true, current: { ssid: opts.ssid ?? "Cafe Wifi", signal: live.has(key) ? live.get(key)! : opts.signal === undefined ? 72 : opts.signal, channel: "44", security: opts.security ?? "WPA2 Personal", ip: "192.168.1.131" } }) });
+    const set = (l: Link) => {
+      now = l;
+      writeFileSync(join(bin, "ipconfig.out"), SUMMARY.replace("SSID : Cafe Wifi", `SSID : ${l.ssid ?? "Cafe Wifi"}`).replace("Security : WPA2_PSK", `Security : ${l.security ?? "WPA2_PSK"}`));
+      writeFileSync(join(bin, "route.out"), l.route === false ? "" : ROUTE.replace("interface: en0", `interface: ${l.dev ?? "en0"}`));
+    };
+    set(link);
+    const host = await withPath(bin, "darwin", {}, { public_ip_url: "", ...settings }, { "wifi.status": () => ({ interface: "en0", powered: true, current: { ssid: now.ssid ?? "Cafe Wifi", signal: now.signal === undefined ? 72 : now.signal, channel: "44", security: now.security ?? "WPA2 Personal", ip: "192.168.1.131" } }) });
+    return Object.assign(host, { set });
   };
-  /** One host per set of fake tools, kept for the file: a bar with other settings is a settings change on it, not a host start. */
-  const hosts = new Map<string, Promise<Host>>();
-  afterAll(async () => { for (const h of hosts.values()) (await h).kill(); });
-  const bar = async (settings: Record<string, unknown>, { signal, ...opts }: Parameters<typeof boot>[1] = {}) => {
-    const k = JSON.stringify(opts);
-    live.set(k, signal === undefined ? 72 : signal);
-    if (!hosts.has(k)) hosts.set(k, boot({}, opts, k));
-    const host = await hosts.get(k)!;
+  /** One host for every bar here: other settings are a settings change on it, another link a `set`. */
+  let host: Awaited<ReturnType<typeof boot>>;
+  beforeAll(async () => { host = await boot({}); });
+  afterAll(() => host.kill());
+  const bar = async (settings: Record<string, unknown>, link: Link = {}) => {
+    host.set(link);
     host.changeSettings("network", { settings: { public_ip_url: "", ...settings } });
     return host.render("network", "status");
   };
@@ -359,19 +359,16 @@ describe("network status: what the strip says about the network", () => {
   }, 20000);
 
   test("the popover answers what this link is, not what every address is", async () => {
-    const host = await boot({});
-    try {
-      const view = (await host.render("network", "status") as any).menu.view;
-      expect(view.title).toBe("Connection");
-      const kv = Object.fromEntries(view.tree.children.filter((c: any) => c.type === "stack" && c.key !== "head" && c.key !== "footer").map((c: any) => [c.key, c.children[1].value]));
-      // Strength and what secures it share a row: both answer "how good is this link".
-      expect(kv).toEqual({ interface: "en0 · Wi-Fi", ip: "192.168.1.131", gateway: "192.168.1.1", signal: "72% · WPA2_PSK", dns: "100.100.100.100, fd7a:115c:a1e0::53, 192.168.1.1" });
-      expect(view.tree.children[0].children[2]).toMatchObject({ type: "badge", text: "connected" });
-      expect(view.actions.map((a: any) => a.id)).toEqual(["settings", "addresses"]);
-      // The address book is still one key away rather than gone.
-      expect(await host.barAction("network", "status", "addresses")).toEqual({ push: { extension: "network", palette: "network" } });
-      expect(await host.barAction("network", "status", "settings")).toEqual({ open: "x-apple.systempreferences:com.apple.Network-Settings.extension" });
-    } finally { host.kill(); }
+    const view = (await bar({}) as any).menu.view;
+    expect(view.title).toBe("Connection");
+    const kv = Object.fromEntries(view.tree.children.filter((c: any) => c.type === "stack" && c.key !== "head" && c.key !== "footer").map((c: any) => [c.key, c.children[1].value]));
+    // Strength and what secures it share a row: both answer "how good is this link".
+    expect(kv).toEqual({ interface: "en0 · Wi-Fi", ip: "192.168.1.131", gateway: "192.168.1.1", signal: "72% · WPA2_PSK", dns: "100.100.100.100, fd7a:115c:a1e0::53, 192.168.1.1" });
+    expect(view.tree.children[0].children[2]).toMatchObject({ type: "badge", text: "connected" });
+    expect(view.actions.map((a: any) => a.id)).toEqual(["settings", "addresses"]);
+    // The address book is still one key away rather than gone.
+    expect(await host.barAction("network", "status", "addresses")).toEqual({ push: { extension: "network", palette: "network" } });
+    expect(await host.barAction("network", "status", "settings")).toEqual({ open: "x-apple.systempreferences:com.apple.Network-Settings.extension" });
   }, 20000);
 
   test("the badge names the kind, and offline says so with no rows to show", async () => {
