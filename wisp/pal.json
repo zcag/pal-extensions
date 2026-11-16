@@ -1,0 +1,478 @@
+{
+  "name": "wisp",
+  "title": "Wisp",
+  "description": "Every inbox you keep in Wisp (github.com/zcag/wisp), WhatsApp, Gmail, Slack, Telegram, SMS and the rest, in one place: read and answer a conversation, make it a To do or mark it done, search every account at once, and see what is unread per network on the bar.",
+  "keywords": [
+    "inbox",
+    "messages",
+    "chat",
+    "mail"
+  ],
+  "version": "0.1.0",
+  "icon": {
+    "tile": {
+      "glyph": "󰚇",
+      "bg": "#1d6a73"
+    }
+  },
+  "author": "pal",
+  "repo": "bundled",
+  "license": "MIT",
+  "settings": [
+    {
+      "kind": "text",
+      "id": "url",
+      "label": "Wisp server",
+      "required": true,
+      "description": "The address of your Wisp server, as you open it in a browser.",
+      "placeholder": "https://wisp.example.internal",
+      "default": ""
+    },
+    {
+      "kind": "secret",
+      "id": "token",
+      "label": "Token",
+      "required": true,
+      "description": "A token from Wisp's Accounts › Agent tokens with the scope App of yours, so what you do here acts as you, like Wisp's own page. A Read + send token works too, but acts as an agent: it sends and marks read only on accounts that let agents act. Kept in the OS keychain.",
+      "placeholder": "inbx_...",
+      "default": ""
+    },
+    {
+      "kind": "boolean",
+      "id": "read_on_open",
+      "label": "Opening reads",
+      "text": "Opening a conversation marks it read, here and on its network",
+      "description": "As in Wisp: read means handled. Off, a conversation stays unread until cmd+u or m.",
+      "default": true
+    }
+  ],
+  "palettes": {
+    "inbox": {
+      "title": "Inbox",
+      "description": "Every account's conversations in one list, as Wisp sorts them: the Inbox (unread and To dos that are due) under Wisp's sections, or Now, To do, the Screener and All; each row with its picture, last line, unread count or To do, and the latest messages in the pane.",
+      "kind": "live",
+      "lazy": true,
+      "remember": false,
+      "keys": [
+        {
+          "keys": "enter",
+          "title": "Open the conversation"
+        },
+        {
+          "keys": "cmd+enter",
+          "title": "Mark read (unread on a read one)"
+        },
+        {
+          "keys": "cmd+shift+r",
+          "title": "Send the message typed after Tab"
+        },
+        {
+          "keys": "cmd+t",
+          "title": "To do (clear it on a To do)"
+        },
+        {
+          "keys": "cmd+shift+t",
+          "title": "To do tomorrow morning"
+        },
+        {
+          "keys": "cmd+shift+w",
+          "title": "Waiting on them"
+        },
+        {
+          "keys": "cmd+e",
+          "title": "Done (archive)"
+        },
+        {
+          "keys": "cmd+o",
+          "title": "Open in Wisp"
+        },
+        {
+          "keys": "cmd+c",
+          "title": "Copy the last message"
+        }
+      ]
+    },
+    "conversation": {
+      "title": "Conversation",
+      "description": "One conversation to read and answer: its messages by day, theirs and yours, photos inline, reactions, a mail's subject; a message field that sends on Enter; follows new messages live. Opened bare, the newest in the Inbox.",
+      "kind": "view",
+      "keys": [
+        {
+          "keys": "enter",
+          "title": "Send the message"
+        },
+        {
+          "keys": "cmd+t",
+          "title": "To do (clear it on a To do)"
+        },
+        {
+          "keys": "cmd+shift+t",
+          "title": "To do tomorrow morning"
+        },
+        {
+          "keys": "cmd+shift+w",
+          "title": "Waiting on them"
+        },
+        {
+          "keys": "cmd+e",
+          "title": "Done (archive)"
+        },
+        {
+          "keys": "cmd+u",
+          "title": "Mark read or unread"
+        },
+        {
+          "keys": "cmd+o",
+          "title": "Open in Wisp"
+        },
+        {
+          "keys": "cmd+shift+c",
+          "title": "Copy the last message"
+        },
+        {
+          "keys": "cmd+[",
+          "title": "Older messages"
+        }
+      ]
+    },
+    "search": {
+      "title": "Search Wisp",
+      "description": "Every message on every account, in Wisp's search language: words as prefixes, \"phrases\", -exclusions, from:, in:whatsapp, is:unread, has:attachment, before: and after:.",
+      "kind": "input",
+      "keys": [
+        {
+          "keys": "enter",
+          "title": "Open the conversation"
+        },
+        {
+          "keys": "cmd+o",
+          "title": "Open in Wisp at this message"
+        },
+        {
+          "keys": "cmd+c",
+          "title": "Copy the message"
+        }
+      ]
+    },
+    "accounts": {
+      "title": "Wisp Accounts",
+      "description": "Each account Wisp connects with its state (connected, degraded, needs setup) and unread count, the ones that need attention first.",
+      "kind": "list",
+      "lazy": true,
+      "keys": [
+        {
+          "keys": "enter",
+          "title": "Open the account in Wisp"
+        },
+        {
+          "keys": "cmd+o",
+          "title": "Its inbox in Wisp"
+        }
+      ]
+    }
+  },
+  "states": {
+    "unread": {
+      "description": "Unread conversations, the number on Wisp's badge",
+      "kind": "number"
+    },
+    "for_me": {
+      "description": "Unread conversations with something meant for you: a mention, a reply in a thread you follow",
+      "kind": "number"
+    },
+    "todo": {
+      "description": "To dos that are due",
+      "kind": "number"
+    },
+    "now": {
+      "description": "Conversations waiting on your reply",
+      "kind": "number"
+    },
+    "trouble": {
+      "description": "Accounts that need attention: degraded, disconnected, waiting on setup",
+      "kind": "number"
+    }
+  },
+  "bar": {
+    "inbox": {
+      "title": "Inbox",
+      "description": "Unread per network as each network's glyph and count in its colour (or per account, or one count), a red @ count while something is meant for you, To dos that are due; the popover is every account's inbox behind a tab per network: open a conversation, reply, mark read, To do or done without leaving it.",
+      "refresh": {
+        "every": 120,
+        "on": [
+          "show",
+          "wake",
+          "network"
+        ]
+      },
+      "mocks": {
+        "busy": {
+          "title": "Unread on three networks",
+          "item": {
+            "icon": "󰚇",
+            "segments": [
+              {
+                "id": "whatsapp",
+                "icon": "󰖣",
+                "text": "2",
+                "color": "green",
+                "tooltip": "WhatsApp: 2 unread"
+              },
+              {
+                "id": "gmail",
+                "icon": "󰊫",
+                "text": "1",
+                "color": "red",
+                "tooltip": "Gmail: 1 unread"
+              },
+              {
+                "id": "sms",
+                "icon": "󰍩",
+                "text": "1",
+                "color": "teal",
+                "tooltip": "SMS: 1 unread"
+              },
+              {
+                "id": "todo",
+                "icon": "󰅎",
+                "text": "1",
+                "color": "amber",
+                "tooltip": "1 To do due"
+              }
+            ],
+            "tooltip": "WhatsApp 2, Gmail 1, SMS 1 · 1 To do due"
+          }
+        },
+        "mention": {
+          "title": "A mention waits",
+          "item": {
+            "icon": "󰚇",
+            "segments": [
+              {
+                "id": "for_me",
+                "icon": "󰁥",
+                "text": "1",
+                "color": "red",
+                "tooltip": "1 conversation with something meant for you"
+              },
+              {
+                "id": "slack",
+                "icon": "󰒱",
+                "text": "3",
+                "color": "violet",
+                "tooltip": "Slack: 3 unread"
+              }
+            ],
+            "tooltip": "Slack 3\n#releases: Grace: @ana can you sign off 2.4?"
+          }
+        },
+        "quiet": {
+          "title": "Nothing unread",
+          "item": {
+            "hidden": true,
+            "empty": {
+              "icon": "󰚇",
+              "tooltip": "Nothing unread"
+            }
+          }
+        }
+      },
+      "settings": [
+        {
+          "kind": "select",
+          "id": "split",
+          "label": "Count",
+          "description": "What the strip counts by: a glyph and count per network (two Gmail accounts are one Gmail), per account, or one count for everything.",
+          "options": [
+            {
+              "id": "network",
+              "title": "Per network"
+            },
+            {
+              "id": "account",
+              "title": "Per account"
+            },
+            {
+              "id": "total",
+              "title": "One count"
+            }
+          ],
+          "default": "network"
+        },
+        {
+          "kind": "boolean",
+          "id": "uncounted",
+          "label": "Every account",
+          "text": "Count accounts that do not count toward Wisp's total too",
+          "description": "Wisp lets an account stay out of the total (its Counts toward the unread total switch); on, the strip counts it anyway, as its own glyph.",
+          "default": false
+        },
+        {
+          "kind": "boolean",
+          "id": "color",
+          "label": "Colours",
+          "text": "Each network's count in its own colour",
+          "default": true
+        }
+      ],
+      "rules": [
+        {
+          "id": "quiet",
+          "when": "wisp.unread == 0 and wisp.todo == 0",
+          "description": "Nothing unread and no To do due.",
+          "hidden": true
+        }
+      ],
+      "keys": [
+        {
+          "keys": "enter",
+          "title": "Open the conversation (in the popover)"
+        },
+        {
+          "keys": "space",
+          "title": "Preview it"
+        },
+        {
+          "keys": "r",
+          "title": "Reply in a field"
+        },
+        {
+          "keys": "m",
+          "title": "Mark read (unread on a read one)"
+        },
+        {
+          "keys": "t",
+          "title": "To do (clear it on a To do)"
+        },
+        {
+          "keys": "l",
+          "title": "To do tomorrow morning"
+        },
+        {
+          "keys": "e",
+          "title": "Done (archive)"
+        },
+        {
+          "keys": "w",
+          "title": "Open in Wisp"
+        },
+        {
+          "keys": "p",
+          "title": "Open the inbox in pal"
+        },
+        {
+          "keys": "tab",
+          "title": "Next network (1 all, 2 to 9 each network)"
+        },
+        {
+          "keys": "up",
+          "title": "Move the cursor (down, j, k too; a click sets it)"
+        }
+      ]
+    }
+  },
+  "links": {
+    "open": {
+      "description": "Open a conversation, or the inbox",
+      "params": {
+        "conversation": {
+          "description": "A conversation's id, or words of its title; absent, the inbox"
+        }
+      }
+    },
+    "search": {
+      "description": "Search Wisp",
+      "params": {
+        "q": {
+          "description": "The query, in Wisp's search language"
+        }
+      }
+    },
+    "send": {
+      "description": "Send a message into a conversation",
+      "params": {
+        "conversation": {
+          "description": "A conversation's id, or words of its title",
+          "required": true
+        },
+        "text": {
+          "description": "The message",
+          "required": true
+        }
+      }
+    }
+  },
+  "store": {
+    "tagline": "Every inbox you keep in Wisp, read and answered from pal",
+    "category": "integration",
+    "features": [
+      "Every account Wisp connects (WhatsApp, Gmail, Slack, Telegram, SMS, Instagram, LinkedIn, X) in one list, under Wisp's own sections and views: Inbox, Now, To do, the Screener, All",
+      "A conversation to read and answer inside pal: messages by day, photos inline, reactions, a field that sends on Enter, new messages as they arrive",
+      "To do, To do tomorrow, Waiting on them, Done and read or unread on a key, over many conversations at once",
+      "One bar item: each network's glyph and unread count in its colour, a red @ for mentions meant for you, To dos that are due",
+      "Its popover is the whole inbox behind a tab per network: open, preview, reply, mark read, To do or done without opening anything",
+      "Wisp's search across every account, with from:, in:, is:unread and dates",
+      "Each account's state, the ones that need attention first, on the strip's popover and in Wisp Accounts",
+      "Follows Wisp's event stream, so the counts and an open conversation move as messages come in",
+      "Built on Wisp's integration API with a token that acts as you; github.com/zcag/wisp"
+    ],
+    "permissions": [
+      "network",
+      "token"
+    ],
+    "platforms": [
+      "macos",
+      "linux"
+    ],
+    "screenshots": [
+      {
+        "file": "1-list.png",
+        "caption": "Every account's inbox in one list, under Wisp's sections: the picture, the last line, the unread count in the network's colour, a To do that is due"
+      },
+      {
+        "file": "2-detail.png",
+        "caption": "The pane: the latest messages of the conversation, its account and what is unread"
+      },
+      {
+        "file": "3-conversation.png",
+        "caption": "Enter opens the conversation: messages by day, the photo inline, a field that sends on Enter; cmd+t makes it a To do, cmd+e marks it done"
+      },
+      {
+        "file": "4-actions.png",
+        "caption": "⌘K on a conversation: read or unread, send a message, To do, tomorrow, waiting on them, done, open in Wisp"
+      },
+      {
+        "file": "bar-menubar.png",
+        "caption": "On the menu bar: an @ count for mentions meant for you, each network's glyph with its unread count, the To dos that are due",
+        "kind": "bar"
+      },
+      {
+        "file": "bar-popover.png",
+        "caption": "A click opens every inbox behind a tab per network: Enter opens a conversation, r replies, m marks read, t makes a To do, e marks it done",
+        "kind": "bar",
+        "box": [
+          346,
+          64,
+          840,
+          960
+        ]
+      },
+      {
+        "file": "bar-popover-conversation.png",
+        "caption": "A group conversation in the popover, each sender named, answered without opening pal",
+        "kind": "bar",
+        "box": [
+          346,
+          64,
+          840,
+          936
+        ]
+      },
+      {
+        "file": "bar-sketchybar.png",
+        "caption": "On sketchybar: the same counts, each network in its colour and the @ in red",
+        "kind": "bar"
+      }
+    ]
+  }
+}

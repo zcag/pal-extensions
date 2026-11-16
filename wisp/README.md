@@ -1,0 +1,96 @@
+# Wisp
+
+Every inbox you keep in **[Wisp](https://github.com/zcag/wisp)** from pal:
+WhatsApp, Gmail, Slack, Telegram, SMS, Instagram, LinkedIn and X in one list,
+a conversation to read and answer, Wisp's To do and Done on a key, search
+across every account, and one bar item that counts unread per network.
+
+Wisp is a self-hosted inbox server: it keeps the connections to each network
+and their read state, sorts conversations into its own views (Inbox, Now, To
+do, the Screener) and sections (People, Work, Groups, Feed, Paper), and has an
+integration API this extension speaks (`/api/v1`, Wisp's `docs/API.md`).
+Nothing is kept here: read, unread, To do and Done are Wisp's, so they match
+its web page and its phone app.
+
+## Setup
+
+1. In Wisp, Accounts › Agent tokens: make a token with the scope **App of
+   yours**. Such a token acts as you, like Wisp's own page: it sends and
+   marks read on every account whose policy lets you send. A **Read + send**
+   token works too, but acts as an agent: it only sends and marks read on
+   accounts that let agents act.
+2. Under Settings › Extensions › Wisp, set **Wisp server** (the address you
+   open in a browser) and **Token**.
+
+A server behind a private CA (Caddy's `tls internal`) works when this machine
+trusts that CA, as a browser would.
+
+## Palettes
+
+**Inbox** (`wisp-inbox`): one of Wisp's views with every account in it. The
+Inbox (unread, and To dos whose day came) is under Wisp's sections, a due To
+do first; Now, To do, Screener and All are filters. A row is the picture, the
+title, the last line ("You:" before yours), the unread count in the network's
+colour (`@3` in red when something is meant for you), a To do's state and
+date, and the time. The pane is the latest messages. Enter opens the
+conversation; Tab types a message that `cmd+shift+r` sends. `cmd+enter` marks
+read (unread on a read one, where the network keeps an unread mark: Gmail,
+WhatsApp, Telegram), `cmd+t` To do (clears one), `cmd+shift+t` To do tomorrow
+at 9, `cmd+shift+w` waiting on them (a To do again in three days unless they
+answer), `cmd+e` Done (archives, on the network too where it has an archive),
+`cmd+o` opens it in Wisp. Each of those runs over marked rows too.
+
+**Conversation** (`wisp-conversation`): one conversation to read and answer,
+opened at its newest message: the messages by day, theirs on the left and
+yours on the right, each sender named in a group, photos inline, other
+attachments as a line (a click opens the message in Wisp), reactions, a
+mail's subject. The search row is the message field: type and Enter sends,
+through Wisp's outbox (its undo delay applies). Opening it marks it read, as
+in Wisp (the **Opening reads** setting turns that off). New messages arrive
+as they come. `cmd+[` loads older ones.
+
+**Search Wisp** (`wisp-search`): Wisp's own search over every account, with
+its language: words as prefixes, `"phrases"`, `-word`, `from:`, `in:slack`,
+`is:unread`, `has:attachment`, `before:`, `after:7d`. Enter opens the
+conversation, `cmd+o` opens Wisp at that message.
+
+**Wisp Accounts** (`wisp-accounts`): each account with its state and unread,
+the ones that need attention (degraded, disconnected, waiting on setup)
+first. Enter opens the account in Wisp.
+
+## The bar item
+
+**Inbox** (`wisp/inbox`): the Wisp glyph, then a run per network with
+something unread, its glyph and count in its colour (on sketchybar; the
+macOS menu bar draws them in one colour), an `@` count in red for
+conversations with something meant for you (a mention, a reply in a thread
+you follow, even where the conversation is set to Don't count), and the To
+dos that are due. Hidden while nothing is unread or due (its `quiet` rule).
+Its settings: count **per network** (two Gmail accounts are one), **per
+account**, or **one count**; **Every account** counts the accounts Wisp
+leaves out of its total; **Colours** off draws them plain.
+
+The popover is the whole Inbox: a tab per network over the rows (`1` all,
+`2` to `9` each network, Tab cycles), the rows under Wisp's sections, and a
+line per account that needs attention. Enter opens the conversation in the
+popover, Space previews it, `r` replies in a field, `m` marks read (or
+unread), `t` To do, `l` tomorrow, `e` Done, `w` Wisp, `p` the Inbox palette;
+`m`, `t`, `l`, `e` and `w` run over marked rows.
+
+The states `wisp/unread`, `wisp/for_me`, `wisp/todo`, `wisp/now` and
+`wisp/trouble` are published with every render, for a rule or a state of
+your own.
+
+## Links
+
+- `pal://wisp/open?conversation=<id or words of its title>` opens it; bare,
+  the Inbox.
+- `pal://wisp/search?q=<query>` opens Search with the query.
+- `pal://wisp/send?conversation=<…>&text=<…>` sends a message.
+
+## Live
+
+The extension follows Wisp's event stream (`/api/v1/events`): a new message,
+a change in the unread total or a To do coming back redraws the bar and any
+open conversation at once. The bar's own two-minute render is the safety
+net; a wake or a network change reconnects the stream.

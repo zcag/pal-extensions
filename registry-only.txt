@@ -46,4 +46,5 @@ translate
 turkish
 weather
 whatsapp
+wisp
 youtube
