@@ -5,7 +5,6 @@
 // strip counts by, and the formatting of times and lines.
 import { clock, dayName, mdEscape, now, oneLine, type TagColor, type TileColorName } from "@zcag/pal";
 import * as api from "./api.ts";
-import { LOGOS } from "./logos.ts";
 import type { Account, AccountCounts, Channel, Conversation, Counts, Message, Split, View } from "./api.ts";
 
 /** Glyphs from the bundled Nerd Font's `md-` set. */
@@ -31,22 +30,42 @@ const NETS: Record<string, Net> = {
   phone: { name: "Phone", glyph: GLYPH.phone, color: "amber", tile: "amber" },
   github: { name: "GitHub", glyph: GLYPH.github, color: "grey", tile: "ink" },
 };
+// ---- the networks, as the server describes them --------------------------------------------
+// Names, brand colours and logos come from Wisp (`/api/v1/networks`), so a
+// connector it gains needs nothing here; NETS above stays as the font glyph
+// and tag colour each network falls back to.
+
+const NETWORKS_MS = 3_600_000;
+let known = new Map<string, api.Network>(), knownAt = 0;
+
+/** The server's networks, fetched at most hourly; a failure keeps what was there. */
+export async function loadNetworks(refresh = false) {
+  if (!refresh && known.size && now() - knownAt < NETWORKS_MS) return;
+  try { known = new Map((await api.networks()).map((n) => [n.channel, n])); knownAt = now(); } catch { /* the glyphs stand in */ }
+}
+export const forgetNetworks = () => { known = new Map(); knownAt = 0; };
+
 /**
- * A network's own logo as a picture (`{ image }`, an SVG data url in its
- * brand colour), for the bar's segments and the popover's tabs; none for
- * a network Simple Icons does not carry. A near-black one (X's, GitHub's)
- * would vanish on a dark bar, so it is a template and takes the bar's ink.
+ * A network's logo as a picture (`{ image }`, an SVG data url) from the
+ * server's mark: in its brand colour, or `mono`, a template the bar inks
+ * (and so does a near-black brand, which would vanish on a dark bar).
+ * None while the server has not said, or for a network without a mark.
  */
-export function logo(c: Channel): { image: string; template?: true } | undefined {
-  const l = LOGOS[c];
-  if (!l) return undefined;
-  const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path fill="${l.hex}" d="${l.path}"/></svg>`;
-  const [r, g, b] = [1, 3, 5].map((i) => parseInt(l.hex.slice(i, i + 2), 16));
+export function logo(c: Channel, mono = false): { image: string; template?: true } | undefined {
+  const n = known.get(c);
+  if (!n?.logo) return undefined;
+  const hex = /^#[0-9a-f]{6}$/i.test(n.color ?? "") ? n.color! : "#000000";
+  const [r, g, b] = [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16));
   const dark = 0.2126 * r + 0.7152 * g + 0.0722 * b < 48;
-  return { image: `data:image/svg+xml;utf8,${encodeURIComponent(svg)}`, ...(dark && { template: true as const }) };
+  const svg = n.logo.replaceAll("currentColor", mono || dark ? "#000000" : hex);
+  return { image: `data:image/svg+xml;utf8,${encodeURIComponent(svg)}`, ...((mono || dark) && { template: true as const }) };
 }
 
-export const net = (c: Channel): Net => NETS[c] ?? { name: c ? c[0].toUpperCase() + c.slice(1) : "Other", glyph: GLYPH.other, color: "grey", tile: "slate" };
+export function net(c: Channel): Net {
+  const fallback = NETS[c] ?? { name: c ? c[0].toUpperCase() + c.slice(1) : "Other", glyph: GLYPH.other, color: "grey" as const, tile: "slate" as const };
+  const name = known.get(c)?.name;
+  return name ? { ...fallback, name } : fallback;
+}
 
 // ---- the lists, shared for FRESH_MS ---------------------------------------------------------
 

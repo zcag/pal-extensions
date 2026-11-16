@@ -103,6 +103,10 @@ async function request<T>(method: "GET" | "POST" | "DELETE", path: string, param
 }
 
 export const counts = () => request<Counts>("GET", "/api/v1/counts");
+/** A network the server can connect: its name, brand colour and logo (an SVG document in `currentColor`). */
+export type Network = { channel: Channel; name: string; description: string; color?: string; logo?: string };
+/** Every network the server knows (`/api/v1/networks`); empty from a server before it. */
+export const networks = async () => (await request<{ networks: Network[] }>("GET", "/api/v1/networks").catch((e) => { if (e instanceof ApiError && e.status === 404) return { networks: [] }; throw e; })).networks;
 export const accounts = async () => (await request<{ accounts: Account[] }>("GET", "/api/v1/accounts")).accounts;
 export const conversations = (view: View, o: { account?: number; limit?: number; cursor?: string; unread?: boolean } = {}) =>
   request<Page<{ conversations: Conversation[] }>>("GET", "/api/v1/conversations", { view, account: o.account, limit: o.limit ?? 200, cursor: o.cursor, unread: o.unread ? 1 : undefined });

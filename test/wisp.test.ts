@@ -196,18 +196,23 @@ describe("wisp", () => {
     expect(await host.pick(X, "accounts", "4")).toEqual({ open: `${mock.url}/accounts/4` });
   });
 
-  test("bar: a logo and count per network (per account, one count), the due To do, the facts; a click on a network opens its tab; the popover's keys; the stream redraws it", async () => {
+  test("bar: a logo and count per network in a capsule (in colour, as glyphs; per account, one count), the due To do, the facts; a click on a network opens its tab; the popover's keys; the stream redraws it", async () => {
     mock.reset();
     const item = await host.render(X, "inbox", { reason: "every" });
-    expect(item.segments!.map((s) => [s.id, s.text, s.color])).toEqual([["for_me", "1", "red"], ["whatsapp", "2", "green"], ["gmail", "1", "red"], ["sms", "1", "teal"], ["todo", "1", "amber"]]);
+    // The capsule: a faint band, every count in the bar's ink but the @, the server's marks as templates the bar inks.
+    expect(item.background).toBe("subtle");
+    expect(item.segments!.map((s) => [s.id, s.text, s.color])).toEqual([["for_me", "1", "red"], ["whatsapp", "2", undefined], ["gmail", "1", undefined], ["sms", "1", undefined], ["todo", "1", undefined]]);
     expect(item.states).toEqual({ unread: 4, for_me: 1, todo: 1, now: 2, trouble: 1 });
-    // The networks' own logos where Simple Icons has one (Google Messages for SMS); the @ and the To do stay glyphs; off, every one is a glyph.
     const icons = Object.fromEntries(item.segments!.map((s) => [s.id, s.icon]));
-    expect(icons.whatsapp).toEqual({ image: expect.stringMatching(/^data:image\/svg\+xml;utf8,.*25D366/) });
-    expect(icons.sms).toEqual({ image: expect.stringMatching(/^data:image\/svg\+xml;utf8,/) });
+    expect(icons.whatsapp).toEqual({ image: expect.stringMatching(/^data:image\/svg\+xml;utf8,.*%23000000/), template: true });
     expect(typeof icons.for_me).toBe("string");
-    const plain = await host.render(X, "inbox", { reason: "every", settings: { logos: false } });
-    expect(plain.segments!.every((s) => typeof s.icon === "string")).toBe(true);
+    // Colour: the marks in their brand colours (a near-black one inks), the counts too, no band; glyphs: the font's marks.
+    const colour = await host.render(X, "inbox", { reason: "every", settings: { look: "colour" } });
+    expect(colour.background).toBeUndefined();
+    expect(colour.segments!.map((s) => [s.id, s.color])).toEqual([["for_me", "red"], ["whatsapp", "green"], ["gmail", "red"], ["sms", "teal"], ["todo", "amber"]]);
+    expect(Object.fromEntries(colour.segments!.map((s) => [s.id, s.icon])).gmail).toEqual({ image: expect.stringMatching(/%23EA4335/) });
+    const glyphs = await host.render(X, "inbox", { reason: "every", settings: { look: "glyphs" } });
+    expect(glyphs.segments!.every((s) => typeof s.icon === "string")).toBe(true);
     // A click on a segment is `segment:<id>`: the popover on that network's tab (a per-account count on its network's), the @ on All.
     const onGmail = (await host.barAction(X, "inbox", "segment:gmail", ctx)).view as View;
     expect(texts(onGmail)).toContain("Q4 plan");

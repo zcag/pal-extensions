@@ -264,7 +264,7 @@
   "bar": {
     "inbox": {
       "title": "Inbox",
-      "description": "Unread per network as each network's logo (or glyph) and count in its colour (or per account, or one count after Wisp's own glyph), a red @ count while something is meant for you, To dos that are due; a click on a network opens the popover on its tab, which is every account's inbox behind a tab per network: open a conversation, reply, mark read, To do or done without leaving it.",
+      "description": "Unread per network as each network's logo and count in a faint capsule in the bar's own ink (or in their colours, or the font's glyphs; per network, per account, or one count after Wisp's glyph), a red @ count while something is meant for you, To dos that are due; a click on a network opens the popover on its tab, which is every account's inbox behind a tab per network: open a conversation, reply, mark read, To do or done without leaving it.",
       "refresh": {
         "every": 120,
         "on": [
@@ -275,45 +275,45 @@
       },
       "mocks": {
         "busy": {
-          "title": "Unread on three networks, with their logos",
+          "title": "Unread on three networks, in a capsule",
           "item": {
             "segments": [
               {
                 "id": "whatsapp",
                 "icon": {
-                  "image": "data:image/svg+xml;utf8,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%2024%2024%22%3E%3Cpath%20fill%3D%22%2325D366%22%20d%3D%22M17.472%2014.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94%201.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198%200-.52.074-.792.372-.272.297-1.04%201.016-1.04%202.479%200%201.462%201.065%202.875%201.213%203.074.149.198%202.096%203.2%205.077%204.487.709.306%201.262.489%201.694.625.712.227%201.36.195%201.871.118.571-.085%201.758-.719%202.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421%207.403h-.004a9.87%209.87%200%2001-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86%209.86%200%2001-1.51-5.26c.001-5.45%204.436-9.884%209.888-9.884%202.64%200%205.122%201.03%206.988%202.898a9.825%209.825%200%20012.893%206.994c-.003%205.45-4.437%209.884-9.885%209.884m8.413-18.297A11.815%2011.815%200%200012.05%200C5.495%200%20.16%205.335.157%2011.892c0%202.096.547%204.142%201.588%205.945L.057%2024l6.305-1.654a11.882%2011.882%200%20005.683%201.448h.005c6.554%200%2011.89-5.335%2011.893-11.893a11.821%2011.821%200%2000-3.48-8.413Z%22%2F%3E%3C%2Fsvg%3E"
+                  "image": "data:image/svg+xml;utf8,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%2024%2024%22%20fill%3D%22none%22%20stroke%3D%22%23000000%22%20stroke-width%3D%221.6%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%3E%3Cpath%20d%3D%22M12%203.5a8.5%208.5%200%200%200-7.3%2012.8L3.5%2020.5l4.3-1.1A8.5%208.5%200%201%200%2012%203.5z%22%2F%3E%3C%2Fsvg%3E",
+                  "template": true
                 },
                 "text": "2",
-                "color": "green",
                 "tooltip": "WhatsApp: 2 unread"
               },
               {
                 "id": "gmail",
                 "icon": {
-                  "image": "data:image/svg+xml;utf8,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%2024%2024%22%3E%3Cpath%20fill%3D%22%23EA4335%22%20d%3D%22M24%205.457v13.909c0%20.904-.732%201.636-1.636%201.636h-3.819V11.73L12%2016.64l-6.545-4.91v9.273H1.636A1.636%201.636%200%200%201%200%2019.366V5.457c0-2.023%202.309-3.178%203.927-1.964L5.455%204.64%2012%209.548l6.545-4.91%201.528-1.145C21.69%202.28%2024%203.434%2024%205.457z%22%2F%3E%3C%2Fsvg%3E"
+                  "image": "data:image/svg+xml;utf8,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%2024%2024%22%20fill%3D%22none%22%20stroke%3D%22%23000000%22%20stroke-width%3D%221.6%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%3E%3Cpath%20d%3D%22M3.5%206h17v12h-17zM3.5%206.5L12%2013l8.5-6.5%22%2F%3E%3C%2Fsvg%3E",
+                  "template": true
                 },
                 "text": "1",
-                "color": "red",
                 "tooltip": "Gmail: 1 unread"
               },
               {
                 "id": "sms",
                 "icon": {
-                  "image": "data:image/svg+xml;utf8,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%2024%2024%22%3E%3Cpath%20fill%3D%22%231A73E8%22%20d%3D%22M12%200A12%2012%200%200%200%200%2012a12%2012%200%200%200%2012%2012%2012%2012%200%200%200%2012-12A12%2012%200%200%200%2012%200zM4.911%207.089h11.456a2.197%202.197%200%200%201%202.165%202.19v5.863a2.213%202.213%200%200%201-2.177%202.178H8.04c-1.174%200-2.04-.99-2.04-2.178v-4.639L4.503%207.905c-.31-.42-.05-.816.408-.816zm3.415%202.19c-.347%200-.68.21-.68.544%200%20.334.333.544.68.544h7.905c.346%200%20.68-.21.68-.544%200-.334-.334-.545-.68-.545zm0%202.177c-.347%200-.68.21-.68.544%200%20.334.333.544.68.544h7.905c.346%200%20.68-.21.68-.544%200-.334-.334-.544-.68-.544zm-.013%202.19c-.346%200-.68.21-.68.544%200%20.334.334.544.68.544h5.728c.347%200%20.68-.21.68-.544%200-.334-.333-.545-.68-.545z%22%2F%3E%3C%2Fsvg%3E"
+                  "image": "data:image/svg+xml;utf8,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%2024%2024%22%20fill%3D%22none%22%20stroke%3D%22%23000000%22%20stroke-width%3D%221.6%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%3E%3Cpath%20d%3D%22M4%204.5h16v11.5H9.5L4%2020zM8%209h8M8%2012h5%22%2F%3E%3C%2Fsvg%3E",
+                  "template": true
                 },
                 "text": "1",
-                "color": "teal",
                 "tooltip": "SMS: 1 unread"
               },
               {
                 "id": "todo",
                 "icon": "󰅎",
                 "text": "1",
-                "color": "amber",
                 "tooltip": "1 To do due"
               }
             ],
-            "tooltip": "WhatsApp 2, Gmail 1, SMS 1 · 1 To do due"
+            "tooltip": "WhatsApp 2, Gmail 1, SMS 1 · 1 To do due",
+            "background": "subtle"
           }
         },
         "mention": {
@@ -380,19 +380,25 @@
           "default": false
         },
         {
-          "kind": "boolean",
-          "id": "logos",
-          "label": "Logos",
-          "text": "Each network's own logo (WhatsApp, Gmail, Telegram, Instagram, X, GitHub, Google Messages)",
-          "description": "Off, every network is the font's glyph. On the macOS menu bar the logos make each network a status item of its own, and a click on one opens the popover on its tab. Slack and LinkedIn have no logo to draw and keep their glyphs.",
-          "default": true
-        },
-        {
-          "kind": "boolean",
-          "id": "color",
-          "label": "Colours",
-          "text": "Each network's count in its own colour",
-          "default": true
+          "kind": "select",
+          "id": "look",
+          "label": "Look",
+          "description": "Capsule: each network's logo in the bar's own ink on a faint capsule that groups Wisp, the @ in red. Colour: each logo and count in its network's colours. Glyphs: the font's marks in the networks' colours. The logos are Wisp's own (each connector's brand mark, or Wisp's line drawing), so a network Wisp gains shows up with its logo. On the macOS menu bar the logos make each network a status item of its own and the capsule is not drawn; a click on a network opens the popover on its tab either way.",
+          "options": [
+            {
+              "id": "capsule",
+              "title": "Capsule"
+            },
+            {
+              "id": "colour",
+              "title": "Colour"
+            },
+            {
+              "id": "glyphs",
+              "title": "Glyphs"
+            }
+          ],
+          "default": "capsule"
         }
       ],
       "rules": [
@@ -499,7 +505,7 @@
       "A conversation to read and answer inside pal: messages by day, photos inline, reactions, a field that sends on Enter, new messages as they arrive",
       "Wisp's AI in the conversation: its summary on top, a suggested reply in the field on a key, a voice message's words; reply to one message or react to it",
       "To do, To do tomorrow, Waiting on them, Done and read or unread on a key, over many conversations at once",
-      "One bar item: each network's own logo and unread count, a red @ for mentions meant for you, To dos that are due; a click on a network opens its tab",
+      "One bar item: each network's logo and unread count in a faint capsule, a red @ for mentions meant for you, To dos that are due; a click on a network opens its tab",
       "Its popover is the whole inbox behind a tab per network: open, preview, reply, mark read, To do or done without opening anything",
       "Wisp's search across every account, with from:, in:, is:unread and dates",
       "Each account's state, the ones that need attention first, on the strip's popover and in Wisp Accounts",

@@ -79,19 +79,21 @@ first. Enter opens the account in Wisp.
 
 ## The bar item
 
-**Inbox** (`wisp/inbox`): a run per network with something unread, its own
-logo and the count in its colour (WhatsApp, Gmail, Telegram, Instagram, X, GitHub and
-Google Messages for SMS, from Simple Icons; Slack and LinkedIn have none
-there and keep their glyphs), an `@` count in red for conversations with
-something meant for you (a mention, a reply in a thread you follow, even
-where the conversation is set to Don't count), and the To dos that are due.
-On the macOS menu bar the logos make each network a status item of its own.
-A click on a network opens the popover on its tab; the `@` and To do counts
-open it on All. Hidden while nothing is unread or due (its `quiet` rule).
-Its settings: count **per network** (two Gmail accounts are one), **per
-account**, or **one count** (after the Wisp glyph); **Every account**
-counts the accounts Wisp leaves out of its total; **Logos** off draws the
-font's glyphs instead; **Colours** off draws them plain.
+**Inbox** (`wisp/inbox`): a run per network with something unread, its logo and
+the count, in a faint capsule in the bar's own ink, an `@` count in red for
+conversations with something meant for you (a mention, a reply in a thread you
+follow, even where the conversation is set to Don't count), and the To dos
+that are due. The names, brand colours and logos come from Wisp
+(`/api/v1/networks`: each connector's brand mark, or Wisp's line drawing), so
+a network Wisp gains shows up with its logo and nothing here changes; a server
+before that endpoint gets the font's glyphs. On the macOS menu bar the logos
+make each network a status item of its own (no capsule there). A click on a
+network opens the popover on its tab; the `@` and To do counts open it on All.
+Hidden while nothing is unread or due (its `quiet` rule). Its settings:
+**Look**, Capsule (the default), Colour (each logo and count in its network's
+colours) or Glyphs (the font's marks); count **per network** (two Gmail
+accounts are one), **per account**, or **one count** (after the Wisp glyph);
+**Every account** counts the accounts Wisp leaves out of its total.
 
 The popover is the whole Inbox: a tab per network over the rows (`1` all,
 `2` to `9` each network, Tab cycles), the rows under Wisp's sections, and a

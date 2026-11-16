@@ -15,7 +15,7 @@ import { bar, errorMessage, failed, hint, mdEscape, now, preview, settings, stat
 import * as api from "./api.ts";
 import { ApiError, EXT, NotSetUp, Unreachable, accountUrl, conf, forgetPictures, log, picture, webUrl, type AI, type Account, type Conversation, type Counts, type Message, type Person, type Split } from "./api.ts";
 import { render as renderChat, type ChatState } from "./chat.ts";
-import { GLYPH, SECTION_ORDER, accounts, counts, drop, forMe, groups, healthy, isDue, isGroup, isTodo, line, list, logo, markdown, net, one, plural, preview as lastLine, sectionOf, short, tabs, until } from "./data.ts";
+import { GLYPH, SECTION_ORDER, accounts, counts, drop, forMe, forgetNetworks, groups, healthy, isDue, isGroup, isTodo, line, list, loadNetworks, logo, markdown, net, one, plural, preview as lastLine, sectionOf, short, tabs, until } from "./data.ts";
 import * as live from "./live.ts";
 import { actions as popActions, avatarColor, current, initial, render as renderPopover, visible, type PopRow, type PopState } from "./view.ts";
 
@@ -32,7 +32,7 @@ const POLL_MS = 2000, POLL_ROUNDS = 45;
 const REACTIONS = ["👍", "❤️", "😂", "😮", "😢", "🙏"];
 
 // Another server or token: nothing fetched applies, and the stream follows the new one.
-settings.onChange(() => { drop(); forgetPictures(); live.restart(); }, EXT);
+settings.onChange(() => { drop(); forgetPictures(); forgetNetworks(); live.restart(); }, EXT);
 
 // ---- failures ---------------------------------------------------------------------------------
 
@@ -227,6 +227,7 @@ const EMPTY: Record<ViewId, [string, string]> = {
 
 async function inboxRows(ctx?: Ctx): Promise<Item[]> {
   hook();
+  await loadNetworks(!!ctx?.refresh);
   live.start();
   const v = (VIEWS.some((x) => x.id === ctx?.filter) ? ctx!.filter : "inbox") as ViewId;
   const cs = await list(v, !!ctx?.refresh);
@@ -581,7 +582,9 @@ function hook() {
 
 // ---- the bar item ----------------------------------------------------------------------------------------------
 
-type BarSettings = { split?: Split; uncounted?: boolean; color?: boolean; logos?: boolean };
+/** `look`: capsule (mono logos in the bar's ink on a faint capsule, the @ red), colour (each network's logo and count in its colours), glyphs (the font's marks in the networks' colours). */
+type Look = "capsule" | "colour" | "glyphs";
+type BarSettings = { split?: Split; uncounted?: boolean; look?: Look };
 let barConf: BarSettings = {};
 let tab = "all", cursor: number | undefined, replying: number | undefined, draft: string | undefined;
 let last: { rows: Conversation[]; counts?: Counts; accs: Account[]; problem?: string } = { rows: [], accs: [] };
@@ -610,7 +613,7 @@ async function popState(): Promise<PopState> {
 
 async function fetchBar(refresh: boolean) {
   try {
-    const [c, rows, accs] = await Promise.all([counts(refresh), list("inbox", refresh), accounts(refresh)]);
+    const [c, rows, accs] = await Promise.all([counts(refresh), list("inbox", refresh), accounts(refresh), loadNetworks()]);
     last = { rows, counts: c, accs };
   } catch (e) {
     last = { ...last, problem: problemOf(e) };
@@ -631,19 +634,20 @@ function facts(): Record<string, number> {
   };
 }
 
-export function strip(c: Counts | undefined, rows: Conversation[], s: BarSettings): Pick<BarItem, "segments" | "tooltip"> {
+export function strip(c: Counts | undefined, rows: Conversation[], s: BarSettings): Pick<BarItem, "segments" | "tooltip" | "background"> {
   if (!c) return {};
+  const look = s.look ?? "capsule", capsule = look === "capsule";
   const gs = groups(c, s.split ?? "network", !!s.uncounted).filter((g) => g.unread > 0);
   const due = rows.filter((r) => isDue(r)).length, mine = c.forMe ?? 0;
   const segments: NonNullable<BarItem["segments"]> = [];
   if (mine) segments.push({ id: "for_me", icon: GLYPH.at, text: String(mine), color: "red", tooltip: `${plural(mine, "conversation")} with something meant for you` });
   segments.push(...gs.slice(0, 8 - segments.length - (due ? 1 : 0)).map((g) => ({
-    id: g.id, icon: s.split === "total" ? undefined : (s.logos !== false && g.channel ? logo(g.channel) : undefined) ?? g.glyph, text: String(g.unread), ...(s.color !== false && s.split !== "total" && { color: g.color }), tooltip: `${g.title}: ${g.unread} unread`,
+    id: g.id, icon: s.split === "total" ? undefined : (look !== "glyphs" && g.channel ? logo(g.channel, capsule) : undefined) ?? g.glyph, text: String(g.unread), ...(!capsule && s.split !== "total" && { color: g.color }), tooltip: `${g.title}: ${g.unread} unread`,
   })));
-  if (due) segments.push({ id: "todo", icon: GLYPH.todo, text: String(due), color: "amber", tooltip: `${plural(due, "To do")} due` });
+  if (due) segments.push({ id: "todo", icon: GLYPH.todo, text: String(due), ...(!capsule && { color: "amber" as const }), tooltip: `${plural(due, "To do")} due` });
   const lead = rows.filter((r) => r.unread).slice(0, 3).map((r) => `${r.title}: ${truncate(lastLine(r), 60)}`);
   const words = [mine ? `${mine} for you` : "", gs.map((g) => `${g.title} ${g.unread}`).join(", "), due ? `${plural(due, "To do")} due` : ""].filter(Boolean);
-  return { segments, tooltip: [words.join(" · ") || "Nothing unread", ...lead].join("\n") };
+  return { segments, ...(capsule && segments.length && { background: "subtle" }), tooltip: [words.join(" · ") || "Nothing unread", ...lead].join("\n") };
 }
 
 async function renderBar(ctx?: BarCtx): Promise<BarItem> {

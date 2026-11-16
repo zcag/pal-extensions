@@ -78,6 +78,15 @@ export function messages(): Record<number, Message[]> {
 
 const UNREAD_MARK = new Set(["gmail", "whatsapp", "telegram"]);
 
+/** The server's networks: invented line marks (no brand's artwork in fixtures), in currentColor as Wisp serves them. */
+const mark = (d: string) => `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="${d}"/></svg>`;
+export const networks = [
+  { channel: "whatsapp", name: "WhatsApp", description: "", color: "#25D366", logo: mark("M12 3.5a8.5 8.5 0 0 0-7.3 12.8L3.5 20.5l4.3-1.1A8.5 8.5 0 1 0 12 3.5z") },
+  { channel: "gmail", name: "Gmail", description: "", color: "#EA4335", logo: mark("M3.5 6h17v12h-17zM3.5 6.5L12 13l8.5-6.5") },
+  { channel: "slack", name: "Slack", description: "", color: "#4A154B", logo: mark("M9.5 3.5L7.5 20.5M16.5 3.5l-2 17M4.5 9h16M3.5 15h16") },
+  { channel: "sms", name: "SMS", description: "", color: "#1A73E8", logo: mark("M4 4.5h16v11.5H9.5L4 20zM8 9h8M8 12h5") },
+];
+
 export const SUMMARY = "Ada asks whether tonight is still on and found the old engine notes to bring.";
 export const DRAFT = "Yes, still on. 8 at the usual place?";
 export const people = (): Person[] => [
@@ -155,6 +164,7 @@ export class WispMock {
     const c = this.convs.find((x) => x.id === id);
     if (m === "GET" && p === "/api/v1/counts") return json(this.counts());
     if (m === "GET" && p === "/api/v1/accounts") return json({ accounts: this.accounts });
+    if (m === "GET" && p === "/api/v1/networks") return json({ networks });
     if (m === "GET" && p === "/api/v1/conversations") return json({ conversations: this.view(u.searchParams.get("view") ?? "inbox") });
     if (m === "GET" && PICTURES[p]) return new Response(PICTURES[p], { headers: { "content-type": "image/svg+xml" } });
     if (m === "GET" && p === "/api/v1/events") {
