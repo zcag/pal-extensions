@@ -94,28 +94,28 @@ describe.skipIf(!MAC)("otp", () => {
   test("codes newest first, one row per message, Today then Earlier; no row for a sent message, a denied sender or a text without a code", async () => {
     const items = await list();
     expect(items.map((i) => i.id)).toEqual(["1", "2", "8", "4", "7"]);
-    // Today by the calendar, as the extension reads it: minutes-old fixtures land on yesterday in a run just after midnight.
-    const day = (id: string) => new Date(messages.find((m) => String(m[0]) === id)![2]).toDateString() === new Date().toDateString() ? "Today" : "Earlier";
+    // Today and Yesterday by the calendar, as the extension reads it: minutes-old fixtures land on yesterday in a run just after midnight.
+    const ago = (days: number) => { const d = new Date(); d.setDate(d.getDate() - days); return d.toDateString(); };
+    const day = (id: string) => { const d = new Date(messages.find((m) => String(m[0]) === id)![2]).toDateString(); return d === ago(0) ? "Today" : d === ago(1) ? "Yesterday" : "Earlier"; };
     expect(items.map((i) => i.section)).toEqual(items.map((i) => day(i.id)));
-    expect(items.slice(3).map((i) => i.section)).toEqual(["Earlier", "Earlier"]);
     expect(items.map((i) => i.accessories![0])).toEqual([
       { tag: "483920", color: "green" }, { tag: "712345", color: "green" }, { tag: "8765", color: "green" }, { tag: "1234", color: "green" }, { tag: "246810", color: "green" },
     ]);
     for (const i of items) {
       expect(i.accessories![1]).toEqual({ date: expect.any(Number) });
       expect(i.actions!.map((a) => a.id)).toEqual(["paste", "copy", "copy-sender"]);
-      expect(i.icon).toBe("\u{f0369}");
+      expect(i.icon).toMatchObject({ tile: { glyph: expect.any(String) } });
     }
   });
 
   test("the sender is the row: a shortcode as is, a number by its contact, an email by its contact; the text is the subtitle", async () => {
     const by = Object.fromEntries((await list()).map((i) => [i.id, i]));
-    expect(by["1"]).toMatchObject({ name: "AKBANK", subtitle: "Akbank Internet Sifreniz: 483920. Kimseyle paylasmayin. Bakiye 1.250,00 TL, 16.09.2026 19:13", keywords: ["483920", "AKBANK"] });
+    expect(by["1"]).toMatchObject({ name: "Akbank", subtitle: "Akbank Internet Sifreniz: 483920. Kimseyle paylasmayin. Bakiye 1.250,00 TL, 16.09.2026 19:13", keywords: ["483920", "AKBANK", "Akbank", "Bank"], icon: { tile: { bg: "violet" } } });
     expect(by["2"]).toMatchObject({ name: "22000", subtitle: "G-712345 is your Google verification code." });
-    expect(by["4"]).toMatchObject({ name: "Ayşe Yılmaz", keywords: ["1234", "+905551112233", "Ayşe Yılmaz"] });
+    expect(by["4"]).toMatchObject({ name: "Ayşe Yılmaz", keywords: ["1234", "+905551112233", "Ayşe Yılmaz", "Sign-in"] });
     expect(by["4"].detail).toMatchObject({ caption: expect.stringMatching(/^Ayşe Yılmaz \(\+905551112233\) · /), title: (by["4"].accessories![0] as { tag: string }).tag });
     expect(by["8"].name).toBe("Shop");
-    expect(by["7"].name).toBe("*Enpara");
+    expect(by["7"].name).toBe("Enpara");
   });
 
   test("Enter pastes the code, the other actions copy the code or the raw sender", async () => {
@@ -176,19 +176,19 @@ describe.skipIf(!MAC)("otp bar: latest-code", () => {
     arrive(50, "Your verification code is 424242", 20_000);
     try {
       const item = await host.render("otp", "latest-code", { reason: "every" });
-      expect(item).toMatchObject({ icon: "\u{f084}", title: "424242", color: "green", tooltip: "AKBANK: Your verification code is 424242" });
+      expect(item).toMatchObject({ icon: "\u{f084}", title: "424242", color: "green", tooltip: "Akbank: Your verification code is 424242" });
       expect(item.refresh).toBeGreaterThanOrEqual(39);
       expect(item.refresh).toBeLessThanOrEqual(40);
       const v = viewOf(item);
-      expect(v).toMatchObject({ id: "latest", keys: "actions", title: "424242 from AKBANK" });
+      expect(v).toMatchObject({ id: "latest", keys: "actions", title: "424242 from Akbank" });
       expect(tiles(v)).toEqual(["4", "2", "4", "2", "4", "2"]);
       // The digits row copies on a click; the sender, when, the text, the seconds left, the hints, then the two codes of the last hour before it (the fixture's newest two: AKBANK's and SPAMCO is denied, so Google's).
       expect(nodes(v.tree).find((n) => n.key === "digits-424242")).toMatchObject({ action: "copy" });
       const t = texts(v);
-      expect(t.slice(0, 3)).toEqual(["AKBANK", "20 s ago", "Your verification code is 424242"]);
+      expect(t.slice(0, 3)).toEqual(["Akbank", "20 s ago", "Your verification code is 424242"]);
       expect(t[3]).toMatch(/^(39|40)s$/);
       expect(t.slice(4, 8)).toEqual(["copy", "paste", "copy sender", "all codes"]);
-      expect(t.slice(8)).toEqual(["Earlier", "483920", "AKBANK", "1 min ago", "712345", "22000", "5 min ago"]);
+      expect(t.slice(8)).toEqual(["Earlier", "483920", "Akbank", "1 min ago", "712345", "22000", "5 min ago"]);
       expect(v.actions.map((a) => a.id)).toEqual(["copy", "paste", "copy-sender", "open", "copy:1", "copy:2"]);
       const bar = nodes(v.tree).find((n) => n.type === "progress") as Extract<ViewNode, { type: "progress" }>;
       expect(bar.color).toBe("amber");
@@ -278,9 +278,10 @@ describe("otp from Wisp", () => {
   const TOKEN = "inbx_test";
   const iso = (ago: number) => new Date(Date.now() - ago).toISOString();
   const wisp = [
-    { code: "105762", issuer: "E-DEVLET", sentAt: iso(15_000), account: "SMS", messageId: 3 },
-    { code: "5bhxh28i", issuer: "Spamco", sentAt: iso(2 * MIN), account: "Gmail", messageId: 2 },
-    { code: "4412", issuer: "Ada", sentAt: iso(30 * MIN), account: "WhatsApp", messageId: 1, text: "kapı 4412" },
+    { code: "105762", issuer: "E-DEVLET", excerpt: "Dogrulama kodunuz : 105762 Bu mesaj e-Devlet Kapisi tarafindan gonderilmistir", sentAt: iso(15_000), expiresAt: iso(-285_000), account: "SMS", messageId: 3 },
+    { code: "5bhxh28i", issuer: "Spamco", excerpt: "code 5bhxh28i", sentAt: iso(2 * MIN), account: "Gmail", messageId: 2 },
+    { code: "456332", issuer: "CEPSIFRE", excerpt: "…04 no lu 3D secure sifreniz 456332", sentAt: iso(30 * MIN), expiresAt: iso(25 * MIN), account: "SMS", messageId: 1 },
+    { code: "4412", issuer: "Ada", sentAt: iso(40 * MIN), account: "WhatsApp", messageId: 0 },
   ];
   let asked: URL[] = [];
   const server = Bun.serve({ port: 0, fetch: (r) => {
@@ -290,21 +291,27 @@ describe("otp from Wisp", () => {
   const conf = (o: object = {}) => host.changeSettings("otp", { settings: { source: "wisp", wisp_url: `http://localhost:${server.port}/`, wisp_token: TOKEN, senders: ["spamco"], ...o } });
   afterAll(() => { server.stop(true); host.changeSettings("otp", { settings: { db, contacts, senders: ["spamco"], hours: 48 } }); });
 
-  test("rows from Wisp's codes, newest first, the account standing in for the text; a denied issuer left out; the window asked as since", async () => {
+  test("rows from Wisp's codes, newest first: the sender readable, the excerpt as the subtitle (the account without one), the kind as the tile, a lapsed code grey; a denied issuer left out; the window asked as since; the filter keeps one kind", async () => {
     conf();
     asked = [];
     const items = await list();
     expect(asked[0].pathname).toBe("/api/v1/codes");
     expect(asked[0].searchParams.get("since")).toBe("24h");
-    expect(items.map((i) => [i.name, i.subtitle, (i.accessories![0] as { tag: string }).tag])).toEqual([["E-DEVLET", "SMS", "105762"], ["Ada", "kapı 4412", "4412"]]);
+    expect(items.map((i) => [i.name, i.subtitle, (i.icon as { tile: { bg: string } }).tile.bg, ...i.accessories!.slice(0, 2).map((a) => Object.values(a).join(" "))])).toEqual([
+      ["E-Devlet", "Dogrulama kodunuz : 105762 Bu mesaj e-Devlet Kapisi tarafindan gonderilmistir", "red", "105762 green", "SMS"],
+      ["Cepsifre", "04 no lu 3D secure sifreniz 456332", "blue", "456332 grey", "SMS"],
+      ["Ada", "WhatsApp", "green", "4412 green", "WhatsApp"],
+    ]);
     expect(await pick(items[0].id)).toEqual({ paste: { text: "105762" } });
+    expect(await pick(items[0].id, "copy-sender")).toEqual({ copy: "E-DEVLET" });
+    expect((await host.list("otp", "otp", "", { filter: "card" })).map((i) => i.name)).toEqual(["Cepsifre"]);
   });
 
   test("the bar shows the code that just came, with the one before it", async () => {
     conf();
     const item = await host.render("otp", "latest-code", { reason: "every" });
-    expect(item).toMatchObject({ title: "105762", color: "green", tooltip: "E-DEVLET: SMS" });
-    expect(texts(viewOf(item)).slice(-3)).toEqual(["4412", "Ada", "30 min ago"]);
+    expect(item).toMatchObject({ title: "105762", color: "green", tooltip: "E-Devlet: Dogrulama kodunuz : 105762 Bu mesaj e-Devlet Kapisi tarafindan gonderilmistir" });
+    expect(texts(viewOf(item)).slice(-3)).toEqual(["4412", "Ada", "40 min ago"]);
   });
 
   test("no token or a refused one is a hint row opening Settings; the bar is hidden", async () => {

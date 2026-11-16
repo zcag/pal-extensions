@@ -10,16 +10,20 @@ parola, passcode, verification, doğrulama, código, token and so on) and
 carries a run of 4 to 8 digits that is not part of an amount, a date, a
 time or a phone number; Google's `G-123456` is taken by its digits.
 
-The row is the sender as Messages knows it (a shortcode like `NORTHBANK`,
-an alphanumeric originator, a number or an email; a number or an email
-that is in Contacts shows the contact's name, read from the AddressBook
-database the same permission covers), the message text is the subtitle,
-the code is a green tag on the right with how long ago it arrived.
-Sections are Today and Earlier, newest first. A live palette: listed
+The row is the sender (a shortcode like `NORTHBANK` written as a name,
+`Northbank`, a leading `*` dropped; a number or an email that is in
+Contacts shows the contact's name, read from the AddressBook database the
+same permission covers), the message text is the subtitle, the code is a
+green tag on the right with how long ago it arrived. The tile says what
+the code is for, read off the sender and the message in English and
+Turkish: Card (3D Secure, kart), Bank, Government (e-Devlet, GİB),
+Delivery (teslimat, kargo), Shopping (sipariş, bilet), else Sign-in; the
+dropdown filters on it. Sections are Today, Yesterday and Earlier, newest
+first. A live palette: listed
 again on every show, so the code that just arrived is at the top, and the
 codes are root results while they are in the window (type the sender or
 the code itself). The detail pane (`cmd+i`) has the whole message, the
-code, the sender and when it was received.
+code, the sender, the kind and when it was received.
 
 ## From Wisp
 
@@ -27,9 +31,12 @@ With **Source** set to Wisp, the codes come from Wisp's `GET /api/v1/codes`
 instead: every code Wisp found in an account it keeps (SMS through Google
 Messages, mail, WhatsApp, Telegram, Slack), on macOS and Linux, no
 permission needed. Wisp picks the code out of the message itself, so the
-keyword rules below do not apply; it sends no message text, so the row's
-subtitle (and the bar's tooltip) is the account the code came through. The
-sender is Wisp's issuer, which **Ignore senders** matches. Set **Wisp
+keyword rules above do not apply; the subtitle is the part of the message
+around the code Wisp sends (the account, when it sends none). The account
+it came through is a text accessory (shown where the design has room) and
+in the detail pane, with when Wisp says the code lapses; a lapsed code's
+tag is grey. The sender is Wisp's issuer, which **Ignore senders**
+matches. Set **Wisp
 server** and **Wisp token** (Wisp's Accounts › Agent tokens; Read is
 enough); without them, or when Wisp is down or refuses the token, the
 palette is one row saying so that opens Settings, and the bar item stays

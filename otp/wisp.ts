@@ -1,11 +1,11 @@
 // Codes from a Wisp server (`GET /api/v1/codes`, Wisp's docs/API.md): Wisp
 // reads them out of every account it keeps (SMS, mail, chats) as they
-// arrive. A code carries no message text, so the account it came through
-// stands in for it until Wisp sends one.
+// arrive, with the part of its message around the code.
 import { getCACertificates, rootCertificates } from "node:tls";
 import type { Code } from "./index.ts";
+import { pretty } from "./kind.ts";
 
-export type WispCode = { code: string; issuer: string; sentAt: string; account?: string; messageId: number; text?: string };
+export type WispCode = { code: string; issuer: string; excerpt?: string; sentAt: string; expiresAt?: string; account?: string; messageId: number };
 
 const HTTP_MS = 10_000;
 const LIMIT = 200;
@@ -32,4 +32,7 @@ export async function wispCodes(url: string, token: string, hours: number): Prom
   return codes.map(fromWisp);
 }
 
-export const fromWisp = (c: WispCode): Code => ({ id: `w${c.messageId}-${c.code}`, code: c.code, sender: c.issuer, name: c.issuer, text: c.text || c.account || "", at: Date.parse(c.sentAt) });
+export const fromWisp = (c: WispCode): Code => ({
+  id: `w${c.messageId}-${c.code}`, code: c.code, sender: c.issuer, name: pretty(c.issuer), text: (c.excerpt ?? "").replace(/^…\s*/, "") || c.account || "", at: Date.parse(c.sentAt),
+  via: c.account, expires: c.expiresAt ? Date.parse(c.expiresAt) : undefined,
+});

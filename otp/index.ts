@@ -25,17 +25,18 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { conceal, CONCEAL_SECONDS, errorMessage, hint, home, now, settings, toast, truncate, view as liveView, when as whenAt, type Action, type BarItem, type Effect, type Extension, type Item } from "@zcag/pal";
 import { PREVIOUS, render } from "./view.ts";
+import { KINDS, kindIcon, kindOf, pretty, type Kind } from "./kind.ts";
 import { NotSetUp, wispCodes } from "./wisp.ts";
 
 /** `[extensions.otp]`, defaults in pal.json. */
 type Settings = { hours: number; senders: string[]; db: string; contacts: string; source: "messages" | "wisp"; wisp_url: string; wisp_token: string };
 
 type Row = { id: number; text: string | null; body: Uint8Array | null; date: number; sender: string | null; chat: string | null; chat_name: string | null };
-export type Code = { id: string; code: string; sender: string; name: string; text: string; at: number };
+/** `via` is the account a Wisp code came through, `expires` when Wisp says it lapses. */
+export type Code = { id: string; code: string; sender: string; name: string; text: string; at: number; via?: string; expires?: number };
 
 const MAC = process.platform === "darwin";
-/** md-message_text, the rows and the palette; md-lock_alert and md-message_off for the hint rows. */
-const ICON = "\u{f0369}";
+/** md-lock_alert and md-message_off for the hint rows. */
 const HINT_ICON = { locked: "\u{f08ee}", none: "\u{f164d}" };
 /** The bar's glyph (nf-fa-key), drawn from the bundled Nerd Font. */
 const BAR_GLYPH = "\u{f084}";
@@ -177,13 +178,16 @@ function contactDbs(): string[] {
 function senderName(raw: string, names: Map<string, string>): string {
   if (/^\+?[\d\s()-]{7,}$/.test(raw)) return names.get(phoneKey(raw)) ?? raw;
   if (raw.includes("@")) return names.get(raw.toLowerCase()) ?? raw;
-  return raw;
+  return pretty(raw);
 }
 
 // ---- rows -----------------------------------------------------------------------
 
 const oneLine = (s: string) => s.replace(/\s+/g, " ").trim();
 const sameDay = (a: Date, b: Date) => a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate();
+const dayBefore = (d: Date) => new Date(d.getFullYear(), d.getMonth(), d.getDate() - 1);
+const section = (when: Date, today: Date) => (sameDay(when, today) ? "Today" : sameDay(when, dayBefore(today)) ? "Yesterday" : "Earlier");
+const FILTERS = [{ id: "all", title: "All" }, ...Object.entries(KINDS).map(([id, k]) => ({ id, title: k.title }))];
 
 /** What `pick` needs per row, from the last listing. */
 const codes = new Map<string, Code>();
@@ -207,22 +211,23 @@ function collect(rows: Row[], s: Settings): Code[] {
   return out;
 }
 
-/** A code's row: Today or Earlier against `today` (the store fixture builds its rows here too). */
-export function item(c: Code, today: Date): Item {
+/** A code's row: its kind as the tile, Today, Yesterday or Earlier against `today`; a code Wisp says has lapsed has a grey tag (the store fixture builds its rows here too). */
+export function item(c: Code, today: Date, kind: Kind = kindOf(c.sender, c.text)): Item {
   const when = new Date(c.at);
+  const lapsed = c.expires !== undefined && c.expires <= today.getTime();
   return {
     id: c.id,
     name: c.name,
     subtitle: truncate(c.text, 140),
-    icon: ICON,
-    keywords: [c.code, c.sender, c.name].filter((k, i, a) => a.indexOf(k) === i),
-    accessories: [{ tag: c.code, color: "green" }, { date: c.at }],
-    section: sameDay(when, today) ? "Today" : "Earlier",
-    // The code is the answer: the header's title, under who sent it and when; the message under that.
+    icon: kindIcon(kind),
+    keywords: [c.code, c.sender, c.name, KINDS[kind].title].filter((k, i, a) => a.indexOf(k) === i),
+    accessories: [{ tag: c.code, color: lapsed ? "grey" : "green" }, ...(c.via ? [{ text: c.via }] : []), { date: c.at }],
+    section: section(when, today),
+    // The code is the answer: the header's title, under who sent it, what for and when; the message under that.
     detail: {
-      caption: [c.name === c.sender ? c.sender : `${c.name} (${c.sender})`, whenAt(when)].join(" · "),
+      caption: [c.name === c.sender ? c.sender : `${c.name} (${c.sender})`, KINDS[kind].title, c.via, whenAt(when)].filter(Boolean).join(" · "),
       title: c.code,
-      markdown: c.text,
+      markdown: c.expires === undefined ? c.text : `${c.text}\n\n_${lapsed ? "Expired" : "Good until"} ${whenAt(new Date(c.expires))}_`,
     },
     actions: ACTIONS,
   };
@@ -241,7 +246,7 @@ async function readCodes(s: Settings, hours = s.hours): Promise<Code[]> {
   return collect(rows, s).slice(0, LIMIT);
 }
 
-async function list(): Promise<Item[]> {
+async function list(filter = "all"): Promise<Item[]> {
   codes.clear();
   const s = settings.get<Settings>();
   const wisp = s.source === "wisp";
@@ -260,8 +265,10 @@ async function list(): Promise<Item[]> {
   }
   const today = new Date(now());
   for (const c of found) codes.set(c.id, c);
+  const rows = found.map((c) => ({ c, kind: kindOf(c.sender, c.text) })).filter((r) => filter === "all" || r.kind === filter);
+  if (found.length && !rows.length) return [hint("none", "Nothing here", `No ${KINDS[filter as Kind]?.title.toLowerCase() ?? ""} code in the last ${s.hours} h`, { icon: HINT_ICON.none })];
   if (found.length === 0) return [hint("none", "No codes", `No message of the last ${s.hours} h ${wisp ? "had" : "names"} a code; raise Look back in Settings to scan further`, { icon: HINT_ICON.none })];
-  return found.map((c) => item(c, today));
+  return rows.map(({ c, kind }) => item(c, today, kind));
 }
 
 // ---- the bar item -----------------------------------------------------------
@@ -338,7 +345,8 @@ export default {
       title: "Verification Codes",
       live: true,
       placeholder: "Search codes and senders",
-      list,
+      filters: FILTERS,
+      list: (_query, ctx) => list(ctx?.filter),
       pick: (id, action) => {
         if (id === "hint:fda") return { open: FDA_URL };
         if (["hint:setup", "hint:error", "hint:unavailable"].includes(id)) return { open: SETTINGS_URL };

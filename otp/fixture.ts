@@ -9,29 +9,31 @@ import { NOW, pinClock, writeFixture } from "../.pal/app/scripts/fixture-kit.ts"
 pinClock();
 const { extract, item } = await import("./index.ts");
 const { render } = await import("./view.ts");
+const { KINDS } = await import("./kind.ts");
 type Code = import("./index.ts").Code;
 
 const MIN = 60_000;
 let n = 0;
-const code = (name: string, text: string, ago: number, sender = name): Code => ({ id: String(++n), code: extract(text)!, name, sender, text, at: NOW - ago });
+const code = (name: string, text: string, ago: number, via: string, sender = name): Code => ({ id: String(++n), code: extract(text)!, name, sender, text, at: NOW - ago, via, expires: NOW - ago + 5 * MIN });
 
-// Newest first: a bank's login code 13 s ago, a sign-in code, a parcel PIN, a 2FA code from the morning, two from yesterday.
+// Newest first, as a Wisp server hands them over: a bank's login code 13 s ago, a sign-in code, a card's 3D Secure code, a parcel PIN, a 2FA code from the morning, two from yesterday.
 const codes = [
-  code("NORTHBANK", "NORTHBANK: your mobile banking login code is 482913. Never share it, not even with us.", 13_000),
-  code("Google", "G-731064 is your Google verification code.", 6 * MIN, "22000"),
-  code("Acme Delivery", "Acme Delivery: your pickup PIN is 2841. Show it at the counter.", 41 * MIN, "info@acme.example"),
-  code("Forgebase", "Your Forgebase authentication code is 559104", 4 * 60 * MIN - 17 * MIN),
-  code("SKYWAYS", "Use code 90237 to confirm your seat change for flight SW214.", 25 * 60 * MIN + 12 * MIN),
-  code("Ada Kaya", "Kapı şifresi 7316, 3. kattayız", 28 * 60 * MIN + 48 * MIN, "+90 532 555 01 47"),
+  code("Northbank", "NORTHBANK: your mobile banking login code is 482913. Never share it, not even with us.", 13_000, "SMS", "NORTHBANK"),
+  code("Google", "G-731064 is your Google verification code.", 6 * MIN, "Gmail"),
+  code("Cardpay", "3D Secure code 551204 for your 1.250,00 TL purchase at Acme Store.", 22 * MIN, "SMS", "CARDPAY"),
+  code("Acme Delivery", "Acme Delivery: your pickup PIN is 2841. Show it at the counter.", 41 * MIN, "WhatsApp"),
+  code("Forgebase", "Your Forgebase authentication code is 559104", 4 * 60 * MIN - 17 * MIN, "Gmail"),
+  code("Skyways", "Use code 90237 to confirm your ticket change for flight SW214.", 25 * 60 * MIN + 12 * MIN, "SMS", "SKYWAYS"),
+  code("Ada Kaya", "Kapı şifresi 7316, 3. kattayız", 28 * 60 * MIN + 48 * MIN, "Telegram"),
 ];
 const [latest, ...previous] = codes;
 
 const today = new Date(NOW);
 writeFixture("otp", {
-  palettes: { otp: { title: "Verification Codes", icon: { tile: { glyph: "\u{f0369}", bg: "green" } }, live: true, placeholder: "Search codes and senders", items: codes.map((c) => item(c, today)) } },
+  palettes: { otp: { title: "Verification Codes", icon: { tile: { glyph: "\u{f0369}", bg: "green" } }, live: true, placeholder: "Search codes and senders", filters: [{ id: "all", title: "All" }, ...Object.entries(KINDS).map(([id, k]) => ({ id, title: k.title }))], items: codes.map((c) => item(c, today)) } },
   shots: {
-    "1-codes": { palette: "otp", keys: [], caption: "Today's codes and yesterday's: the sender, the message, the code as a green tag, how long ago it came" },
-    "2-detail": { palette: "otp", keys: ["down", "cmd+i"], caption: "The detail pane: the code large, who sent it with the number and when, the whole message" },
+    "1-codes": { palette: "otp", keys: [], caption: "Today's codes and yesterday's: what each is for as its tile, the sender, the message, the code (grey once it has lapsed), the account it came through, how long ago" },
+    "2-detail": { palette: "otp", keys: ["down", "cmd+i"], caption: "The detail pane: the code large, who sent it, what for, through which account and when, the message and how long the code is good for" },
     "3-actions": { palette: "otp", keys: ["cmd+k"], caption: "Paste the code into the app in front, copy it (concealed, gone in 30 s), or copy the sender" },
   },
 });

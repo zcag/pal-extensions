@@ -91,7 +91,7 @@
   "palettes": {
     "otp": {
       "title": "Verification Codes",
-      "description": "Codes from the last day of messages, Today and Earlier.",
+      "description": "Codes from the last day, Today, Yesterday and Earlier, filtered by kind.",
       "kind": "live",
       "remember": false,
       "lazy": true,
@@ -175,6 +175,7 @@
     "features": [
       "Codes from the last 24 hours of Messages on macOS, newest first, the sender named from Contacts",
       "Or every code a Wisp server finds, in SMS, mail and chats, on macOS and Linux",
+      "Each code's kind (card, bank, government, delivery, shopping, sign-in) as its tile and a filter, the sender's name made readable",
       "Spots codes in English and Turkish messages, skipping amounts, dates and phone numbers",
       "A code that just arrived is the first row and shows up at the root",
       "A bar item shows the newest code for a minute, with the sender and the codes before it",
@@ -191,11 +192,11 @@
     "screenshots": [
       {
         "file": "1-codes.png",
-        "caption": "Today's codes and yesterday's: the sender, the message, the code as a green tag, how long ago it came"
+        "caption": "Today's codes and yesterday's: what each is for as its tile, the sender, the message, the code (grey once it has lapsed), the account it came through, how long ago"
       },
       {
         "file": "2-detail.png",
-        "caption": "The detail pane: the code large, who sent it with the number and when, the whole message"
+        "caption": "The detail pane: the code large, who sent it, what for, through which account and when, the message and how long the code is good for"
       },
       {
         "file": "3-actions.png",
