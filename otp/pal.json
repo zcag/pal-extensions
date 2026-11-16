@@ -1,7 +1,7 @@
 {
   "name": "otp",
   "title": "Verification Codes",
-  "description": "One-time codes from your recent text messages, newest first, with who sent them. Enter pastes the code into the app in front; a bar item shows a new code as it arrives.",
+  "description": "One-time codes from your recent text messages (Messages on macOS) or from a Wisp server, newest first, with who sent them. Enter pastes the code into the app in front; a bar item shows a new code as it arrives.",
   "version": "0.1.0",
   "icon": {
     "tile": {
@@ -12,6 +12,47 @@
   "author": "pal",
   "repo": "bundled",
   "settings": [
+    {
+      "kind": "select",
+      "id": "source",
+      "label": "Source",
+      "description": "Where codes come from: Messages on this Mac, or a Wisp server, which finds them in every account it keeps (SMS, mail, chats).",
+      "options": [
+        {
+          "id": "messages",
+          "title": "Messages"
+        },
+        {
+          "id": "wisp",
+          "title": "Wisp"
+        }
+      ],
+      "default": "messages"
+    },
+    {
+      "kind": "text",
+      "id": "wisp_url",
+      "label": "Wisp server",
+      "description": "The address of your Wisp server, as you open it in a browser.",
+      "placeholder": "https://wisp.example.internal",
+      "required": true,
+      "only": {
+        "source": "wisp"
+      },
+      "default": ""
+    },
+    {
+      "kind": "secret",
+      "id": "wisp_token",
+      "label": "Wisp token",
+      "description": "A token from Wisp's Accounts › Agent tokens; Read is enough. Kept in the OS keychain.",
+      "placeholder": "inbx_...",
+      "required": true,
+      "only": {
+        "source": "wisp"
+      },
+      "default": ""
+    },
     {
       "kind": "number",
       "id": "hours",
@@ -26,7 +67,7 @@
       "kind": "list",
       "id": "senders",
       "label": "Ignore senders",
-      "description": "Senders whose messages are never listed, as Messages shows them (a shortcode like AKBANK, a number, an email). Case does not matter.",
+      "description": "Senders whose codes are never listed, as Messages or Wisp names them (a shortcode like AKBANK, a number, an email). Case does not matter.",
       "placeholder": "AKBANK",
       "default": []
     },
@@ -34,7 +75,7 @@
       "kind": "path",
       "id": "db",
       "label": "Messages database",
-      "description": "The chat.db to read. ~ is expanded.",
+      "description": "The chat.db to read when the source is Messages. ~ is expanded.",
       "pick": "file",
       "default": "~/Library/Messages/chat.db"
     },
@@ -129,10 +170,11 @@
   },
   "license": "MIT",
   "store": {
-    "tagline": "Paste one-time codes from your text messages",
+    "tagline": "Paste one-time codes from your text messages or Wisp",
     "category": "integration",
     "features": [
       "Codes from the last 24 hours of Messages on macOS, newest first, the sender named from Contacts",
+      "Or every code a Wisp server finds, in SMS, mail and chats, on macOS and Linux",
       "Spots codes in English and Turkish messages, skipping amounts, dates and phone numbers",
       "A code that just arrived is the first row and shows up at the root",
       "A bar item shows the newest code for a minute, with the sender and the codes before it",
@@ -143,7 +185,8 @@
       "accessibility"
     ],
     "platforms": [
-      "macos"
+      "macos",
+      "linux"
     ],
     "screenshots": [
       {

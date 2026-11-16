@@ -1,5 +1,5 @@
 // Verification codes out of Messages, read from `~/Library/Messages/chat.db`
-// itself. One read-only SQLite query per listing over the last `hours` of
+// itself, or (`source = "wisp"`) out of a Wisp server's codes (wisp.ts). One read-only SQLite query per listing over the last `hours` of
 // incoming messages, a code pulled out of each text that names one, newest
 // first, Today then Earlier. Live: listed again on every show, so the code
 // that just arrived is at the top. Enter pastes the code into the app in
@@ -25,9 +25,10 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { conceal, CONCEAL_SECONDS, errorMessage, hint, home, now, settings, toast, truncate, view as liveView, when as whenAt, type Action, type BarItem, type Effect, type Extension, type Item } from "@zcag/pal";
 import { PREVIOUS, render } from "./view.ts";
+import { NotSetUp, wispCodes } from "./wisp.ts";
 
 /** `[extensions.otp]`, defaults in pal.json. */
-type Settings = { hours: number; senders: string[]; db: string; contacts: string };
+type Settings = { hours: number; senders: string[]; db: string; contacts: string; source: "messages" | "wisp"; wisp_url: string; wisp_token: string };
 
 type Row = { id: number; text: string | null; body: Uint8Array | null; date: number; sender: string | null; chat: string | null; chat_name: string | null };
 export type Code = { id: string; code: string; sender: string; name: string; text: string; at: number };
@@ -48,6 +49,7 @@ const ITEM = "latest-code";
 const LIMIT = 400;
 /** Seconds between the unix epoch and Apple's (2001-01-01). */
 const APPLE_EPOCH = 978_307_200;
+const SETTINGS_URL = "pal://settings/extensions";
 const FDA_URL = "x-apple.systempreferences:com.apple.preference.security?Privacy_AllFiles";
 const CONTACTS_DIR = "~/Library/Application Support/AddressBook";
 /** Seconds a contacts lookup table is kept. */
@@ -226,8 +228,12 @@ export function item(c: Code, today: Date): Item {
   };
 }
 
-/** The codes of the last `hours`, newest first; throws what SQLite did (a locked database is read from a copy first). */
-function readCodes(s: Settings, hours = s.hours): Code[] {
+/** The codes of the last `hours`, newest first, from Wisp or Messages; throws what Wisp or SQLite did (a locked database is read from a copy first). */
+async function readCodes(s: Settings, hours = s.hours): Promise<Code[]> {
+  if (s.source === "wisp") {
+    const deny = new Set(s.senders.map((x) => x.trim().toLowerCase()).filter(Boolean));
+    return (await wispCodes(s.wisp_url, s.wisp_token, hours)).filter((c) => !deny.has(c.sender.toLowerCase())).slice(0, LIMIT);
+  }
   const file = home(s.db);
   const since = now() - Math.max(1, hours) * 3600_000;
   let rows: Row[];
@@ -235,14 +241,16 @@ function readCodes(s: Settings, hours = s.hours): Code[] {
   return collect(rows, s).slice(0, LIMIT);
 }
 
-function list(): Item[] {
+async function list(): Promise<Item[]> {
   codes.clear();
-  if (!MAC) return [hint("unavailable", "Unavailable", "Verification codes read the Messages database, which only macOS has", { icon: HINT_ICON.none })];
   const s = settings.get<Settings>();
+  const wisp = s.source === "wisp";
+  if (!MAC && !wisp) return [hint("unavailable", "Unavailable", "Messages is only on macOS: set Source to Wisp in Settings to read codes from a Wisp server", { icon: HINT_ICON.none, actions: [{ id: "settings", title: "Open Settings" }] })];
   let found: Code[];
   try {
-    found = readCodes(s);
+    found = await readCodes(s);
   } catch (e) {
+    if (wisp) return [hint(e instanceof NotSetUp ? "setup" : "error", e instanceof NotSetUp ? "Wisp is not set up" : "Could not read Wisp", errorMessage(e), { icon: HINT_ICON.locked, actions: [{ id: "settings", title: "Open Settings" }] })];
     const code = sqlite(e), msg = errorMessage(e);
     if (code === "SQLITE_AUTH" || /authorization denied|not permitted|EPERM/i.test(msg)) {
       return [hint("fda", "Full Disk Access needed", "Allow pal under Privacy & Security, Full Disk Access, then open the palette again", { icon: HINT_ICON.locked, actions: [{ id: "settings", title: "Open System Settings" }] })];
@@ -252,34 +260,35 @@ function list(): Item[] {
   }
   const today = new Date(now());
   for (const c of found) codes.set(c.id, c);
-  if (found.length === 0) return [hint("none", "No codes", `No message of the last ${s.hours} h names a code; raise Look back in Settings to scan further`, { icon: HINT_ICON.none })];
+  if (found.length === 0) return [hint("none", "No codes", `No message of the last ${s.hours} h ${wisp ? "had" : "names"} a code; raise Look back in Settings to scan further`, { icon: HINT_ICON.none })];
   return found.map((c) => item(c, today));
 }
 
 // ---- the bar item -----------------------------------------------------------
 
-/** The last hour's codes, newest first: the first is the strip's while younger than the window, the next two the popover's "Earlier". Not on Linux, and not without the database (hidden, no hint). */
-function recentCodes(): Code[] {
-  if (!MAC) return [];
-  try { return readCodes(settings.get<Settings>(), 1); } catch { return []; }
+/** The last hour's codes, newest first: the first is the strip's while younger than the window, the next two the popover's "Earlier". None when nothing can be read: Messages off macOS, no database, Wisp not set up or down (hidden, no hint). */
+const readable = () => MAC || settings.get<Settings>().source === "wisp";
+async function recentCodes(): Promise<Code[]> {
+  if (!readable()) return [];
+  try { return await readCodes(settings.get<Settings>(), 1); } catch { return []; }
 }
 const inWindow = (c: Code | undefined, at = now()) => (c && at - c.at <= BAR_WINDOW_MS ? c : undefined);
 /** The newest code, while it is younger than the window. */
-const latestCode = (): Code | undefined => inWindow(recentCodes()[0]);
+const latestCode = async (): Promise<Code | undefined> => inWindow((await recentCodes())[0]);
 
 /** The last read, for the popover's tick and its clicks: no database read per second. */
 let snap: { latest?: Code; previous: Code[]; at: number } = { previous: [], at: 0 };
 
 const popover = (at = now()) => render({ latest: inWindow(snap.latest, at), previous: snap.previous, now: at, window: BAR_WINDOW_MS });
 
-/** The code as the title, green, for a minute: `refresh` asks for the render that hides it once the minute is up; the popover's tree as the menu. Between codes the glyph and the popover are the `empty` shape a `show = "always"` config keeps, muted. Not on Linux, where nothing can be read. */
-function renderBar(): BarItem {
+/** The code as the title, green, for a minute: `refresh` asks for the render that hides it once the minute is up; the popover's tree as the menu. Between codes the glyph and the popover are the `empty` shape a `show = "always"` config keeps, muted. Not where nothing can be read (Messages off macOS). */
+async function renderBar(): Promise<BarItem> {
   listen();
-  const found = recentCodes();
+  const found = await recentCodes();
   const at = now();
   const c = inWindow(found[0], at);
   snap = { latest: c, previous: found.slice(1, 1 + PREVIOUS), at };
-  if (!c) return MAC ? { hidden: true, empty: { icon: BAR_GLYPH, tooltip: "No recent code", menu: { view: popover(at) } } } : { hidden: true };
+  if (!c) return readable() ? { hidden: true, empty: { icon: BAR_GLYPH, tooltip: "No recent code", menu: { view: popover(at) } } } : { hidden: true };
   return { icon: BAR_GLYPH, title: c.code, color: "green", tooltip: `${c.name}: ${truncate(c.text, 80)}`, refresh: Math.max(1, Math.ceil((BAR_WINDOW_MS - (at - c.at)) / 1000)), menu: { view: popover(at) } };
 }
 
@@ -305,16 +314,16 @@ function listen() {
 
 /** The code onto the clipboard, concealed, cleared after `CONCEAL_SECONDS`. */
 const copyCode = (code: string): Effect => ({ copy: conceal(code), hud: `Copied code, clears in ${CONCEAL_SECONDS} s` });
-const copyLatest = (): Effect => { const c = latestCode(); return c ? copyCode(c.code) : { hud: "No recent code" }; };
+const copyLatest = async (): Promise<Effect> => { const c = await latestCode(); return c ? copyCode(c.code) : { hud: "No recent code" }; };
 
 /** A key or a click in the popover: the newest code copied, pasted, its sender copied, an earlier one copied, the palette opened. */
-function barAction(action: string): Effect {
+async function barAction(action: string): Promise<Effect> {
   if (action === "open") return { push: { extension: EXTENSION, palette: "otp" } };
   if (action.startsWith("copy:")) {
     const c = snap.previous.find((x) => x.id === action.slice(5)) ?? (snap.latest?.id === action.slice(5) ? snap.latest : undefined);
     return c ? copyCode(c.code) : { keep: true, hud: "That code is no longer listed" };
   }
-  const c = inWindow(snap.latest) ?? latestCode();
+  const c = inWindow(snap.latest) ?? (await latestCode());
   if (!c) return { keep: true, hud: "No recent code" };
   switch (action) {
     case "paste": return { paste: { text: c.code } };
@@ -332,6 +341,7 @@ export default {
       list,
       pick: (id, action) => {
         if (id === "hint:fda") return { open: FDA_URL };
+        if (["hint:setup", "hint:error", "hint:unavailable"].includes(id)) return { open: SETTINGS_URL };
         const c = codes.get(id);
         if (!c) return toast("That code is no longer listed", undefined, "failure");
         switch (action) {

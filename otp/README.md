@@ -1,6 +1,8 @@
 # Verification Codes
 
-One-time codes out of your recent text messages, read straight from
+One-time codes out of your recent text messages, or out of a
+[Wisp](https://github.com/zcag/wisp) server (below, "From Wisp"), read
+straight from
 Messages' database (`~/Library/Messages/chat.db`, read-only, one SQLite
 query per listing). The last `hours` of incoming messages are scanned; a
 message counts when it talks about a code (code, kod, şifre, OTP, PIN,
@@ -18,6 +20,20 @@ again on every show, so the code that just arrived is at the top, and the
 codes are root results while they are in the window (type the sender or
 the code itself). The detail pane (`cmd+i`) has the whole message, the
 code, the sender and when it was received.
+
+## From Wisp
+
+With **Source** set to Wisp, the codes come from Wisp's `GET /api/v1/codes`
+instead: every code Wisp found in an account it keeps (SMS through Google
+Messages, mail, WhatsApp, Telegram, Slack), on macOS and Linux, no
+permission needed. Wisp picks the code out of the message itself, so the
+keyword rules below do not apply; it sends no message text, so the row's
+subtitle (and the bar's tooltip) is the account the code came through. The
+sender is Wisp's issuer, which **Ignore senders** matches. Set **Wisp
+server** and **Wisp token** (Wisp's Accounts › Agent tokens; Read is
+enough); without them, or when Wisp is down or refuses the token, the
+palette is one row saying so that opens Settings, and the bar item stays
+hidden.
 
 ## Keyboard
 
@@ -50,6 +66,9 @@ Settings, `[extensions.otp]`:
 
 | key | type | default | what |
 | --- | --- | --- | --- |
+| `source` | `messages` or `wisp` | `messages` | Where codes come from. |
+| `wisp_url` | text | empty | The Wisp server, as opened in a browser (source `wisp`). |
+| `wisp_token` | secret | empty | A Wisp token, kept in the OS keychain (source `wisp`). |
 | `hours` | number, 1 to 720 | `24` | How far back to scan. |
 | `senders` | list | `[]` | Senders never listed, as Messages shows them (`AKBANK`, a number, an email); case does not matter. |
 | `db` | path | `~/Library/Messages/chat.db` | The database to read. `~` is expanded. |
@@ -74,8 +93,8 @@ code outright.
 
 ## What it does not do
 
-- Codes from email, authenticator apps or the browser: only Messages
-  (SMS and iMessage) is read.
+- Codes from authenticator apps or the browser; from email only through
+  Wisp.
 - Codes without a keyword near them: a bare six-digit text is not listed,
   since it could be anything.
 - Codes longer than 8 digits or shorter than 4, or spaced ones (`123 456`
@@ -84,6 +103,7 @@ code outright.
 
 ## Platforms
 
-macOS only: the palette reads Messages, which Linux does not have (there
-the palette is one "Unavailable" row and the bar item is hidden). Needs
-Full Disk Access to read, and Accessibility to paste.
+Messages is macOS only: on Linux with that source the palette is one
+"Unavailable" row pointing at Settings and the bar item is hidden; Wisp
+works on both. Messages needs Full Disk Access to read; pasting needs
+Accessibility on macOS.

@@ -267,8 +267,52 @@ describe("the popover's tree (view.ts)", () => {
 });
 
 describe.skipIf(MAC)("otp on linux", () => {
-  test("one Unavailable row; the bar item is hidden", async () => {
-    expect(await list()).toEqual([expect.objectContaining({ id: "hint:unavailable", name: "Unavailable", actions: [] })]);
+  test("Messages: one Unavailable row pointing at Settings; the bar item is hidden", async () => {
+    expect(await list()).toEqual([expect.objectContaining({ id: "hint:unavailable", name: "Unavailable", actions: [{ id: "settings", title: "Open Settings" }] })]);
+    expect(await pick("hint:unavailable", "settings")).toEqual({ open: "pal://settings/extensions" });
     expect(await host.render("otp", "latest-code")).toEqual({ hidden: true });
+  });
+});
+
+describe("otp from Wisp", () => {
+  const TOKEN = "inbx_test";
+  const iso = (ago: number) => new Date(Date.now() - ago).toISOString();
+  const wisp = [
+    { code: "105762", issuer: "E-DEVLET", sentAt: iso(15_000), account: "SMS", messageId: 3 },
+    { code: "5bhxh28i", issuer: "Spamco", sentAt: iso(2 * MIN), account: "Gmail", messageId: 2 },
+    { code: "4412", issuer: "Ada", sentAt: iso(30 * MIN), account: "WhatsApp", messageId: 1, text: "kapı 4412" },
+  ];
+  let asked: URL[] = [];
+  const server = Bun.serve({ port: 0, fetch: (r) => {
+    asked.push(new URL(r.url));
+    return r.headers.get("authorization") === `Bearer ${TOKEN}` ? Response.json({ codes: wisp }) : new Response("no", { status: 401 });
+  } });
+  const conf = (o: object = {}) => host.changeSettings("otp", { settings: { source: "wisp", wisp_url: `http://localhost:${server.port}/`, wisp_token: TOKEN, senders: ["spamco"], ...o } });
+  afterAll(() => { server.stop(true); host.changeSettings("otp", { settings: { db, contacts, senders: ["spamco"], hours: 48 } }); });
+
+  test("rows from Wisp's codes, newest first, the account standing in for the text; a denied issuer left out; the window asked as since", async () => {
+    conf();
+    asked = [];
+    const items = await list();
+    expect(asked[0].pathname).toBe("/api/v1/codes");
+    expect(asked[0].searchParams.get("since")).toBe("24h");
+    expect(items.map((i) => [i.name, i.subtitle, (i.accessories![0] as { tag: string }).tag])).toEqual([["E-DEVLET", "SMS", "105762"], ["Ada", "kapı 4412", "4412"]]);
+    expect(await pick(items[0].id)).toEqual({ paste: { text: "105762" } });
+  });
+
+  test("the bar shows the code that just came, with the one before it", async () => {
+    conf();
+    const item = await host.render("otp", "latest-code", { reason: "every" });
+    expect(item).toMatchObject({ title: "105762", color: "green", tooltip: "E-DEVLET: SMS" });
+    expect(texts(viewOf(item)).slice(-3)).toEqual(["4412", "Ada", "30 min ago"]);
+  });
+
+  test("no token or a refused one is a hint row opening Settings; the bar is hidden", async () => {
+    conf({ wisp_token: "" });
+    expect(await list()).toEqual([expect.objectContaining({ id: "hint:setup", name: "Wisp is not set up" })]);
+    conf({ wisp_token: "wrong" });
+    expect(await list()).toEqual([expect.objectContaining({ id: "hint:error", subtitle: expect.stringContaining("refused the token") })]);
+    expect(await pick("hint:error", "settings")).toEqual({ open: "pal://settings/extensions" });
+    expect(await host.render("otp", "latest-code")).toMatchObject({ hidden: true });
   });
 });
