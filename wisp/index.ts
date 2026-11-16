@@ -318,7 +318,7 @@ async function load(o: Open, older = false) {
   const faces = isGroup(o.c) ? [...new Set(o.messages.map((m) => m.sender.avatar).filter((x): x is string => !!x))] : [];
   const [avatar] = await Promise.all([
     picture(o.c.avatar),
-    ...photos.map(async (a) => { const d = await picture(a.url, api.IMAGE_MAX); if (d) o.images[a.id] = d; }),
+    ...photos.map(async (a) => { const d = await picture(a.url, api.PHOTO_PX); if (d) o.images[a.id] = d; }),
     ...faces.map(async (f) => { const d = await picture(f); if (d) o.senders[f] = d; }),
   ]);
   o.avatar = avatar as string | undefined;
@@ -515,7 +515,10 @@ async function renderBar(ctx?: BarCtx): Promise<BarItem> {
   const menu = { view: renderPopover(await popState()) };
   const empty = { icon: GLYPH.wisp, tooltip: last.problem ?? "Nothing unread", menu };
   if (last.problem && !last.counts) return { icon: GLYPH.wisp, stale: true, tooltip: last.problem, menu, empty, states };
-  return { icon: GLYPH.wisp, ...strip(last.counts, last.rows, barConf), ...(last.problem && { stale: true }), menu, empty, states };
+  // The networks' glyphs say what the Wisp glyph would: it leads only one count, or a strip with nothing to count.
+  const s = strip(last.counts, last.rows, barConf);
+  const glyphs = (barConf.split ?? "network") !== "total" && !!s.segments?.length;
+  return { ...(!glyphs && { icon: GLYPH.wisp }), ...s, ...(last.problem && { stale: true }), menu, empty, states };
 }
 
 const redrawPop = async (): Promise<Effect> => ({ view: renderPopover(await popState()) });

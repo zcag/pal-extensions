@@ -120,22 +120,30 @@ export const events = (signal: AbortSignal) => {
 
 // ---- pictures --------------------------------------------------------------------------
 
-/** An avatar's size cap and an attachment's: a view's tree carries them inline. */
-export const AVATAR_MAX = 96 * 1024, IMAGE_MAX = 700 * 1024;
+/**
+ * The pixels a picture is asked for at (Wisp's `?size=`, scaled to fit as
+ * a JPEG): an avatar drawn at 28 or 32 px and a photo at 280, twice over
+ * for a Retina screen. A view's tree carries them inline on every update,
+ * so the originals would make each popover hundreds of KB.
+ */
+export const AVATAR_PX = 64, PHOTO_PX = 560;
+/** What is kept at most of one answer, should a server ignore `size`. */
+const MAX_BYTES = 256 * 1024;
 const pictures = new Map<string, Promise<string | undefined>>();
 
-/** A Wisp path (an `avatar`, an attachment `url`) as a data url, fetched once per path (Wisp versions a picture's path, so a kept one is never stale); undefined for a miss, not an image, or over `max`. */
-export function picture(path: string | undefined, max = AVATAR_MAX): Promise<string | undefined> {
+/** A Wisp path (an `avatar`, an attachment `url`) as a data url at `px`, fetched once per path and size (Wisp versions a picture's path, so a kept one is never stale); undefined for a miss or not a picture. */
+export function picture(path: string | undefined, px = AVATAR_PX): Promise<string | undefined> {
   if (!path) return Promise.resolve(undefined);
-  let p = pictures.get(path);
+  const key = `${path}|${px}`;
+  let p = pictures.get(key);
   if (!p) {
-    p = call("GET", path, undefined, undefined, "image/*").then(async (r) => {
+    p = call("GET", path, { size: px }, undefined, "image/*").then(async (r) => {
       const type = r.headers.get("content-type")?.split(";")[0] ?? "";
       if (!r.ok || !type.startsWith("image/")) return undefined;
       const buf = Buffer.from(await r.arrayBuffer());
-      return buf.length && buf.length <= max ? `data:${type};base64,${buf.toString("base64")}` : undefined;
+      return buf.length && buf.length <= MAX_BYTES ? `data:${type};base64,${buf.toString("base64")}` : undefined;
     }).catch(() => undefined);
-    pictures.set(path, p);
+    pictures.set(key, p);
   }
   return p;
 }

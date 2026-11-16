@@ -88,6 +88,8 @@ describe("wisp", () => {
     const ada = rows[1];
     expect(ada).toMatchObject({ name: "Ada Lindqvist", subtitle: "Are we still on for tonight?", icon: { image: expect.stringMatching(/^data:image\/svg\+xml;base64,/) }, args: [{ id: "text" }] });
     expect(ada.keywords).toEqual(["WhatsApp", "WhatsApp"]);
+    // Pictures are asked for at the size they are drawn, never the originals.
+    expect(mock.calls.find((c) => c.path === `/api/v1/conversations/${ADA}/avatar`)!.query).toBe("?v=1&size=64");
     expect(tags(ada)).toEqual(["2"]);
     expect(tags(rows[3])).toEqual(["@3"]);
     expect(tags(rows[0])).toEqual(["to do"]);
@@ -116,6 +118,7 @@ describe("wisp", () => {
     const v = await view({ id: ADA });
     expect(v.title).toBe("Ada Lindqvist");
     expect(nodes(v.tree).some((n) => n.type === "image" && n.action === "attachment:9001")).toBe(true);
+    expect(mock.calls.find((c) => c.path === "/api/v1/attachments/9001")!.query).toBe("?size=560");
     await host.until(() => mock.posted(`/api/v1/conversations/${ADA}/read`).length === 1);
     const r = await host.pick(X, "conversation", String(ADA), "send", { values: { input: "see you at 8" } });
     expect(mock.posted(`/api/v1/conversations/${ADA}/messages`).at(-1)!.body).toEqual({ text: "see you at 8" });
@@ -150,11 +153,15 @@ describe("wisp", () => {
     const item = await host.render(X, "inbox", { reason: "every" });
     expect(item.segments!.map((s) => [s.id, s.text, s.color])).toEqual([["for_me", "1", "red"], ["whatsapp", "2", "green"], ["gmail", "1", "red"], ["sms", "1", "teal"], ["todo", "1", "amber"]]);
     expect(item.states).toEqual({ unread: 4, for_me: 1, todo: 1, now: 2, trouble: 1 });
+    // The networks' glyphs stand for Wisp's: its own leads only one count.
+    expect(item.icon).toBeUndefined();
+    expect(item.empty!.icon).toBeDefined();
     expect(item.tooltip!.split("\n")[0]).toBe("1 for you · WhatsApp 2, Gmail 1, SMS 1 · 1 To do due");
     const per = await host.render(X, "inbox", { reason: "every", settings: { split: "account", uncounted: true } });
     expect(per.segments!.map((s) => [s.id, s.text])).toEqual([["for_me", "1"], ["a1", "2"], ["a3", "1"], ["a4", "1"], ["a5", "1"], ["todo", "1"]]);
     const one = await host.render(X, "inbox", { reason: "every", settings: { split: "total" } });
     expect(one.segments!.map((s) => [s.id, s.text, s.icon])).toEqual([["for_me", "1", expect.any(String)], ["all", "4", undefined], ["todo", "1", expect.any(String)]]);
+    expect(one.icon).toBeDefined();
     await host.render(X, "inbox", { reason: "every", settings: {} });
     // The popover: the cursor on the To do, a tab to WhatsApp, down, mark read, the reply field and a send.
     expect(texts((await host.barAction(X, "inbox", "tab:whatsapp", ctx)).view as View)).not.toContain("Q4 plan");

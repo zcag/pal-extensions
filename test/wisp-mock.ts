@@ -77,7 +77,7 @@ const UNREAD_MARK = new Set(["gmail", "whatsapp", "telegram"]);
 
 export class WispMock {
   server: ReturnType<typeof Bun.serve>;
-  calls: { method: string; path: string; body?: unknown }[] = [];
+  calls: { method: string; path: string; query?: string; body?: unknown }[] = [];
   accounts = accounts();
   convs = conversations();
   msgs = messages();
@@ -131,7 +131,7 @@ export class WispMock {
   private async route(req: Request, u: URL): Promise<Response> {
     const p = u.pathname, m = req.method;
     const body = m !== "GET" && req.headers.get("content-type")?.startsWith("application/json") ? await req.json() : undefined;
-    this.calls.push({ method: m, path: p, body });
+    this.calls.push({ method: m, path: p, query: u.search, body });
     const json = (v: unknown, status = 200) => Response.json(v, { status });
     const id = Number(p.match(/^\/api\/v1\/conversations\/(\d+)/)?.[1]);
     const c = this.convs.find((x) => x.id === id);

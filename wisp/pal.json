@@ -196,7 +196,7 @@
   "bar": {
     "inbox": {
       "title": "Inbox",
-      "description": "Unread per network as each network's glyph and count in its colour (or per account, or one count), a red @ count while something is meant for you, To dos that are due; the popover is every account's inbox behind a tab per network: open a conversation, reply, mark read, To do or done without leaving it.",
+      "description": "Unread per network as each network's glyph and count in its colour (or per account, or one count after Wisp's own glyph), a red @ count while something is meant for you, To dos that are due; the popover is every account's inbox behind a tab per network: open a conversation, reply, mark read, To do or done without leaving it.",
       "refresh": {
         "every": 120,
         "on": [
@@ -209,7 +209,6 @@
         "busy": {
           "title": "Unread on three networks",
           "item": {
-            "icon": "󰚇",
             "segments": [
               {
                 "id": "whatsapp",
@@ -246,7 +245,6 @@
         "mention": {
           "title": "A mention waits",
           "item": {
-            "icon": "󰚇",
             "segments": [
               {
                 "id": "for_me",
@@ -451,7 +449,7 @@
         "caption": "A click opens every inbox behind a tab per network: Enter opens a conversation, r replies, m marks read, t makes a To do, e marks it done",
         "kind": "bar",
         "box": [
-          346,
+          360,
           64,
           840,
           960
@@ -462,7 +460,7 @@
         "caption": "A group conversation in the popover, each sender named, answered without opening pal",
         "kind": "bar",
         "box": [
-          346,
+          360,
           64,
           840,
           936
