@@ -13,7 +13,7 @@ export const GLYPH = {
   sms: "\u{f0369}", instagram: "\u{f02fe}", linkedin: "\u{f033b}", x: "\u{f0544}", phone: "\u{f011c}", other: "\u{f0361}",
   todo: "\u{f014e}", waiting: "\u{f0b56}", at: "\u{f0065}", search: "\u{f0349}", alert: "\u{f0028}", read: "\u{f012d}", unread: "\u{f0b92}",
   archive: "\u{f003c}", reply: "\u{f045a}", web: "\u{f03cc}", copy: "\u{f018f}", image: "\u{f02e9}", file: "\u{f0219}", voice: "\u{f036c}", clip: "\u{f03e2}",
-  group: "\u{f000e}", screener: "\u{f0b59}",
+  group: "\u{f000e}", screener: "\u{f0b59}", summary: "\u{f0ea6}", person: "\u{f0004}", compose: "\u{f0653}",
 } as const;
 
 type Net = { name: string; glyph: string; color: TagColor; tile: TileColorName };

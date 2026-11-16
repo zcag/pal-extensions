@@ -1,17 +1,19 @@
 // Wisp (github.com/zcag/wisp), the owner's self-hosted inbox for WhatsApp,
 // Gmail, Slack, Telegram, SMS and more, through its integration API
-// (api.ts). Four palettes and a bar item over one data layer (data.ts):
+// (api.ts). Six palettes and a bar item over one data layer (data.ts):
 // Inbox lists a Wisp view (Inbox, Now, To do, Screener, All) with every
-// account's conversations in one list; Conversation is a view of one
-// (chat.ts) to read and answer; Search is Wisp's own search language;
-// Accounts says how each connection is doing. The bar item counts unread
+// account's conversations in one list; Conversations is every recent one,
+// reached by name from pal's root; Conversation is a view of one (chat.ts)
+// to read and answer, with Wisp's AI summary and suggested reply; New
+// Message writes to a person from Wisp's people; Search is Wisp's own
+// search language; Accounts says how each connection is doing. The bar item counts unread
 // per network (or per account, or in all) as coloured glyphs on one
 // strip, and its popover (view.ts) is the whole inbox behind tabs. The
 // event stream (live.ts) redraws the bar and an open conversation as
 // messages arrive.
-import { bar, errorMessage, failed, hint, now, preview, settings, state, toast, truncate, view as liveView, type Accessory, type Action, type Arg, type BarCtx, type BarItem, type Ctx, type Detail, type Effect, type Extension, type Item, type LinkParams, type View } from "@zcag/pal";
+import { bar, errorMessage, failed, hint, mdEscape, now, preview, settings, state, toast, truncate, view as liveView, type Accessory, type Action, type Arg, type BarCtx, type BarItem, type Ctx, type Detail, type Effect, type Extension, type Form, type Item, type LinkParams, type View } from "@zcag/pal";
 import * as api from "./api.ts";
-import { ApiError, EXT, NotSetUp, Unreachable, accountUrl, conf, forgetPictures, log, picture, webUrl, type Account, type Conversation, type Counts, type Message, type Split } from "./api.ts";
+import { ApiError, EXT, NotSetUp, Unreachable, accountUrl, conf, forgetPictures, log, picture, webUrl, type AI, type Account, type Conversation, type Counts, type Message, type Person, type Split } from "./api.ts";
 import { render as renderChat, type ChatState } from "./chat.ts";
 import { GLYPH, SECTION_ORDER, accounts, counts, drop, forMe, groups, healthy, isDue, isGroup, isTodo, line, list, markdown, net, one, plural, preview as lastLine, sectionOf, short, tabs, until } from "./data.ts";
 import * as live from "./live.ts";
@@ -25,6 +27,9 @@ const PICTURES = 60;
 /** Photos of a conversation drawn inline, the newest. */
 const PHOTOS = 8;
 const UNREAD_MARK = new Set(["gmail", "whatsapp", "telegram"]);
+/** How often an open conversation asks Wisp whether its summary, suggested reply or transcript is done, and for how many rounds at most. */
+const POLL_MS = 2000, POLL_ROUNDS = 45;
+const REACTIONS = ["👍", "❤️", "😂", "😮", "😢", "🙏"];
 
 // Another server or token: nothing fetched applies, and the stream follows the new one.
 settings.onChange(() => { drop(); forgetPictures(); live.restart(); }, EXT);
@@ -166,7 +171,8 @@ async function rows(cs: Conversation[], sectioned: boolean): Promise<Item[]> {
 
 /** The pane: the account and the state over the latest messages. */
 async function pane(id: number): Promise<Detail> {
-  const [{ conversation: c, messages }, accs] = await Promise.all([api.messages(id, { limit: 15 }), accountMap()]);
+  const [{ conversation: c, messages }, accs, ai] = await Promise.all([api.messages(id, { limit: 15 }), accountMap(), api.ai(id).catch(() => undefined)]);
+  const sum = ai?.summary?.text ? `> **Summary${ai.summary.stale ? " (newer messages came after it)" : ""}**\n>\n> ${mdEscape(ai.summary.text.trim()).replace(/\n+/g, "\n>\n> ")}\n\n` : "";
   const chips: Detail["chips"] = [];
   if (c.unread) chips.push({ text: `${plural(c.unread, "message")} unread`, color: net(c.channel).color });
   if (isTodo(c)) chips.push({ text: c.triage.state === "waiting" ? "Waiting on them" : c.triage.until && !isDue(c) ? `To do ${until(c.triage.until)}` : "To do", color: "amber" });
@@ -174,7 +180,7 @@ async function pane(id: number): Promise<Detail> {
     caption: [net(c.channel).name, accountLabel(accs, c), isGroup(c) ? c.kind : undefined].filter(Boolean).join(" · "),
     title: c.title,
     ...(chips.length && { chips }),
-    markdown: messages.length ? markdown(messages) : "_No messages yet_",
+    markdown: sum + (messages.length ? markdown(messages) : "_No messages yet_"),
     metadata: [{ label: "Open", link: { text: "In Wisp", href: webUrl(c.id) } }],
   };
 }
@@ -226,6 +232,72 @@ async function inboxRows(ctx?: Ctx): Promise<Item[]> {
   const cs = await list(v, !!ctx?.refresh);
   if (!cs.length) return [hint("empty", EMPTY[v][0], EMPTY[v][1], { icon: GLYPH.read })];
   return rows(cs, v === "inbox" || v === "all");
+}
+
+async function conversationRows(ctx?: Ctx): Promise<Item[]> {
+  hook();
+  live.start();
+  const cs = await list("all", !!ctx?.refresh);
+  return cs.length ? rows(cs, false) : [hint("empty", EMPTY.all[0], EMPTY.all[1], { icon: GLYPH.read })];
+}
+
+// ---- new message: a person, then the account to write from ------------------------------------------------
+
+const folks = new Map<string, Person>();
+
+async function peopleRows(query = "", ctx?: Ctx): Promise<Item[]> {
+  const found = await api.people(query.trim(), 30);
+  folks.clear();
+  const items = await Promise.all(found.map(async (p): Promise<Item> => {
+    folks.set(`p${p.id}`, p);
+    const avatar = await picture(p.avatar);
+    return {
+      id: `p${p.id}`,
+      name: p.name,
+      subtitle: [p.channels.map((c) => net(c).name).join(", "), p.lastPreview && truncate((p.lastFromMe ? "You: " : "") + p.lastPreview, 80)].filter(Boolean).join(" · "),
+      icon: avatar ? { image: avatar } : initialIcon(p.name),
+      keywords: p.channels.map((c) => net(c).name),
+      accessories: [...(p.unread ? [{ tag: String(p.unread), color: "blue" as const }] : []), ...(p.lastMessageAt ? [{ date: p.lastMessageAt }] : [])],
+      actions: [{ id: "write", title: `Write to ${p.name}` }, { id: "web", title: "Open in Wisp", shortcut: "cmd+o" }],
+    };
+  }));
+  const out = items.length ? items : [hint("none", query.trim() ? "Nobody by that name" : "No people yet", "Wisp's people are everyone you have talked with, on every network", { icon: GLYPH.person })];
+  ctx?.partial?.(out);
+  return out;
+}
+
+const via = (r: api.Reach) => `${r.accountId}|${r.conversationId ?? ""}|${r.address}`;
+
+function writeForm(p: Person, reach: api.Reach[], errors?: Record<string, string>, text = ""): Form {
+  const first = reach.find((r) => r.conversationId) ?? reach[0];
+  return {
+    id: `p${p.id}`,
+    title: `Write to ${p.name}`,
+    fields: [
+      { kind: "select", id: "via", label: "From", default: via(first), options: reach.map((r) => ({ id: via(r), title: `${net(r.channel).name} (${r.account}) · ${r.address}${r.conversationId ? "" : " · a new conversation"}` })) },
+      { kind: "textarea", id: "text", label: "Message", required: true, default: text, placeholder: `To ${p.name}` },
+    ],
+    submit: { id: "compose", title: "Send" },
+    errors,
+  };
+}
+
+async function pickPerson(id: string, action: string | undefined, ctx?: Ctx): Promise<Effect> {
+  const pid = Number(id.slice(1));
+  if (action === "web") return { open: `${api.base()}/people/${pid}` };
+  const p = await api.person(pid);
+  const reach = p.reach.filter((r) => r.canSend);
+  if (!reach.length) return toast(`Nothing can write to ${p.name}`, "No account of yours that lets you send reaches them", "failure");
+  if (action !== "compose") return reach.length === 1 && reach[0].conversationId ? pushConversation({ id: reach[0].conversationId, title: p.name }) : { form: writeForm(p, reach) };
+  const text = String(ctx?.values?.text ?? "").trim();
+  const r = reach.find((x) => via(x) === String(ctx?.values?.via ?? "")) ?? reach[0];
+  if (!text) return { form: writeForm(p, reach, { text: "Required" }) };
+  try {
+    const conv = r.conversationId ?? (await api.compose(r.accountId, r.address, text)).conversationId;
+    if (r.conversationId) await api.send(r.conversationId, text);
+    changed();
+    return conv ? { ...pushConversation({ id: conv, title: p.name }), hud: `Sent to ${p.name}` } : { hud: `Sent to ${p.name}` };
+  } catch (e) { return { form: writeForm(p, reach, { text: problemOf(e) }, text) }; }
 }
 
 // ---- search -------------------------------------------------------------------------------------------
@@ -302,7 +374,12 @@ async function accountRows(ctx?: Ctx): Promise<Item[]> {
 // ---- the conversation view -----------------------------------------------------------------------------
 
 /** Per open conversation: what was fetched for it. */
-type Open = { id: number; messages: Message[]; next?: string; c?: Conversation; images: Record<number, string>; senders: Record<string, string>; avatar?: string; problem?: string; readSent?: boolean };
+type Open = {
+  id: number; messages: Message[]; next?: string; c?: Conversation; images: Record<number, string>; senders: Record<string, string>; avatar?: string; problem?: string; readSent?: boolean;
+  ai?: AI; cursor?: number; replyTo?: Message; fill?: string; reacting?: number;
+  /** Asked this open: a suggested reply that fills the field when it is ready, a message whose transcript is on its way. */
+  wantDraft?: boolean; transcribing?: number; poll?: ReturnType<typeof setTimeout>; rounds?: number;
+};
 const opened = new Map<number, Open>();
 
 const idOf = (ctx?: Ctx): number | undefined => { const v = (ctx?.args as { id?: unknown } | undefined)?.id; const n = Number(v); return Number.isFinite(n) && n > 0 ? n : undefined; };
@@ -318,6 +395,7 @@ async function load(o: Open, older = false) {
   const faces = isGroup(o.c) ? [...new Set(o.messages.map((m) => m.sender.avatar).filter((x): x is string => !!x))] : [];
   const [avatar] = await Promise.all([
     picture(o.c.avatar),
+    api.ai(o.id).then((x) => { o.ai = x; }, () => {}),
     ...photos.map(async (a) => { const d = await picture(a.url, api.PHOTO_PX); if (d) o.images[a.id] = d; }),
     ...faces.map(async (f) => { const d = await picture(f); if (d) o.senders[f] = d; }),
   ]);
@@ -330,7 +408,28 @@ async function state_(o: Open, compact?: boolean): Promise<ChatState> {
   return {
     c, account: accountLabel(accs, c), network: net(c.channel), messages: o.messages, images: o.images, senders: o.senders, avatar: o.avatar,
     more: !!o.next, canSend: !!o.c && canSend(accs, c), canUnread: UNREAD_MARK.has(c.channel), now: now(), compact, problem: o.problem,
+    ai: o.ai, cursor: o.cursor, replyTo: o.replyTo, fill: o.fill,
   };
+}
+
+const busyAI = (o: Open) => [o.ai?.summary, o.ai?.draft].some((x) => x?.state === "queued" || x?.state === "running");
+
+/** While Wisp works on something this view asked for, ask again every POLL_MS and draw what came: a summary, the suggested reply into the field, a transcript. */
+function poll(o: Open) {
+  clearTimeout(o.poll);
+  if (!busyAI(o) && !o.transcribing && !(o.wantDraft && o.fill === undefined)) return;
+  if ((o.rounds = (o.rounds ?? 0) + 1) > POLL_ROUNDS) { o.transcribing = undefined; o.wantDraft = false; return; }
+  o.poll = setTimeout(async () => {
+    if (!opened.has(o.id)) return;
+    o.ai = await api.ai(o.id).catch(() => o.ai);
+    if (o.wantDraft && o.ai?.draft?.state === "ready" && o.ai.draft.text) { o.fill = o.ai.draft.text; o.wantDraft = false; }
+    if (o.transcribing) {
+      try { await load(o); } catch { /* the next round */ }
+      if (o.messages.find((m) => m.id === o.transcribing)?.transcript) o.transcribing = undefined;
+    }
+    await redrawOpen(o.id);
+    poll(o);
+  }, POLL_MS);
 }
 
 async function conversationView(ctx?: Ctx, fresh = true): Promise<View> {
@@ -340,6 +439,7 @@ async function conversationView(ctx?: Ctx, fresh = true): Promise<View> {
   let o = opened.get(id);
   if (!o) { o = { id, messages: [], images: {}, senders: {} }; opened.set(id, o); }
   if (fresh || !o.c) { try { await load(o); } catch (e) { o.problem = problemOf(e); } }
+  if (busyAI(o)) { o.rounds = 0; poll(o); }
   // Opening is reading, as in Wisp: once per open, in the background, and the view redrawn when it lands.
   if (o.c?.unread && conf().read_on_open !== false && !o.readSent) {
     o.readSent = true;
@@ -369,6 +469,19 @@ async function conversationPick(viewId: string, action: string, ctx?: Ctx): Prom
   const o = opened.get(id) ?? { id, messages: [], images: {}, senders: {} };
   opened.set(id, o);
   const redraw = async (): Promise<Effect> => ({ view: renderChat(await state_(o, ctx?.compact)) });
+  const at = (d: number) => {
+    const i = o.messages.findIndex((m) => m.id === o.cursor);
+    const next = i < 0 ? (d < 0 ? o.messages.length - 1 : 0) : Math.max(0, Math.min(o.messages.length - 1, i + d));
+    return o.messages[next];
+  };
+  /** The message a reply or a reaction is for: the cursor's, else the newest of theirs. */
+  const target = () => o.messages.find((m) => m.id === o.cursor) ?? [...o.messages].reverse().find((m) => !m.fromMe) ?? o.messages.at(-1);
+  if (action.startsWith("transcribe:")) {
+    const mid = Number(action.slice(11));
+    try { await api.transcribe(mid); } catch (e) { return failed("transcribe it", problemOf(e)); }
+    o.transcribing = mid; o.rounds = 0; poll(o);
+    return { keep: true, hud: "Transcribing" };
+  }
   if (action.startsWith("attachment:")) {
     const a = o.messages.flatMap((m) => m.attachments.map((x) => ({ m, x }))).find(({ x }) => String(x.id) === action.slice(11));
     return { open: a ? webUrl(id, a.m.id) : webUrl(id) };
@@ -377,7 +490,9 @@ async function conversationPick(viewId: string, action: string, ctx?: Ctx): Prom
     case "send": {
       const text = String(ctx?.values?.input ?? "").trim();
       if (!text) return { keep: true };
-      try { await api.send(id, text); } catch (e) { return failed("send it", problemOf(e)); }
+      try { await api.send(id, text, o.replyTo?.id); } catch (e) { return failed("send it", problemOf(e)); }
+      if (o.fill !== undefined) api.forgetDraft(id).catch(() => {});
+      o.replyTo = undefined; o.fill = undefined; o.cursor = undefined;
       changed();
       try { await load(o); } catch { /* the stream brings it */ }
       const v = renderChat(await state_(o, ctx?.compact));
@@ -390,6 +505,31 @@ async function conversationPick(viewId: string, action: string, ctx?: Ctx): Prom
       if (!o.next) return { keep: true };
       try { await load(o, true); } catch (e) { return failed("fetch older messages", e); }
       return redraw();
+    }
+    case "ask-summary": case "ask-draft": {
+      try { o.ai = await api.askAI(id, action === "ask-summary" ? "summary" : "draft"); } catch (e) { return failed(action === "ask-summary" ? "summarize it" : "suggest a reply", problemOf(e)); }
+      if (action === "ask-draft") { o.wantDraft = true; o.fill = undefined; if (o.ai.draft?.state === "ready" && o.ai.draft.text && !o.ai.draft.stale) { o.fill = o.ai.draft.text; o.wantDraft = false; } }
+      o.rounds = 0; poll(o);
+      return redraw();
+    }
+    case "prev-message": case "next-message": o.cursor = at(action === "prev-message" ? -1 : 1)?.id; return redraw();
+    case "reply-to": o.replyTo = target(); o.cursor = o.replyTo?.id; return redraw();
+    case "cancel-reply": o.replyTo = undefined; return redraw();
+    case "react": {
+      const m = target();
+      if (!m) return { keep: true };
+      o.reacting = m.id;
+      const mine = m.reactions.find((r) => r.fromMe)?.emoji;
+      return { form: { id: viewId, title: `React to ${m.fromMe ? "your message" : m.sender.name || "it"}`, fields: [{ kind: "select", id: "emoji", label: "Reaction", default: mine ?? REACTIONS[0], description: truncate(line(m), 80), options: [...REACTIONS.map((e) => ({ id: e, title: e })), ...(mine ? [{ id: "", title: "Take mine back" }] : [])] }], submit: { id: "react-send", title: "React" } } };
+    }
+    case "react-send": {
+      const m = o.messages.find((x) => x.id === o.reacting);
+      if (!m) return { keep: true };
+      const emoji = String(ctx?.values?.emoji ?? ""), mine = m.reactions.find((r) => r.fromMe)?.emoji;
+      try { if (emoji) await api.react(m.id, emoji); else if (mine) await api.unreact(m.id, mine); } catch (e) { return failed("react", problemOf(e)); }
+      try { await load(o); } catch { /* the stream brings it */ }
+      redrawOpen(id).catch(() => {});
+      return toast(emoji ? `Reacted ${emoji}` : "Reaction taken back", truncate(line(m), 60));
     }
     case "web": return { open: webUrl(id) };
     case "copy-last": {
@@ -432,7 +572,11 @@ function hook() {
     if (ev.type === "message.new" || ev.type === "todo.due") touched.add(ev.data.conversationId);
     follow().catch((e) => log(`follow: ${errorMessage(e)}`));
   });
-  liveView.onHidden((ev) => { if (ev.palette === "conversation" && ev.id && !liveView.open().some((o) => o.id === ev.id)) opened.delete(Number(ev.id)); }, EXT);
+  liveView.onHidden((ev) => {
+    if (ev.palette !== "conversation" || !ev.id || liveView.open().some((o) => o.id === ev.id)) return;
+    clearTimeout(opened.get(Number(ev.id))?.poll);
+    opened.delete(Number(ev.id));
+  }, EXT);
 }
 
 // ---- the bar item ----------------------------------------------------------------------------------------------
@@ -595,6 +739,7 @@ async function link(route: string, params: LinkParams): Promise<Effect | void> {
   switch (route) {
     case "open": return params.conversation ? pushConversation(await findConversation(String(params.conversation))) : { push: { extension: EXT, palette: "inbox" } };
     case "search": return { push: { extension: EXT, palette: "search", query: String(params.q ?? "") } };
+    case "new": return { push: { extension: EXT, palette: "new", query: String(params.to ?? "") } };
     case "send": {
       const c = await findConversation(String(params.conversation ?? ""));
       const text = String(params.text ?? "").trim();
@@ -619,6 +764,23 @@ export default {
       list: (_q, ctx) => guard(() => inboxRows(ctx)),
       pick: (id, action, ctx) => (id.startsWith("hint:") ? pickHint(id) : pickConversation(Number(id), action, ctx)),
       detail: async (id) => { if (id.startsWith("hint:")) return; try { return await pane(Number(id)); } catch (e) { return { markdown: `_${problemOf(e)}_` }; } },
+    },
+    conversations: {
+      title: "Conversations",
+      live: true,
+      lazy: true,
+      multi: true,
+      placeholder: "Any conversation by name, network or account",
+      list: (_q, ctx) => guard(() => conversationRows(ctx)),
+      pick: (id, action, ctx) => (id.startsWith("hint:") ? pickHint(id) : pickConversation(Number(id), action, ctx)),
+      detail: async (id) => { if (id.startsWith("hint:")) return; try { return await pane(Number(id)); } catch (e) { return { markdown: `_${problemOf(e)}_` }; } },
+    },
+    new: {
+      title: "New Message",
+      input: true,
+      placeholder: "A person's name, a number or an address",
+      list: (q, ctx) => guard(() => peopleRows(q, ctx)),
+      pick: (id, action, ctx) => (id.startsWith("hint:") ? pickHint(id) : pickPerson(id, action, ctx)),
     },
     conversation: {
       title: "Conversation",

@@ -2,7 +2,9 @@
 // (tabs, sections, the field, the budget), then the extension through the
 // harness against wisp-mock.ts: the inbox palette's views and its writes,
 // the pane, the conversation (read on open, send, the field put back,
-// photos inline), search, accounts, the bar's strip per network, account
+// photos inline; Wisp's summary, a suggested reply into the field, a reply
+// to one message, a reaction, a transcript), Conversations and New Message,
+// search, accounts, the bar's strip per network, account
 // or in all with a due To do and the for-you fact, its popover keys, the
 // stream redrawing it, the links, and a refused token or no server.
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
@@ -11,7 +13,7 @@ import { render as renderPopover, visible, type PopRow, type PopState } from "..
 import type { Item, View, ViewNode } from "../.pal/sdk/src/protocol.ts";
 import { checkView } from "../.pal/sdk/src/view.ts";
 import { Host } from "../.pal/host/test/harness.ts";
-import { ADA, FAMILY, GRACE, KARGO, LEASE, Q4, RELEASES, T0, TOKEN, WispMock, conversations, iso, messages } from "./wisp-mock.ts";
+import { ADA, DRAFT, FAMILY, GRACE, KARGO, LEASE, Q4, RELEASES, SUMMARY, T0, TOKEN, WispMock, conversations, iso, messages } from "./wisp-mock.ts";
 
 const X = "wisp";
 const nodes = (n: ViewNode): ViewNode[] => [n, ...("children" in n && n.children ? n.children.flatMap(nodes) : [])];
@@ -48,10 +50,12 @@ describe("wisp views", () => {
     expect(nodes(v.tree).some((n) => n.type === "badge" && n.text === "2 unread")).toBe(true);
     expect(nodes(v.tree).some((n) => n.type === "image" && n.src.startsWith("data:image/png") && n.action === "attachment:9001")).toBe(true);
     expect(v.input).toEqual({ placeholder: "Message Ada Lindqvist", submit: "send" });
-    expect(ids(v)).toEqual(["send", "todo", "later", "waiting", "archive", "read", "web", "copy-last", "older"]);
+    expect(ids(v)).toEqual(["send", "todo", "later", "waiting", "archive", "read", "web", "copy-last", "older", "prev-message", "next-message", "reply-to", "react"]);
     expect(st({ canSend: false }).input).toBeUndefined();
     const fam = conversations().find((x) => x.id === FAMILY)!;
-    expect(texts(st({ c: fam, messages: messages()[FAMILY] })).filter((t) => t === "Mum" || t === "Tom")).toEqual(["Mum", "Tom", "Mum"]);
+    expect(texts(st({ c: fam, messages: messages()[FAMILY] })).filter((t) => t === "Mum" || t === "Tom")).toEqual(["Mum", "Tom", "Mum", "Tom"]);
+    // A voice message without its words asks for them on a click.
+    expect(nodes(st({ c: fam, messages: messages()[FAMILY] }).tree).some((n) => n.action === "transcribe:14")).toBe(true);
     const long = Array.from({ length: 900 }, (_, i) => ({ ...messages()[ADA][2], id: 1000 + i, text: `message ${i}` }));
     const cut = st({ messages: long });
     expect(nodes(cut.tree).length).toBeLessThan(BUDGET + 80);
@@ -76,9 +80,9 @@ describe("wisp", () => {
   test("meta: four palettes, the bar item, three links, the settings; no warnings", () => {
     const loaded = host.loaded().find((l) => l.extension === X)!;
     expect(loaded.warnings).toEqual([]);
-    expect(loaded.palettes.map((p) => [p.name, p.title])).toEqual([["inbox", "Inbox"], ["conversation", "Conversation"], ["search", "Search Wisp"], ["accounts", "Wisp Accounts"]]);
+    expect(loaded.palettes.map((p) => [p.name, p.title])).toEqual([["inbox", "Inbox"], ["conversations", "Conversations"], ["new", "New Message"], ["conversation", "Conversation"], ["search", "Search Wisp"], ["accounts", "Wisp Accounts"]]);
     expect(loaded.bar.map((b) => b.id)).toEqual(["inbox"]);
-    expect(Object.keys(loaded.manifest.links ?? {})).toEqual(["open", "search", "send"]);
+    expect(Object.keys(loaded.manifest.links ?? {})).toEqual(["open", "search", "send", "new"]);
   });
 
   test("inbox: Wisp's Inbox under its sections with pictures, counts and To dos; the other views; the pane; the writes", async () => {
@@ -134,6 +138,50 @@ describe("wisp", () => {
     // SMS here may not send: no field, and a bare open is the newest in the inbox.
     expect((await view({ id: KARGO })).input).toBeUndefined();
     expect((await view()).id).toBe(String(ADA));
+  });
+
+  test("conversation extras: the summary on top, a suggested reply into the field, a reply to one message, a reaction, a voice message's words", async () => {
+    mock.reset();
+    host.viewShown(X, { palette: "conversation" }, String(ADA));
+    const v = await view({ id: ADA });
+    expect(texts(v)).toEqual(expect.arrayContaining(["Summary", SUMMARY]));
+    expect((await host.detail(X, "inbox", String(ADA))).markdown).toContain(`**Summary**`);
+    // Asked, queued, then made: the field takes it.
+    const asked = await host.pick(X, "conversation", String(ADA), "ask-draft");
+    expect(texts(asked.view as View)).toContain("Writing a suggested reply…");
+    await host.advanceUntil(2000, () => host.viewUpdates(X, { palette: "conversation" }).some((u) => (u.spec as View).input?.value === DRAFT), "the draft in the field");
+    // The cursor on Ada's first message, a reply to it, sent with replyTo; the draft is forgotten.
+    await host.pick(X, "conversation", String(ADA), "prev-message");
+    const back = await host.pick(X, "conversation", String(ADA), "prev-message");
+    expect(nodes((back.view as View).tree).find((n) => n.selected)!.key).toBe("m3");
+    const r = await host.pick(X, "conversation", String(ADA), "reply-to");
+    expect((r.view as View).input).toMatchObject({ placeholder: "Reply to Ada Lindqvist", cancel: "cancel-reply" });
+    expect(texts(r.view as View)).toContain("Replying to Ada Lindqvist: I will");
+    await host.pick(X, "conversation", String(ADA), "send", { values: { input: DRAFT } });
+    expect(mock.posted(`/api/v1/conversations/${ADA}/messages`).at(-1)!.body).toEqual({ text: DRAFT, replyTo: 3 });
+    expect(mock.posted(`/api/v1/conversations/${ADA}/draft`).map((c) => c.method)).toEqual(["POST", "DELETE"]);
+    // A reaction through its form; a voice message transcribed and drawn.
+    expect((await host.pick(X, "conversation", String(ADA), "react")).form!.fields[0].id).toBe("emoji");
+    expect(await host.pick(X, "conversation", String(ADA), "react-send", { values: { emoji: "❤️" } })).toMatchObject({ toast: { title: "Reacted ❤️" } });
+    expect(mock.posted("/api/v1/messages/4/react")[0].body).toEqual({ emoji: "❤️" });
+    host.viewShown(X, { palette: "conversation" }, String(FAMILY));
+    await view({ id: FAMILY });
+    expect(await host.pick(X, "conversation", String(FAMILY), "transcribe:14")).toMatchObject({ hud: "Transcribing" });
+    await host.advanceUntil(2000, () => host.viewUpdates(X, { palette: "conversation" }).some((u) => texts(u.spec as View).includes("“Running ten minutes late, start without me”")), "the transcript");
+  });
+
+  test("Conversations by name; New Message: a person with a conversation opens it, one without gets the form, sent through compose", async () => {
+    mock.reset();
+    expect((await host.list(X, "conversations", "", { refresh: true })).map((r) => r.id)).toContain(String(LEASE));
+    const folks = await host.list(X, "new", "");
+    expect(folks.map((r) => [r.name, r.subtitle?.split(" · ")[0]])).toEqual([["Ada Lindqvist", "WhatsApp"], ["Lin Park", "Gmail"]]);
+    expect(await host.pick(X, "new", "p1")).toMatchObject({ push: { palette: "conversation", args: { id: ADA } } });
+    const form = (await host.pick(X, "new", "p2")).form!;
+    expect((form.fields[0] as { options: { id: string }[] }).options.map((o) => o.id)).toEqual(["2||lin@example.com", "3||lin@acme.example"]);
+    const sent = await host.pick(X, "new", "p2", "compose", { values: { via: "3||lin@acme.example", text: "Numbers attached" } });
+    expect(sent).toMatchObject({ push: { palette: "conversation" }, hud: "Sent to Lin Park" });
+    expect(mock.posted("/api/v1/compose")[0].body).toEqual({ accountId: 3, to: ["lin@acme.example"], text: "Numbers attached" });
+    expect(await link("new", { to: "lin" })).toEqual({ push: { extension: X, palette: "new", query: "lin" } });
   });
 
   test("search and accounts: hits open their conversation or Wisp at the message; the account that needs attention first", async () => {

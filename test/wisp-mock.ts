@@ -3,12 +3,14 @@
 // does not count toward the total and is degraded), the Inbox view with
 // a direct message, a group, a work mail, a Slack mention, an SMS and a
 // due To do, a To do for later, messages with a photo and a group's
-// senders, search, and the event stream. The writes (send, read, unread,
+// senders and a voice message, search, people and starting a
+// conversation, the AI summary and suggested reply (made on the second ask
+// after one is queued), transcription, reactions, and the event stream. The writes (send, read, unread,
 // To do, archive) are recorded and change the data as Wisp would; mark
 // unread on a network without the mark answers 501. A token other than
 // `inbx_test` is a 401. Everyone in it is invented.
 import { now } from "../.pal/sdk/src/clock.ts";
-import type { Account, Conversation, Counts, Message } from "../wisp/api.ts";
+import type { AI, Account, Conversation, Counts, Message, Person, Reach } from "../wisp/api.ts";
 
 export const TOKEN = "inbx_test";
 export const T0 = Math.floor(now() / 60_000) * 60_000;
@@ -64,6 +66,7 @@ export function messages(): Record<number, Message[]> {
       msg({ id: 11, conversationId: FAMILY, sender: { id: "mum", name: "Mum", avatar: "/api/v1/avatars/contact/1/mum?v=1" }, text: "Sunday lunch at 1?", sentAt: iso(20) }),
       msg({ id: 12, conversationId: FAMILY, sender: { id: "tom", name: "Tom" }, text: "Yes, I'll bring dessert", sentAt: iso(19) }),
       msg({ id: 13, conversationId: FAMILY, sender: { id: "mum", name: "Mum", avatar: "/api/v1/avatars/contact/1/mum?v=1" }, text: "Lovely", sentAt: iso(18) }),
+      msg({ id: 14, conversationId: FAMILY, sender: { id: "tom", name: "Tom" }, kind: "voice", text: "", sentAt: iso(17), attachments: [{ id: 9003, kind: "voice", mime: "audio/ogg" }] }),
     ],
     [Q4]: [msg({ id: 21, conversationId: Q4, kind: "email", sender: { id: "lin@acme.example", name: "Lin Park" }, subject: "Q4 plan", text: "Hi Ana,\n\nHere is the draft for Thursday. The hiring section still needs numbers.\n\nLin", sentAt: iso(42) })],
     [RELEASES]: [msg({ id: 31, conversationId: RELEASES, sender: { id: "U2", name: "Grace" }, text: "@ana can you sign off 2.4?", sentAt: iso(65) })],
@@ -75,6 +78,17 @@ export function messages(): Record<number, Message[]> {
 
 const UNREAD_MARK = new Set(["gmail", "whatsapp", "telegram"]);
 
+export const SUMMARY = "Ada asks whether tonight is still on and found the old engine notes to bring.";
+export const DRAFT = "Yes, still on. 8 at the usual place?";
+export const people = (): Person[] => [
+  { id: 1, name: "Ada Lindqvist", avatar: "/api/v1/conversations/101/avatar?v=1", channels: ["whatsapp"], lastMessageAt: iso(4), lastPreview: "Are we still on for tonight?", lastFromMe: false, unread: 2 },
+  { id: 2, name: "Lin Park", channels: ["gmail"], lastMessageAt: iso(42), lastPreview: "Here is the draft for Thursday", lastFromMe: false, unread: 1 },
+];
+const reach: Record<number, Reach[]> = {
+  1: [{ accountId: 1, channel: "whatsapp", account: "WhatsApp", address: "+44 7700 900456", conversationId: ADA, canSend: true }, { accountId: 5, channel: "sms", account: "SMS", address: "+44 7700 900456", canSend: false }],
+  2: [{ accountId: 2, channel: "gmail", account: "Personal", address: "lin@example.com", canSend: true }, { accountId: 3, channel: "gmail", account: "Work", address: "lin@acme.example", canSend: true }],
+};
+
 export class WispMock {
   server: ReturnType<typeof Bun.serve>;
   calls: { method: string; path: string; query?: string; body?: unknown }[] = [];
@@ -82,11 +96,15 @@ export class WispMock {
   convs = conversations();
   msgs = messages();
   failWith = 0;
+  ai: Record<number, AI> = {};
+  /** GETs of a conversation's AI left before what was asked is made. */
+  private making: Record<number, number> = {};
   private streams = new Set<ReadableStreamDefaultController<string>>();
   private seq = 100;
 
   constructor() {
     const self = this;
+    this.reset();
     this.server = Bun.serve({
       port: 0,
       async fetch(req) {
@@ -102,7 +120,7 @@ export class WispMock {
   get streaming() { return this.streams.size; }
   emit(type: string, data: unknown) { const b = `event: ${type}\ndata: ${JSON.stringify({ id: "evt_1", type, at: new Date(T0).toISOString(), data })}\n\n`; for (const c of this.streams) try { c.enqueue(b); } catch { this.streams.delete(c); } }
   posted(path: string) { return this.calls.filter((c) => c.method !== "GET" && c.path === path); }
-  reset() { this.accounts = accounts(); this.convs = conversations(); this.msgs = messages(); this.calls = []; this.failWith = 0; }
+  reset() { this.accounts = accounts(); this.convs = conversations(); this.msgs = messages(); this.calls = []; this.failWith = 0; this.ai = { [ADA]: { available: true, summary: { text: SUMMARY, stale: false, state: "ready" } } }; this.making = {}; }
 
   counts(): Counts {
     const inInbox = (c: Conversation) => c.triage.state !== "done" && (c.unread > 0 || ((c.triage.state === "todo" || c.triage.state === "waiting") && (!c.triage.until || Date.parse(c.triage.until) <= T0)));
@@ -149,7 +167,34 @@ export class WispMock {
       const hits = Object.values(this.msgs).flat().filter((x) => x.text.toLowerCase().includes(q.replace(/ in:\w+/, "")));
       return json({ hits: hits.map((x) => { const cc = this.convs.find((y) => y.id === x.conversationId)!; return { conversationId: cc.id, conversationTitle: cc.title, channel: cc.channel, message: x }; }), conversations: [], capped: false, invalid: q.includes("bogus:") ? ["bogus:"] : [] });
     }
+    if (m === "GET" && p === "/api/v1/people") { const q = (u.searchParams.get("q") ?? "").toLowerCase(); return json({ people: people().filter((x) => x.name.toLowerCase().includes(q)) }); }
+    const pid = Number(p.match(/^\/api\/v1\/people\/(\d+)$/)?.[1]);
+    if (m === "GET" && pid) { const x = people().find((y) => y.id === pid); return x ? json({ ...x, reach: reach[pid] }) : json({ error: "not found" }, 404); }
+    if (m === "POST" && p === "/api/v1/compose") {
+      const b = body as { accountId: number; to: string[]; text: string };
+      const acc = this.accounts.find((a) => a.id === b.accountId)!;
+      const nc = { ...conversations()[2], id: 300 + this.convs.length, accountId: acc.id, channel: acc.channel, title: b.to[0], lastPreview: `You: ${b.text}`, unread: 0, lastMessageAt: new Date(T0).toISOString() };
+      this.convs.push(nc);
+      return json({ conversationId: nc.id });
+    }
+    const mid = Number(p.match(/^\/api\/v1\/messages\/(\d+)\//)?.[1]);
+    const message = Object.values(this.msgs).flat().find((x) => x.id === mid);
+    if (mid && !message) return json({ error: "not found" }, 404);
+    if (m === "POST" && p.endsWith("/transcribe")) { message!.transcript = "Running ten minutes late, start without me"; return new Response(null, { status: 204 }); }
+    if (m === "POST" && p.endsWith("/react")) { message!.reactions = [...message!.reactions.filter((r) => !r.fromMe), { emoji: (body as { emoji: string }).emoji, sender: { id: "", name: "" }, fromMe: true }]; return new Response(null, { status: 204 }); }
+    if (m === "DELETE" && p.endsWith("/react")) { message!.reactions = message!.reactions.filter((r) => !r.fromMe); return new Response(null, { status: 204 }); }
     if (!c) return json({ error: "not found" }, 404);
+    const ai = (this.ai[id] ??= { available: true });
+    if (m === "GET" && p.endsWith("/ai")) {
+      if (this.making[id] !== undefined && this.making[id]-- <= 0) {
+        delete this.making[id];
+        if (ai.summary?.state === "queued") ai.summary = { text: SUMMARY, stale: false, state: "ready" };
+        if (ai.draft?.state === "queued") ai.draft = { text: DRAFT, stale: false, state: "ready" };
+      }
+      return json(ai);
+    }
+    if (m === "POST" && (p.endsWith("/summary") || p.endsWith("/draft"))) { ai[p.endsWith("/summary") ? "summary" : "draft"] = { stale: false, state: "queued" }; this.making[id] = 1; return json(ai); }
+    if (m === "DELETE" && p.endsWith("/draft")) { delete ai.draft; return new Response(null, { status: 204 }); }
     if (m === "GET" && p.endsWith("/messages")) return json({ conversation: c, messages: this.msgs[id] ?? [], ...(id === ADA && !u.searchParams.get("cursor") && { next: "1.1" }) });
     if (m === "GET" && p === `/api/v1/conversations/${id}`) return json(c);
     const policy = this.accounts.find((a) => a.id === c.accountId)!.sendPolicy;

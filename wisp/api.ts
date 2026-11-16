@@ -44,9 +44,14 @@ export type Attachment = { id: number; kind: "image" | "video" | "audio" | "voic
 export type Reaction = { emoji: string; sender: Sender; fromMe: boolean };
 export type Message = {
   id: number; conversationId: number; sender: Sender; fromMe: boolean; sentAt: string; kind: string; subject?: string; text: string;
-  status?: string; edited: boolean; deleted: boolean; attachments: Attachment[]; reactions: Reaction[];
+  transcript?: string; status?: string; edited: boolean; deleted: boolean; attachments: Attachment[]; reactions: Reaction[];
 };
 export type Page<T> = { next?: string } & T;
+export type Person = { id: number; name: string; avatar?: string; channels: Channel[]; lastMessageAt?: string; lastPreview?: string; lastFromMe: boolean; unread: number };
+export type Reach = { accountId: number; channel: Channel; account: string; address: string; conversationId?: number; canSend: boolean };
+/** A summary or a suggested reply: `state` is `ready`, or `queued` / `running` while Wisp's model works on it, `failed`. */
+export type AIResult = { text?: string; at?: string; stale: boolean; state: string; error?: string };
+export type AI = { available: boolean; summary?: AIResult; draft?: AIResult };
 export type Hit = { conversationId: number; conversationTitle: string; channel: Channel; message: Message };
 export type View = "inbox" | "now" | "todo" | "screener" | "all";
 
@@ -111,6 +116,15 @@ export const markUnread = (id: number) => request<void>("POST", `/api/v1/convers
 export const todo = (id: number, o: { until?: string; waiting?: boolean } = {}) => request<void>("POST", `/api/v1/conversations/${id}/todo`, undefined, o);
 export const clearTodo = (id: number) => request<void>("DELETE", `/api/v1/conversations/${id}/todo`);
 export const archive = (id: number) => request<void>("POST", `/api/v1/conversations/${id}/archive`);
+export const people = async (q: string, limit = 30) => (await request<{ people: Person[] }>("GET", "/api/v1/people", { q, limit })).people;
+export const person = (id: number) => request<Person & { reach: Reach[] }>("GET", `/api/v1/people/${id}`);
+export const compose = (accountId: number, to: string, text: string) => request<{ conversationId?: number; message?: Message }>("POST", "/api/v1/compose", undefined, { accountId, to: [to], text });
+export const ai = (id: number) => request<AI>("GET", `/api/v1/conversations/${id}/ai`);
+export const askAI = (id: number, kind: "summary" | "draft") => request<AI>("POST", `/api/v1/conversations/${id}/${kind}`);
+export const forgetDraft = (id: number) => request<void>("DELETE", `/api/v1/conversations/${id}/draft`);
+export const transcribe = (message: number) => request<void>("POST", `/api/v1/messages/${message}/transcribe`);
+export const react = (message: number, emoji: string) => request<void>("POST", `/api/v1/messages/${message}/react`, undefined, { emoji });
+export const unreact = (message: number, emoji: string) => request<void>("DELETE", `/api/v1/messages/${message}/react`, { emoji });
 
 /** The event stream's request (`live.ts` reads it). */
 export const events = (signal: AbortSignal) => {

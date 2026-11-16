@@ -40,6 +40,16 @@ at 9, `cmd+shift+w` waiting on them (a To do again in three days unless they
 answer), `cmd+e` Done (archives, on the network too where it has an archive),
 `cmd+o` opens it in Wisp. Each of those runs over marked rows too.
 
+**Conversations** (`wisp-conversations`): every recent conversation on every
+account, newest first, among the rows pal's root search ranks first, so a
+name typed anywhere reaches the chat. The same keys as the Inbox.
+
+**New Message** (`wisp-new`): Wisp's people, everyone you have talked with on
+any network, found as you type. Enter on a person with one conversation opens
+it; otherwise a form asks which account to write from (the conversations you
+already have first, then the addresses a new one can start on) and the
+message, sends it (a new conversation through Wisp's compose) and opens it.
+
 **Conversation** (`wisp-conversation`): one conversation to read and answer,
 opened at its newest message: the messages by day, theirs on the left and
 yours on the right, each sender named in a group, photos inline, other
@@ -48,6 +58,15 @@ mail's subject. The search row is the message field: type and Enter sends,
 through Wisp's outbox (its undo delay applies). Opening it marks it read, as
 in Wisp (the **Opening reads** setting turns that off). New messages arrive
 as they come. `cmd+[` loads older ones.
+
+Where Wisp has a model, its summary of the conversation is a card on top
+(saying when newer messages came after it), `cmd+shift+s` asks for a fresh
+one, and `cmd+shift+d` asks for a suggested reply, which fills the message
+field when it is ready to edit or send. A voice message shows its words once
+transcribed; a click on one without them asks for them. `cmd+up` and
+`cmd+down` move a cursor over the messages; `cmd+r` replies to the one under
+it (a line over the field says to whom, `cmd+backspace` or Escape stops),
+`cmd+shift+e` reacts to it.
 
 **Search Wisp** (`wisp-search`): Wisp's own search over every account, with
 its language: words as prefixes, `"phrases"`, `-word`, `from:`, `in:slack`,
@@ -87,6 +106,7 @@ your own.
   the Inbox.
 - `pal://wisp/search?q=<query>` opens Search with the query.
 - `pal://wisp/send?conversation=<…>&text=<…>` sends a message.
+- `pal://wisp/new?to=<words of a name>` opens New Message with them typed.
 
 ## Live
 

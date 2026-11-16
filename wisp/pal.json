@@ -1,7 +1,7 @@
 {
   "name": "wisp",
   "title": "Wisp",
-  "description": "Every inbox you keep in Wisp (github.com/zcag/wisp), WhatsApp, Gmail, Slack, Telegram, SMS and the rest, in one place: read and answer a conversation, make it a To do or mark it done, search every account at once, and see what is unread per network on the bar.",
+  "description": "Every inbox you keep in Wisp (github.com/zcag/wisp), WhatsApp, Gmail, Slack, Telegram, SMS and the rest, in one place: read and answer a conversation with Wisp's summary and suggested reply, write to anyone, make it a To do or mark it done, search every account at once, and see what is unread per network on the bar.",
   "keywords": [
     "inbox",
     "messages",
@@ -92,14 +92,82 @@
         }
       ]
     },
+    "conversations": {
+      "title": "Conversations",
+      "description": "Every recent conversation on every account, newest first, so a name typed at pal's root reaches the chat: the picture, the last line, the unread count or the To do, the latest messages and Wisp's summary in the pane.",
+      "kind": "live",
+      "lazy": true,
+      "tier": "primary",
+      "keys": [
+        {
+          "keys": "enter",
+          "title": "Open the conversation"
+        },
+        {
+          "keys": "cmd+enter",
+          "title": "Mark read (unread on a read one)"
+        },
+        {
+          "keys": "cmd+shift+r",
+          "title": "Send the message typed after Tab"
+        },
+        {
+          "keys": "cmd+t",
+          "title": "To do (clear it on a To do)"
+        },
+        {
+          "keys": "cmd+e",
+          "title": "Done (archive)"
+        },
+        {
+          "keys": "cmd+o",
+          "title": "Open in Wisp"
+        }
+      ]
+    },
+    "new": {
+      "title": "New Message",
+      "description": "Write to anyone in Wisp's people, everyone you have talked with on every network: pick the person, then the account to write from (the conversation you already have with them first) and the message.",
+      "kind": "input",
+      "keys": [
+        {
+          "keys": "enter",
+          "title": "Write to them (their conversation, or a new one)"
+        },
+        {
+          "keys": "cmd+o",
+          "title": "Open the person in Wisp"
+        }
+      ]
+    },
     "conversation": {
       "title": "Conversation",
-      "description": "One conversation to read and answer: its messages by day, theirs and yours, photos inline, reactions, a mail's subject; a message field that sends on Enter; follows new messages live. Opened bare, the newest in the Inbox.",
+      "description": "One conversation to read and answer: Wisp's summary on top, the messages by day, theirs and yours, photos inline, a voice message's words, reactions, a mail's subject; a message field that sends on Enter, filled with Wisp's suggested reply on cmd+shift+d; a cursor over the messages to reply to one or react; follows new messages live. Opened bare, the newest in the Inbox.",
       "kind": "view",
       "keys": [
         {
           "keys": "enter",
           "title": "Send the message"
+        },
+        {
+          "keys": "cmd+shift+s",
+          "title": "Summarize it (Wisp's model)"
+        },
+        {
+          "keys": "cmd+shift+d",
+          "title": "Suggest a reply into the field"
+        },
+        {
+          "keys": "cmd+up",
+          "title": "The cursor to the previous message (cmd+down the next)"
+        },
+        {
+          "keys": "cmd+r",
+          "title": "Reply to the message under the cursor (cmd+backspace stops)"
+        },
+        {
+          "keys": "cmd+shift+e",
+          "title": "React to it"
         },
         {
           "keys": "cmd+t",
@@ -398,6 +466,14 @@
           "required": true
         }
       }
+    },
+    "new": {
+      "description": "Write to someone: New Message with a name typed",
+      "params": {
+        "to": {
+          "description": "Words of the person's name, a number or an address"
+        }
+      }
     }
   },
   "store": {
@@ -405,7 +481,9 @@
     "category": "integration",
     "features": [
       "Every account Wisp connects (WhatsApp, Gmail, Slack, Telegram, SMS, Instagram, LinkedIn, X) in one list, under Wisp's own sections and views: Inbox, Now, To do, the Screener, All",
+      "Any conversation reached by name from pal's root, and a new message to anyone in Wisp's people, from the account you choose",
       "A conversation to read and answer inside pal: messages by day, photos inline, reactions, a field that sends on Enter, new messages as they arrive",
+      "Wisp's AI in the conversation: its summary on top, a suggested reply in the field on a key, a voice message's words; reply to one message or react to it",
       "To do, To do tomorrow, Waiting on them, Done and read or unread on a key, over many conversations at once",
       "One bar item: each network's glyph and unread count in its colour, a red @ for mentions meant for you, To dos that are due",
       "Its popover is the whole inbox behind a tab per network: open, preview, reply, mark read, To do or done without opening anything",
@@ -463,7 +541,7 @@
           360,
           64,
           840,
-          936
+          960
         ]
       },
       {

@@ -6,11 +6,15 @@
 // inline, other attachments as badges, reactions under the text, a mail's
 // subject over its body. The search row is the message field the whole
 // time (where the account lets you send), so typing and Enter sends; the
-// other keys are modifier combos for that reason. The tree is cut at a
-// node budget from the newest message back.
+// other keys are modifier combos for that reason. Wisp's summary leads,
+// a card under the header; a suggested reply fills the field; a voice
+// message shows its transcript. `cmd+up` and `cmd+down` walk a cursor over
+// the messages (`selected`) for `cmd+r`, a reply to that message, and
+// `cmd+shift+e`, a reaction. The tree is cut at a node budget from the
+// newest message back.
 import { column, dayName, keyHint, row, text, truncate, type Action, type TagColor, type View, type ViewNode } from "@zcag/pal";
-import type { Conversation, Message } from "./api.ts";
-import { GLYPH, LABEL, isTodo, short, until } from "./data.ts";
+import type { AI, Conversation, Message } from "./api.ts";
+import { GLYPH, LABEL, isTodo, line, short, until } from "./data.ts";
 import { avatarColor, initial } from "./view.ts";
 
 export type ChatState = {
@@ -33,7 +37,21 @@ export type ChatState = {
   now: number;
   compact?: boolean;
   problem?: string;
+  /** Wisp's summary and suggested reply for it, when Wisp has a model. */
+  ai?: AI;
+  /** The message the cursor is on, by id. */
+  cursor?: number;
+  /** The message the next send replies to. */
+  replyTo?: Message;
+  /** What the field holds: a suggested reply put there. */
+  fill?: string;
 };
+
+const pending = (r?: { state: string }) => r?.state === "queued" || r?.state === "running";
+const AUDIO = new Set(["voice", "audio"]);
+/** A voice or audio message without its words yet: a click on it asks for them. */
+const untranscribed = (m: Message) => !m.transcript && m.attachments.some((a) => AUDIO.has(a.kind));
+const who = (m: Message) => (m.fromMe ? "You" : m.sender.name || "Them");
 
 /** Of the host's 2000 nodes per tree, what the messages may use. */
 export const BUDGET = 1500;
@@ -70,12 +88,26 @@ function header(st: ChatState): ViewNode[] {
   ];
 }
 
+function summaryNode(st: ChatState): ViewNode[] {
+  const x = st.ai?.summary;
+  if (!x) return [];
+  if (!x.text) return [text(pending(x) ? "Summarizing…" : `No summary: ${x.error || x.state}`, { key: "summary", size: "xs", color: "faint" })];
+  return [row([
+    text(GLYPH.summary, { style: "glyph", size: "md", color: "accent", width: 20, align: "center" }),
+    column([
+      text(pending(x) ? "Summary · a newer one is on its way" : x.stale ? "Summary · newer messages came after it" : "Summary", { key: "h", size: "xs", weight: "semibold", color: "muted" }),
+      ...paragraphs(x.text).slice(0, 6).map((t, j) => text(t, { key: `s${j}`, size: "sm" })),
+    ], { key: "c", gap: 1, grow: true }),
+  ], { key: "summary", surface: "elevated", radius: true, padding: 2, gap: 2, align: "start", transition: { enter: "fade", exit: "fade" } })];
+}
+
 function attachments(m: Message, st: ChatState): ViewNode[] {
   return m.attachments.map((a): ViewNode => {
     const img = st.images[a.id];
     if (img) return { type: "image", key: `a${a.id}`, src: img, width: st.compact ? 220 : 280, height: st.compact ? 165 : 210, mask: "rounded", alt: a.filename ?? "Photo", action: `attachment:${a.id}` };
     const glyph = a.kind === "image" || a.kind === "video" || a.kind === "sticker" ? GLYPH.image : a.kind === "voice" || a.kind === "audio" ? GLYPH.voice : GLYPH.file;
-    return row([text(glyph, { style: "glyph", size: "sm", color: "muted" }), text(a.filename ? truncate(a.filename, 40) : LABEL[a.kind] ?? "File", { size: "xs" })], { key: `a${a.id}`, gap: 1, padding: 1, radius: true, surface: "sunken", action: `attachment:${a.id}` });
+    const ask = AUDIO.has(a.kind) && !m.transcript;
+    return row([text(glyph, { style: "glyph", size: "sm", color: "muted" }), text(a.filename ? truncate(a.filename, 40) : LABEL[a.kind] ?? "File", { size: "xs" }), ...(ask ? [text("· click for its words", { key: "ask", size: "xs", color: "faint" })] : [])], { key: `a${a.id}`, gap: 1, padding: 1, radius: true, surface: "sunken", action: ask ? `transcribe:${m.id}` : `attachment:${a.id}` });
   });
 }
 
@@ -89,6 +121,7 @@ function bubble(m: Message, st: ChatState, showName: boolean): ViewNode {
     ...(m.subject && mail ? [text(m.subject, { key: "subj", size: "sm", weight: "semibold" })] : []),
     ...body,
     ...attachments(m, st),
+    ...(m.transcript ? [text(`“${m.transcript.trim().slice(0, MAX_TEXT)}”`, { key: "tr", size: "sm", color: "muted" })] : []),
     ...(m.reactions.length ? [text(m.reactions.map((r) => r.emoji).join(" "), { key: "re", size: "sm" })] : []),
     text(foot, { key: "foot", size: "xs", color: "faint", align: m.fromMe ? "end" : "start" }),
   ], { key: "b", gap: 1, padding: 2, radius: true, align: "start", surface: m.fromMe ? "elevated" : "sunken" });
@@ -101,9 +134,10 @@ function messageNode(m: Message, prev: Message | undefined, st: ChatState): View
   const group = st.c.kind !== "direct";
   const first = !prev || prev.fromMe !== m.fromMe || prev.sender.id !== m.sender.id || Date.parse(m.sentAt) - Date.parse(prev.sentAt) > 15 * 60_000;
   const gutter = st.compact ? 28 : 64;
-  if (m.fromMe) return row([{ type: "spacer", key: "l", size: gutter }, bubble(m, st, false)], { key: `m${m.id}`, gap: 2, align: "start", justify: "end", transition: { enter: "fade" } });
+  const on = st.cursor === m.id || undefined;
+  if (m.fromMe) return row([{ type: "spacer", key: "l", size: gutter }, bubble(m, st, false)], { key: `m${m.id}`, gap: 2, align: "start", justify: "end", selected: on, transition: { enter: "fade" } });
   const pic = group ? [first ? face(st.senders[m.sender.avatar ?? ""], m.sender.name || "?", 24, "who") : { type: "spacer", key: "who", size: 24 } as ViewNode] : [];
-  return row([...pic, bubble(m, st, group && first), { type: "spacer", key: "r", size: gutter }], { key: `m${m.id}`, gap: 2, align: "start", transition: { enter: "fade" } });
+  return row([...pic, bubble(m, st, group && first), { type: "spacer", key: "r", size: gutter }], { key: `m${m.id}`, gap: 2, align: "start", selected: on, transition: { enter: "fade" } });
 }
 
 function dayLine(t: string, ref: number): string {
@@ -111,6 +145,18 @@ function dayLine(t: string, ref: number): string {
   if (d.toDateString() === r.toDateString()) return "Today";
   if (d.toDateString() === new Date(ref - 86_400_000).toDateString()) return "Yesterday";
   return dayName(d);
+}
+
+function replyingNode(st: ChatState): ViewNode[] {
+  const out: ViewNode[] = [];
+  if (pending(st.ai?.draft)) out.push(text("Writing a suggested reply…", { key: "drafting", size: "xs", color: "faint" }));
+  const m = st.replyTo;
+  if (m) out.push(row([
+    text(GLYPH.reply, { style: "glyph", size: "sm", color: "accent", width: 16, align: "center" }),
+    text(`Replying to ${who(m)}: ${truncate(line(m), 80)}`, { key: "to", size: "xs", minWidth: 0 }),
+    ...keyHint("cmd+backspace", "cancel"),
+  ], { key: "replying", gap: 1, minHeight: 22 }));
+  return out;
 }
 
 export function hints(st: ChatState): ViewNode {
@@ -133,7 +179,19 @@ export function actions(st: ChatState): Action[] {
     { id: "web", title: "Open in Wisp", shortcut: "cmd+o" },
     { id: "copy-last", title: "Copy the last message", shortcut: "cmd+shift+c" },
     ...(st.more ? [{ id: "older", title: "Older messages", shortcut: "cmd+[" }] : []),
-    ...st.messages.flatMap((m) => m.attachments.map((a) => ({ id: `attachment:${a.id}`, title: `Open ${a.filename ?? LABEL[a.kind] ?? "the file"}`, hidden: true as const }))),
+    ...(st.ai?.available ? [
+      { id: "ask-summary", title: st.ai.summary?.text ? "Summarize again" : "Summarize", shortcut: "cmd+shift+s" },
+      ...(st.canSend ? [{ id: "ask-draft", title: "Suggest a reply", shortcut: "cmd+shift+d" }] : []),
+    ] : []),
+    ...(st.messages.length ? [
+      { id: "prev-message", title: "Previous message", shortcut: "cmd+up" },
+      { id: "next-message", title: "Next message", shortcut: "cmd+down" },
+      ...(st.canSend ? [{ id: "reply-to", title: "Reply to this message", shortcut: "cmd+r" }] : []),
+      { id: "react", title: "React to this message", shortcut: "cmd+shift+e" },
+    ] : []),
+    ...(st.replyTo ? [{ id: "cancel-reply", title: "Stop replying to it", shortcut: "cmd+backspace" }] : []),
+    ...st.messages.flatMap((m) => m.attachments.filter((a) => m.transcript || !AUDIO.has(a.kind)).map((a) => ({ id: `attachment:${a.id}`, title: `Open ${a.filename ?? LABEL[a.kind] ?? "the file"}`, hidden: true as const }))),
+    ...st.messages.filter(untranscribed).map((m) => ({ id: `transcribe:${m.id}`, title: "Transcribe the voice message", hidden: true as const })),
   ];
 }
 
@@ -150,11 +208,11 @@ export function render(st: ChatState): View {
     used += n;
     body.unshift(...nodes);
   }
-  const kids: ViewNode[] = [...head];
+  const kids: ViewNode[] = [...head, ...summaryNode(st)];
   if (cut || st.more) kids.push(text(cut ? `${cut} earlier messages are not drawn; Wisp has them all (cmd+o)` : "Older messages: cmd+[", { key: "earlier", size: "xs", color: "faint", align: "center" }));
   if (st.problem) kids.push(text(st.problem, { key: "problem", size: "sm", color: "destructive" }));
   else if (!body.length) kids.push(text("No messages yet", { key: "none", style: "muted", size: "sm", align: "center" }));
-  kids.push(...body, { type: "divider", key: "rule" }, hints(st));
+  kids.push(...body, { type: "divider", key: "rule" }, ...replyingNode(st), hints(st));
   return {
     tree: column(kids, { key: "chat", padding: 3, gap: 2 }),
     actions: actions(st),
@@ -162,7 +220,12 @@ export function render(st: ChatState): View {
     id: String(st.c.id),
     follow: true,
     keys: "actions",
-    ...(st.canSend && { input: { placeholder: MAIL.has(st.c.channel) ? `Reply to ${truncate(st.c.title, 40)}` : `Message ${truncate(st.c.title, 40)}`, submit: "send" } }),
+    ...(st.canSend && { input: {
+      ...(st.fill !== undefined && { value: st.fill }),
+      placeholder: st.replyTo ? `Reply to ${who(st.replyTo)}` : MAIL.has(st.c.channel) ? `Reply to ${truncate(st.c.title, 40)}` : `Message ${truncate(st.c.title, 40)}`,
+      submit: "send",
+      ...(st.replyTo && { cancel: "cancel-reply" }),
+    } }),
   };
 }
 
