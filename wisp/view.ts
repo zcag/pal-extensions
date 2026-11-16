@@ -88,15 +88,20 @@ function rowNode(r: PopRow, focused: boolean, replying: boolean): ViewNode {
   );
 }
 
+const TABS_PER_ROW = 7;
+
 function tabsNode(st: PopState): ViewNode[] {
   if (st.tabs.length < 2) return [];
   const all = st.tabs.reduce((n, t) => n + t.n, 0);
   const one = (id: string, label: ViewNode[], on: boolean): ViewNode =>
     row(label, { key: `tab-${id}`, gap: 1, padding: 1, radius: true, surface: on ? "elevated" : undefined, selected: on || undefined, action: `tab:${id}` });
-  return [row([
+  const tabs = [
     one("all", [text("All", { size: "xs", weight: "semibold" }), text(String(all), { size: "xs", color: "muted" })], st.tab === "all"),
     ...st.tabs.map((t) => one(t.id, [t.logo ? { type: "image", key: "logo", src: t.logo, width: 14, height: 14, alt: t.title } : text(t.glyph, { style: "glyph", size: "sm", color: t.color }), text(String(t.n), { size: "xs", color: st.tab === t.id ? undefined : "muted" })], st.tab === t.id)),
-  ], { key: "tabs", gap: 1, minHeight: 26 })];
+  ];
+  const per = Math.ceil(tabs.length / Math.ceil(tabs.length / TABS_PER_ROW));
+  const rows = Array.from({ length: Math.ceil(tabs.length / per) }, (_, i) => row(tabs.slice(i * per, (i + 1) * per), { key: `tabs${i || ""}`, gap: 1, minHeight: 26 }));
+  return rows.length > 1 ? [column(rows, { key: "tabrows", gap: 0 })] : rows;
 }
 
 function sections(st: PopState, cur: PopRow | undefined): ViewNode[] {

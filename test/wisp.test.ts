@@ -40,6 +40,8 @@ describe("wisp views", () => {
     const many = pop({ tabs: Array.from({ length: 10 }, (_, i) => ({ id: `n${i}`, title: `N${i}`, glyph: "x", color: "grey" as const, n: 1 })) });
     expect(many.actions.find((a) => a.id === "tab:n9")).toMatchObject({ hidden: true });
     expect(many.actions.find((a) => a.id === "tab:n9")!.shortcut).toBeUndefined();
+    const find = (n: unknown, key: string): any => { const o = n as { key?: string; children?: unknown[] }; return o.key === key ? o : o.children?.map((c) => find(c, key)).find(Boolean); };
+    expect([find(many.tree, "tabs").children.length, find(many.tree, "tabs1").children.length]).toEqual([6, 5]);
     expect(pop({ replying: 1, draft: "on my way" }).input).toEqual({ value: "on my way", placeholder: "Message Ada", submit: "send", cancel: "cancel" });
     expect(texts(pop({ rows: [], later: 2 }))).toEqual(expect.arrayContaining(["Inbox zero", "Nothing waiting; 2 To dos for later"]));
     expect(texts(pop({ trouble: [{ id: 4, label: "Acme", glyph: "s", state: "degraded", detail: "2 conversations could not sync" }] }))).toContain("Acme: 2 conversations could not sync");
