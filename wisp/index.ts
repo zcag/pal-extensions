@@ -582,8 +582,8 @@ function hook() {
 
 // ---- the bar item ----------------------------------------------------------------------------------------------
 
-/** `look`: capsule (mono logos in the bar's ink on a faint capsule, the @ red), colour (each network's logo and count in its colours), glyphs (the font's marks in the networks' colours). */
-type Look = "capsule" | "colour" | "glyphs";
+/** `look`: mono (solid marks and counts in the bar's own ink, the @ red), capsule (the same marks on a faint capsule), colour (each network's logo and count in its colours), glyphs (the font's marks in the networks' colours). */
+type Look = "mono" | "capsule" | "colour" | "glyphs";
 type BarSettings = { split?: Split; uncounted?: boolean; look?: Look };
 let barConf: BarSettings = {};
 let tab = "all", cursor: number | undefined, replying: number | undefined, draft: string | undefined;
@@ -636,15 +636,15 @@ function facts(): Record<string, number> {
 
 export function strip(c: Counts | undefined, rows: Conversation[], s: BarSettings): Pick<BarItem, "segments" | "tooltip" | "background"> {
   if (!c) return {};
-  const look = s.look ?? "capsule", capsule = look === "capsule";
+  const look = s.look ?? "mono", capsule = look === "capsule", inked = look === "mono" || capsule;
   const gs = groups(c, s.split ?? "network", !!s.uncounted).filter((g) => g.unread > 0);
   const due = rows.filter((r) => isDue(r)).length, mine = c.forMe ?? 0;
   const segments: NonNullable<BarItem["segments"]> = [];
   if (mine) segments.push({ id: "for_me", icon: GLYPH.at, text: String(mine), color: "red", tooltip: `${plural(mine, "conversation")} with something meant for you` });
   segments.push(...gs.slice(0, 8 - segments.length - (due ? 1 : 0)).map((g) => ({
-    id: g.id, icon: s.split === "total" ? undefined : (look !== "glyphs" && g.channel ? logo(g.channel, capsule) : undefined) ?? g.glyph, text: String(g.unread), ...(!capsule && s.split !== "total" && { color: g.color }), tooltip: `${g.title}: ${g.unread} unread`,
+    id: g.id, icon: s.split === "total" ? undefined : (look !== "glyphs" && g.channel ? logo(g.channel, inked, inked) : undefined) ?? g.glyph, text: String(g.unread), ...(!inked && s.split !== "total" && { color: g.color }), tooltip: `${g.title}: ${g.unread} unread`,
   })));
-  if (due) segments.push({ id: "todo", icon: GLYPH.todo, text: String(due), ...(!capsule && { color: "amber" as const }), tooltip: `${plural(due, "To do")} due` });
+  if (due) segments.push({ id: "todo", icon: GLYPH.todo, text: String(due), ...(!inked && { color: "amber" as const }), tooltip: `${plural(due, "To do")} due` });
   const lead = rows.filter((r) => r.unread).slice(0, 3).map((r) => `${r.title}: ${truncate(lastLine(r), 60)}`);
   const words = [mine ? `${mine} for you` : "", gs.map((g) => `${g.title} ${g.unread}`).join(", "), due ? `${plural(due, "To do")} due` : ""].filter(Boolean);
   return { segments, ...(capsule && segments.length && { background: "subtle" }), tooltip: [words.join(" · ") || "Nothing unread", ...lead].join("\n") };

@@ -264,7 +264,7 @@
   "bar": {
     "inbox": {
       "title": "Inbox",
-      "description": "Unread per network as each network's logo and count in a faint capsule in the bar's own ink (or in their colours, or the font's glyphs; per network, per account, or one count after Wisp's glyph), a red @ count while something is meant for you, To dos that are due; a click on a network opens the popover on its tab, which is every account's inbox behind a tab per network: open a conversation, reply, mark read, To do or done without leaving it.",
+      "description": "Unread per network as each network's mark and count in the bar's own ink (or on a faint capsule, in their colours, or the font's glyphs; per network, per account, or one count after Wisp's glyph), a red @ count while something is meant for you, To dos that are due; a click on a network opens the popover on its tab, which is every account's inbox behind a tab per network: open a conversation, reply, mark read, To do or done without leaving it.",
       "refresh": {
         "every": 120,
         "on": [
@@ -275,7 +275,7 @@
       },
       "mocks": {
         "busy": {
-          "title": "Unread on three networks, in a capsule",
+          "title": "Unread on three networks",
           "item": {
             "segments": [
               {
@@ -312,8 +312,7 @@
                 "tooltip": "1 To do due"
               }
             ],
-            "tooltip": "WhatsApp 2, Gmail 1, SMS 1 · 1 To do due",
-            "background": "subtle"
+            "tooltip": "WhatsApp 2, Gmail 1, SMS 1 · 1 To do due"
           }
         },
         "mention": {
@@ -383,8 +382,12 @@
           "kind": "select",
           "id": "look",
           "label": "Look",
-          "description": "Capsule: each network's logo in the bar's own ink on a faint capsule that groups Wisp, the @ in red. Colour: each logo and count in its network's colours. Glyphs: the font's marks in the networks' colours. The logos are Wisp's own (each connector's brand mark, or Wisp's line drawing), so a network Wisp gains shows up with its logo. On the macOS menu bar the logos make each network a status item of its own and the capsule is not drawn; a click on a network opens the popover on its tab either way.",
+          "description": "Mono: each network's mark and count in the bar's own ink, the @ in red. Capsule: the same on a faint capsule that groups Wisp. Colour: each mark and count in its network's colours. Glyphs: the font's marks in the networks' colours. The marks are Wisp's own (each connector's brand logo where it has one), so a network Wisp gains shows up with its mark; in Mono and Capsule one without a filled logo takes the font's solid glyph, so every mark is the same kind. On the macOS menu bar the logos make each network a status item of its own; a click on a network opens the popover on its tab either way.",
           "options": [
+            {
+              "id": "mono",
+              "title": "Mono"
+            },
             {
               "id": "capsule",
               "title": "Capsule"
@@ -398,7 +401,7 @@
               "title": "Glyphs"
             }
           ],
-          "default": "capsule"
+          "default": "mono"
         }
       ],
       "rules": [
@@ -505,7 +508,7 @@
       "A conversation to read and answer inside pal: messages by day, photos inline, reactions, a field that sends on Enter, new messages as they arrive",
       "Wisp's AI in the conversation: its summary on top, a suggested reply in the field on a key, a voice message's words; reply to one message or react to it",
       "To do, To do tomorrow, Waiting on them, Done and read or unread on a key, over many conversations at once",
-      "One bar item: each network's logo and unread count in a faint capsule, a red @ for mentions meant for you, To dos that are due; a click on a network opens its tab",
+      "One bar item: each network's mark and unread count in the bar's own ink, a red @ for mentions meant for you, To dos that are due; a click on a network opens its tab",
       "Its popover is the whole inbox behind a tab per network: open, preview, reply, mark read, To do or done without opening anything",
       "Wisp's search across every account, with from:, in:, is:unread and dates",
       "Each account's state, the ones that need attention first, on the strip's popover and in Wisp Accounts",

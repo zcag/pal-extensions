@@ -196,16 +196,18 @@ describe("wisp", () => {
     expect(await host.pick(X, "accounts", "4")).toEqual({ open: `${mock.url}/accounts/4` });
   });
 
-  test("bar: a logo and count per network in a capsule (in colour, as glyphs; per account, one count), the due To do, the facts; a click on a network opens its tab; the popover's keys; the stream redraws it", async () => {
+  test("bar: a mark and count per network in the bar's ink (on a capsule, in colour, as glyphs; per account, one count), the due To do, the facts; a click on a network opens its tab; the popover's keys; the stream redraws it", async () => {
     mock.reset();
     const item = await host.render(X, "inbox", { reason: "every" });
-    // The capsule: a faint band, every count in the bar's ink but the @, the server's marks as templates the bar inks.
-    expect(item.background).toBe("subtle");
+    // Mono: every count in the bar's ink but the @, a filled mark as a template the bar inks, a line drawing's place taken by the font's solid glyph; no band.
+    expect(item.background).toBeUndefined();
     expect(item.segments!.map((s) => [s.id, s.text, s.color])).toEqual([["for_me", "1", "red"], ["whatsapp", "2", undefined], ["gmail", "1", undefined], ["sms", "1", undefined], ["todo", "1", undefined]]);
     expect(item.states).toEqual({ unread: 4, for_me: 1, todo: 1, now: 2, trouble: 1 });
     const icons = Object.fromEntries(item.segments!.map((s) => [s.id, s.icon]));
-    expect(icons.whatsapp).toEqual({ image: expect.stringMatching(/^data:image\/svg\+xml;utf8,.*%23000000/), template: true });
+    expect(icons.gmail).toEqual({ image: expect.stringMatching(/^data:image\/svg\+xml;utf8,.*%23000000/), template: true });
+    expect(typeof icons.whatsapp).toBe("string");
     expect(typeof icons.for_me).toBe("string");
+    expect((await host.render(X, "inbox", { reason: "every", settings: { look: "capsule" } })).background).toBe("subtle");
     // Colour: the marks in their brand colours (a near-black one inks), the counts too, no band; glyphs: the font's marks.
     const colour = await host.render(X, "inbox", { reason: "every", settings: { look: "colour" } });
     expect(colour.background).toBeUndefined();

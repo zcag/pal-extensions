@@ -79,8 +79,8 @@ first. Enter opens the account in Wisp.
 
 ## The bar item
 
-**Inbox** (`wisp/inbox`): a run per network with something unread, its logo and
-the count, in a faint capsule in the bar's own ink, an `@` count in red for
+**Inbox** (`wisp/inbox`): a run per network with something unread, its mark and
+the count in the bar's own ink, an `@` count in red for
 conversations with something meant for you (a mention, a reply in a thread you
 follow, even where the conversation is set to Don't count), and the To dos
 that are due. The names, brand colours and logos come from Wisp
@@ -90,8 +90,8 @@ before that endpoint gets the font's glyphs. On the macOS menu bar the logos
 make each network a status item of its own (no capsule there). A click on a
 network opens the popover on its tab; the `@` and To do counts open it on All.
 Hidden while nothing is unread or due (its `quiet` rule). Its settings:
-**Look**, Capsule (the default), Colour (each logo and count in its network's
-colours) or Glyphs (the font's marks); count **per network** (two Gmail
+**Look**, Mono (the default), Capsule (the same on a faint capsule), Colour
+(each logo and count in its network's colours) or Glyphs (the font's marks); count **per network** (two Gmail
 accounts are one), **per account**, or **one count** (after the Wisp glyph);
 **Every account** counts the accounts Wisp leaves out of its total.
 

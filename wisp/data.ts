@@ -51,9 +51,11 @@ export const forgetNetworks = () => { known = new Map(); knownAt = 0; };
  * (and so does a near-black brand, which would vanish on a dark bar).
  * None while the server has not said, or for a network without a mark.
  */
-export function logo(c: Channel, mono = false): { image: string; template?: true } | undefined {
+export function logo(c: Channel, mono = false, solid = false): { image: string; template?: true } | undefined {
   const n = known.get(c);
   if (!n?.logo) return undefined;
+  // `solid`: a line drawing beside filled marks reads as another set; the caller's glyph stands in for it.
+  if (solid && n.logo.includes('stroke="currentColor"')) return undefined;
   const hex = /^#[0-9a-f]{6}$/i.test(n.color ?? "") ? n.color! : "#000000";
   const [r, g, b] = [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16));
   const dark = 0.2126 * r + 0.7152 * g + 0.0722 * b < 48;
