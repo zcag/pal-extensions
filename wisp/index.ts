@@ -15,7 +15,7 @@ import { bar, errorMessage, failed, hint, mdEscape, now, preview, settings, stat
 import * as api from "./api.ts";
 import { ApiError, EXT, NotSetUp, Unreachable, accountUrl, conf, forgetPictures, log, picture, webUrl, type AI, type Account, type Conversation, type Counts, type Message, type Person, type Split } from "./api.ts";
 import { render as renderChat, type ChatState } from "./chat.ts";
-import { GLYPH, SECTION_ORDER, accounts, counts, drop, forMe, groups, healthy, isDue, isGroup, isTodo, line, list, markdown, net, one, plural, preview as lastLine, sectionOf, short, tabs, until } from "./data.ts";
+import { GLYPH, SECTION_ORDER, accounts, counts, drop, forMe, groups, healthy, isDue, isGroup, isTodo, line, list, logo, markdown, net, one, plural, preview as lastLine, sectionOf, short, tabs, until } from "./data.ts";
 import * as live from "./live.ts";
 import { actions as popActions, avatarColor, current, initial, render as renderPopover, visible, type PopRow, type PopState } from "./view.ts";
 
@@ -581,7 +581,7 @@ function hook() {
 
 // ---- the bar item ----------------------------------------------------------------------------------------------
 
-type BarSettings = { split?: Split; uncounted?: boolean; color?: boolean };
+type BarSettings = { split?: Split; uncounted?: boolean; color?: boolean; logos?: boolean };
 let barConf: BarSettings = {};
 let tab = "all", cursor: number | undefined, replying: number | undefined, draft: string | undefined;
 let last: { rows: Conversation[]; counts?: Counts; accs: Account[]; problem?: string } = { rows: [], accs: [] };
@@ -638,7 +638,7 @@ export function strip(c: Counts | undefined, rows: Conversation[], s: BarSetting
   const segments: NonNullable<BarItem["segments"]> = [];
   if (mine) segments.push({ id: "for_me", icon: GLYPH.at, text: String(mine), color: "red", tooltip: `${plural(mine, "conversation")} with something meant for you` });
   segments.push(...gs.slice(0, 8 - segments.length - (due ? 1 : 0)).map((g) => ({
-    id: g.id, icon: s.split === "total" ? undefined : g.glyph, text: String(g.unread), ...(s.color !== false && s.split !== "total" && { color: g.color }), tooltip: `${g.title}: ${g.unread} unread`,
+    id: g.id, icon: s.split === "total" ? undefined : (s.logos !== false && g.channel ? logo(g.channel) : undefined) ?? g.glyph, text: String(g.unread), ...(s.color !== false && s.split !== "total" && { color: g.color }), tooltip: `${g.title}: ${g.unread} unread`,
   })));
   if (due) segments.push({ id: "todo", icon: GLYPH.todo, text: String(due), color: "amber", tooltip: `${plural(due, "To do")} due` });
   const lead = rows.filter((r) => r.unread).slice(0, 3).map((r) => `${r.title}: ${truncate(lastLine(r), 60)}`);
@@ -673,7 +673,14 @@ async function popAction(action: string, ctx?: BarCtx): Promise<Effect> {
   if (action.startsWith("at:")) { cursor = Number(action.slice(3)); return redrawPop(); }
   if (action.startsWith("tab:")) { tab = action.slice(4); cursor = undefined; return redrawPop(); }
   if (action.startsWith("account:")) return { open: accountUrl(Number(action.slice(8))) };
-  if (action.startsWith("segment:")) { const id = action.slice(8); tab = id === "todo" || id === "all" ? "all" : id.startsWith("a") ? last.rows.find((r) => `a${r.accountId}` === id)?.channel ?? "all" : id; cursor = undefined; return redrawPop(); }
+  // A click on a network's count opens the popover on its tab (a per-account count on its network's); the @ and To do counts on All.
+  if (action.startsWith("segment:")) {
+    const id = action.slice(8);
+    const account = /^a\d+$/.test(id) ? last.counts?.accounts.find((a) => `a${a.id}` === id)?.channel : undefined;
+    tab = account ?? (id === "for_me" || id === "todo" || id === "all" ? "all" : id);
+    cursor = undefined;
+    return redrawPop();
+  }
   const st = await popState();
   const v = visible(st), cur = current(st);
   switch (action) {
@@ -807,5 +814,5 @@ export default {
   bar: {
     [ITEM]: { render: renderBar, onAction: (action, ctx) => popAction(action, ctx) },
   },
-  dispose: () => { live.stop(); },
+  dispose: () => { live.stop(); for (const o of opened.values()) clearTimeout(o.poll); },
 } satisfies Extension;

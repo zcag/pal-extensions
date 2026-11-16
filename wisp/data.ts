@@ -5,6 +5,7 @@
 // strip counts by, and the formatting of times and lines.
 import { clock, dayName, mdEscape, now, oneLine, type TagColor, type TileColorName } from "@zcag/pal";
 import * as api from "./api.ts";
+import { LOGOS } from "./logos.ts";
 import type { Account, AccountCounts, Channel, Conversation, Counts, Message, Split, View } from "./api.ts";
 
 /** Glyphs from the bundled Nerd Font's `md-` set. */
@@ -29,6 +30,19 @@ const NETS: Record<string, Net> = {
   x: { name: "X", glyph: GLYPH.x, color: "grey", tile: "ink" },
   phone: { name: "Phone", glyph: GLYPH.phone, color: "amber", tile: "amber" },
 };
+/**
+ * A network's own logo as a picture (`{ image }`, an SVG data url in its
+ * brand colour), for the bar's segments and the popover's tabs; none for
+ * a network Simple Icons does not carry. X's is black, so it is a
+ * template and takes the bar's ink.
+ */
+export function logo(c: Channel): { image: string; template?: true } | undefined {
+  const l = LOGOS[c];
+  if (!l) return undefined;
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path fill="${l.hex}" d="${l.path}"/></svg>`;
+  return { image: `data:image/svg+xml;utf8,${encodeURIComponent(svg)}`, ...(l.hex === "#000000" && { template: true as const }) };
+}
+
 export const net = (c: Channel): Net => NETS[c] ?? { name: c ? c[0].toUpperCase() + c.slice(1) : "Other", glyph: GLYPH.other, color: "grey", tile: "slate" };
 
 // ---- the lists, shared for FRESH_MS ---------------------------------------------------------
@@ -82,11 +96,13 @@ export function groups(c: Counts, split: Split, uncounted = false): Group[] {
 }
 
 /** The groups a conversation list can be filtered by in the popover: one per network the rows come from, in the counts' order. */
-export function tabs(rows: Conversation[], c: Counts | undefined): { id: string; title: string; glyph: string; color: TagColor; n: number }[] {
+export function tabs(rows: Conversation[], c: Counts | undefined): { id: string; title: string; glyph: string; color: TagColor; n: number; logo?: string }[] {
   const order = [...new Set([...(c?.accounts ?? []).map((a) => a.channel), ...rows.map((r) => r.channel)])];
   return order.flatMap((ch) => {
     const n = rows.filter((r) => r.channel === ch).length;
-    return n ? [{ id: ch, title: net(ch).name, glyph: net(ch).glyph, color: net(ch).color, n }] : [];
+    // A template logo (X's black) has no ink in a view: the glyph stands in.
+    const l = logo(ch);
+    return n ? [{ id: ch, title: net(ch).name, glyph: net(ch).glyph, color: net(ch).color, n, ...(l && !l.template && { logo: l.image }) }] : [];
   });
 }
 

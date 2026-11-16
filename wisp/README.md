@@ -79,15 +79,19 @@ first. Enter opens the account in Wisp.
 
 ## The bar item
 
-**Inbox** (`wisp/inbox`): the Wisp glyph, then a run per network with
-something unread, its glyph and count in its colour (on sketchybar; the
-macOS menu bar draws them in one colour), an `@` count in red for
-conversations with something meant for you (a mention, a reply in a thread
-you follow, even where the conversation is set to Don't count), and the To
-dos that are due. Hidden while nothing is unread or due (its `quiet` rule).
+**Inbox** (`wisp/inbox`): a run per network with something unread, its own
+logo and the count in its colour (WhatsApp, Gmail, Telegram, Instagram, X and
+Google Messages for SMS, from Simple Icons; Slack and LinkedIn have none
+there and keep their glyphs), an `@` count in red for conversations with
+something meant for you (a mention, a reply in a thread you follow, even
+where the conversation is set to Don't count), and the To dos that are due.
+On the macOS menu bar the logos make each network a status item of its own.
+A click on a network opens the popover on its tab; the `@` and To do counts
+open it on All. Hidden while nothing is unread or due (its `quiet` rule).
 Its settings: count **per network** (two Gmail accounts are one), **per
-account**, or **one count**; **Every account** counts the accounts Wisp
-leaves out of its total; **Colours** off draws them plain.
+account**, or **one count** (after the Wisp glyph); **Every account**
+counts the accounts Wisp leaves out of its total; **Logos** off draws the
+font's glyphs instead; **Colours** off draws them plain.
 
 The popover is the whole Inbox: a tab per network over the rows (`1` all,
 `2` to `9` each network, Tab cycles), the rows under Wisp's sections, and a

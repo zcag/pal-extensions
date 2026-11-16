@@ -196,11 +196,24 @@ describe("wisp", () => {
     expect(await host.pick(X, "accounts", "4")).toEqual({ open: `${mock.url}/accounts/4` });
   });
 
-  test("bar: a glyph and count per network (per account, one count), the due To do, the facts; the popover's keys; the stream redraws it", async () => {
+  test("bar: a logo and count per network (per account, one count), the due To do, the facts; a click on a network opens its tab; the popover's keys; the stream redraws it", async () => {
     mock.reset();
     const item = await host.render(X, "inbox", { reason: "every" });
     expect(item.segments!.map((s) => [s.id, s.text, s.color])).toEqual([["for_me", "1", "red"], ["whatsapp", "2", "green"], ["gmail", "1", "red"], ["sms", "1", "teal"], ["todo", "1", "amber"]]);
     expect(item.states).toEqual({ unread: 4, for_me: 1, todo: 1, now: 2, trouble: 1 });
+    // The networks' own logos where Simple Icons has one (Google Messages for SMS); the @ and the To do stay glyphs; off, every one is a glyph.
+    const icons = Object.fromEntries(item.segments!.map((s) => [s.id, s.icon]));
+    expect(icons.whatsapp).toEqual({ image: expect.stringMatching(/^data:image\/svg\+xml;utf8,.*25D366/) });
+    expect(icons.sms).toEqual({ image: expect.stringMatching(/^data:image\/svg\+xml;utf8,/) });
+    expect(typeof icons.for_me).toBe("string");
+    const plain = await host.render(X, "inbox", { reason: "every", settings: { logos: false } });
+    expect(plain.segments!.every((s) => typeof s.icon === "string")).toBe(true);
+    // A click on a segment is `segment:<id>`: the popover on that network's tab (a per-account count on its network's), the @ on All.
+    const onGmail = (await host.barAction(X, "inbox", "segment:gmail", ctx)).view as View;
+    expect(texts(onGmail)).toContain("Q4 plan");
+    expect(texts(onGmail)).not.toContain("Ada Lindqvist");
+    expect(texts((await host.barAction(X, "inbox", "segment:a1", ctx)).view as View)).toContain("Ada Lindqvist");
+    expect(texts((await host.barAction(X, "inbox", "segment:for_me", ctx)).view as View)).toEqual(expect.arrayContaining(["Ada Lindqvist", "Q4 plan"]));
     // The networks' glyphs stand for Wisp's: its own leads only one count.
     expect(item.icon).toBeUndefined();
     expect(item.empty!.icon).toBeDefined();

@@ -32,7 +32,8 @@ export type PopRow = {
   todo?: string;
   avatar?: string;
 };
-export type Tab = { id: string; title: string; glyph: string; color: TagColor; n: number };
+/** A network's tab: its logo (a data url) when it has one, else its glyph. */
+export type Tab = { id: string; title: string; glyph: string; color: TagColor; n: number; logo?: string };
 export type Trouble = { id: number; label: string; glyph: string; state: string; detail?: string };
 export type PopState = {
   rows: PopRow[];
@@ -94,7 +95,7 @@ function tabsNode(st: PopState): ViewNode[] {
     row(label, { key: `tab-${id}`, gap: 1, padding: 1, radius: true, surface: on ? "elevated" : undefined, selected: on || undefined, action: `tab:${id}` });
   return [row([
     one("all", [text("All", { size: "xs", weight: "semibold" }), text(String(all), { size: "xs", color: "muted" })], st.tab === "all"),
-    ...st.tabs.map((t) => one(t.id, [text(t.glyph, { style: "glyph", size: "sm", color: t.color }), text(String(t.n), { size: "xs", color: st.tab === t.id ? undefined : "muted" })], st.tab === t.id)),
+    ...st.tabs.map((t) => one(t.id, [t.logo ? { type: "image", key: "logo", src: t.logo, width: 14, height: 14, alt: t.title } : text(t.glyph, { style: "glyph", size: "sm", color: t.color }), text(String(t.n), { size: "xs", color: st.tab === t.id ? undefined : "muted" })], st.tab === t.id)),
   ], { key: "tabs", gap: 1, minHeight: 26 })];
 }
 
