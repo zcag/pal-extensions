@@ -131,7 +131,8 @@ export function actions(st: PopState): Action[] {
     ...v.map((r): Action => ({ id: `at:${r.id}`, title: `Go to ${r.title}`, hidden: true })),
     ...st.trouble.map((t): Action => ({ id: `account:${t.id}`, title: `Open ${t.label} in Wisp`, hidden: true })),
     { id: "tab:all", title: "All", hidden: true, shortcut: "1" },
-    ...st.tabs.slice(0, 8).map((t, i): Action => ({ id: `tab:${t.id}`, title: t.title, hidden: true, shortcut: String(i + 2) })),
+    // Every tab is clickable; the first eight also answer 2 to 9.
+    ...st.tabs.map((t, i): Action => ({ id: `tab:${t.id}`, title: t.title, hidden: true, ...(i < 8 && { shortcut: String(i + 2) }) })),
   ];
   if (st.replying) return [{ id: "send", title: "Send" }, { id: "cancel", title: "Cancel reply" }, ...clicks];
   return [

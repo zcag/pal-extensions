@@ -36,6 +36,10 @@ describe("wisp views", () => {
     expect(ids(pop({ cursor: 1 }))).toContain("read");
     expect(visible({ rows, tab: "gmail" }).map((r) => r.id)).toEqual([3, 2]);
     expect(pop({ tab: "gmail" }).actions.find((a) => a.id === "tab:gmail")!.shortcut).toBe("3");
+    // More networks than digits: every tab still has its action (the view would be refused otherwise), the ninth and on without a key.
+    const many = pop({ tabs: Array.from({ length: 10 }, (_, i) => ({ id: `n${i}`, title: `N${i}`, glyph: "x", color: "grey" as const, n: 1 })) });
+    expect(many.actions.find((a) => a.id === "tab:n9")).toMatchObject({ hidden: true });
+    expect(many.actions.find((a) => a.id === "tab:n9")!.shortcut).toBeUndefined();
     expect(pop({ replying: 1, draft: "on my way" }).input).toEqual({ value: "on my way", placeholder: "Message Ada", submit: "send", cancel: "cancel" });
     expect(texts(pop({ rows: [], later: 2 }))).toEqual(expect.arrayContaining(["Inbox zero", "Nothing waiting; 2 To dos for later"]));
     expect(texts(pop({ trouble: [{ id: 4, label: "Acme", glyph: "s", state: "degraded", detail: "2 conversations could not sync" }] }))).toContain("Acme: 2 conversations could not sync");
