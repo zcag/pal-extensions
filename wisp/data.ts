@@ -14,7 +14,7 @@ export const GLYPH = {
   sms: "\u{f0369}", instagram: "\u{f02fe}", linkedin: "\u{f033b}", x: "\u{f0544}", phone: "\u{f011c}", other: "\u{f0361}",
   todo: "\u{f014e}", waiting: "\u{f0b56}", at: "\u{f0065}", search: "\u{f0349}", alert: "\u{f0028}", read: "\u{f012d}", unread: "\u{f0b92}",
   archive: "\u{f003c}", reply: "\u{f045a}", web: "\u{f03cc}", copy: "\u{f018f}", image: "\u{f02e9}", file: "\u{f0219}", voice: "\u{f036c}", clip: "\u{f03e2}",
-  group: "\u{f000e}", screener: "\u{f0b59}", summary: "\u{f0ea6}", person: "\u{f0004}", compose: "\u{f0653}",
+  group: "\u{f000e}", screener: "\u{f0b59}", github: "\u{f02a4}", summary: "\u{f0ea6}", person: "\u{f0004}", compose: "\u{f0653}",
 } as const;
 
 type Net = { name: string; glyph: string; color: TagColor; tile: TileColorName };
@@ -29,18 +29,21 @@ const NETS: Record<string, Net> = {
   linkedin: { name: "LinkedIn", glyph: GLYPH.linkedin, color: "blue", tile: "blue" },
   x: { name: "X", glyph: GLYPH.x, color: "grey", tile: "ink" },
   phone: { name: "Phone", glyph: GLYPH.phone, color: "amber", tile: "amber" },
+  github: { name: "GitHub", glyph: GLYPH.github, color: "grey", tile: "ink" },
 };
 /**
  * A network's own logo as a picture (`{ image }`, an SVG data url in its
  * brand colour), for the bar's segments and the popover's tabs; none for
- * a network Simple Icons does not carry. X's is black, so it is a
- * template and takes the bar's ink.
+ * a network Simple Icons does not carry. A near-black one (X's, GitHub's)
+ * would vanish on a dark bar, so it is a template and takes the bar's ink.
  */
 export function logo(c: Channel): { image: string; template?: true } | undefined {
   const l = LOGOS[c];
   if (!l) return undefined;
   const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path fill="${l.hex}" d="${l.path}"/></svg>`;
-  return { image: `data:image/svg+xml;utf8,${encodeURIComponent(svg)}`, ...(l.hex === "#000000" && { template: true as const }) };
+  const [r, g, b] = [1, 3, 5].map((i) => parseInt(l.hex.slice(i, i + 2), 16));
+  const dark = 0.2126 * r + 0.7152 * g + 0.0722 * b < 48;
+  return { image: `data:image/svg+xml;utf8,${encodeURIComponent(svg)}`, ...(dark && { template: true as const }) };
 }
 
 export const net = (c: Channel): Net => NETS[c] ?? { name: c ? c[0].toUpperCase() + c.slice(1) : "Other", glyph: GLYPH.other, color: "grey", tile: "slate" };

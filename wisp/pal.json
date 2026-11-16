@@ -383,7 +383,7 @@
           "kind": "boolean",
           "id": "logos",
           "label": "Logos",
-          "text": "Each network's own logo (WhatsApp, Gmail, Telegram, Instagram, X, Google Messages)",
+          "text": "Each network's own logo (WhatsApp, Gmail, Telegram, Instagram, X, GitHub, Google Messages)",
           "description": "Off, every network is the font's glyph. On the macOS menu bar the logos make each network a status item of its own, and a click on one opens the popover on its tab. Slack and LinkedIn have no logo to draw and keep their glyphs.",
           "default": true
         },

@@ -80,7 +80,7 @@ first. Enter opens the account in Wisp.
 ## The bar item
 
 **Inbox** (`wisp/inbox`): a run per network with something unread, its own
-logo and the count in its colour (WhatsApp, Gmail, Telegram, Instagram, X and
+logo and the count in its colour (WhatsApp, Gmail, Telegram, Instagram, X, GitHub and
 Google Messages for SMS, from Simple Icons; Slack and LinkedIn have none
 there and keep their glyphs), an `@` count in red for conversations with
 something meant for you (a mention, a reply in a thread you follow, even
