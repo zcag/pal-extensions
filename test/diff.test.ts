@@ -298,7 +298,7 @@ describe("diff over the wire", () => {
     const files = await view({ left: { kind: "file", path: before }, right: { kind: "text", text: "x", label: "Pasted: draft" } });
     expect(files.actions[1].title).toBe("Open in VS Code");
     expect(await pick(files.id!, "open")).toEqual({ hud: "Opened in VS Code" });
-    await host.until(() => existsSync(argvLog), 2000, "the stand-in ran");
+    await host.until(() => existsSync(argvLog) && readFileSync(argvLog, "utf8").endsWith("\n"), 2000, "the stand-in ran");
     const [argv] = readFileSync(argvLog, "utf8").trim().split("\n");
     const right = join(cache, "right-draft.txt");
     expect(argv).toBe(`--diff ${before} ${right}`);
