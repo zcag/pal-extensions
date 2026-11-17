@@ -72,6 +72,8 @@ export const PANE_MSGS = 20;
 export const PICTURE_WARM = 48;
 export const SEARCH_LIMIT = 40;
 export const PEOPLE_LIMIT = 50;
+/** Wisp's recent people span every network, so the empty query asks for this many to keep the WhatsApp ones that are among them. */
+export const RECENT_PEOPLE = 500;
 
 const ms = (iso: string | undefined) => (iso ? Date.parse(iso) || 0 : 0);
 /** The digits of a WhatsApp address with a phone in it (`<phone>@s.whatsapp.net`, `@c.us`); undefined for a LID or a group. */
@@ -290,9 +292,10 @@ const people = new Map<string, Person>();
 
 /** People with a WhatsApp identity: the best matches for `q`, or the most recent without one. */
 export async function findPeople(q: string): Promise<Person[]> {
-  const found = (await wisp.people(q.trim(), PEOPLE_LIMIT)).filter((p) => p.channels.includes("whatsapp"));
-  return Promise.all(found.map(async (p) => {
-    const person: Person = { ...people.get(String(p.id)), id: String(p.id), name: p.name, at: ms(p.lastMessageAt), ...(p.lastPreview && { last: (p.lastFromMe ? "You: " : "") + p.lastPreview }), ...(p.avatar && { avatar: await wisp.picture(p.avatar) }) };
+  const found = (await wisp.people(q.trim(), q.trim() ? PEOPLE_LIMIT : RECENT_PEOPLE)).filter((p) => p.channels.includes("whatsapp"));
+  return Promise.all(found.map(async (p, i) => {
+    const avatar = p.avatar && i < PICTURE_WARM ? await wisp.picture(p.avatar) : undefined;
+    const person: Person = { ...people.get(String(p.id)), id: String(p.id), name: p.name, at: ms(p.lastMessageAt), ...(p.lastPreview && { last: (p.lastFromMe ? "You: " : "") + p.lastPreview }), ...(avatar && { avatar }) };
     people.set(person.id, person);
     return person;
   }));
