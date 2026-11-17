@@ -18,7 +18,7 @@ export const iso = (minsAgo: number) => new Date(T0 - minsAgo * 60_000).toISOStr
 /** A drawn portrait (a head and shoulders on a colour) for a picture, and a drawn page of notes for the photo. */
 export const portrait = (bg: string, skin: string, hair: string) => `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64"><rect width="64" height="64" fill="${bg}"/><circle cx="32" cy="27" r="12" fill="${skin}"/><path d="M19 25c0-10 6-15 13-15s13 5 13 15c-3-5-7-7-13-7s-10 2-13 7z" fill="${hair}"/><path d="M10 64c2-14 11-20 22-20s20 6 22 20z" fill="${hair}" opacity=".85"/></svg>`;
 export const PHOTO = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 240"><rect width="320" height="240" fill="#6b4f3a"/><g transform="rotate(-4 160 120)"><rect x="40" y="24" width="240" height="196" rx="4" fill="#f3ead8"/>${[60, 84, 108, 132, 156, 180].map((y, i) => `<path d="M64 ${y}h${150 - (i % 3) * 30}" stroke="#7a6a58" stroke-width="3" stroke-linecap="round"/>`).join("")}<circle cx="232" cy="150" r="26" fill="none" stroke="#3d5a80" stroke-width="5"/><circle cx="232" cy="150" r="8" fill="#3d5a80"/>${[0, 45, 90, 135, 180, 225, 270, 315].map((a) => `<rect x="229" y="116" width="6" height="10" fill="#3d5a80" transform="rotate(${a} 232 150)"/>`).join("")}</g></svg>`;
-const PICTURES: Record<string, string> = {
+export const PICTURES: Record<string, string> = {
   [`/api/v1/conversations/101/avatar`]: portrait("#e9c46a", "#f1d3b3", "#3b2a20"),
   ["/api/v1/avatars/contact/1/mum"]: portrait("#a8dadc", "#e8c4a0", "#8d8d8d"),
   ["/api/v1/attachments/9001"]: PHOTO,
@@ -95,7 +95,7 @@ export const people = (): Person[] => [
   { id: 1, name: "Ada Lindqvist", avatar: "/api/v1/conversations/101/avatar?v=1", channels: ["whatsapp"], lastMessageAt: iso(4), lastPreview: "Are we still on for tonight?", lastFromMe: false, unread: 2 },
   { id: 2, name: "Lin Park", channels: ["gmail"], lastMessageAt: iso(42), lastPreview: "Here is the draft for Thursday", lastFromMe: false, unread: 1 },
 ];
-const reach: Record<number, Reach[]> = {
+export const reach: Record<number, Reach[]> = {
   1: [{ accountId: 1, channel: "whatsapp", account: "WhatsApp", address: "+44 7700 900456", conversationId: ADA, canSend: true }, { accountId: 5, channel: "sms", account: "SMS", address: "+44 7700 900456", canSend: false }],
   2: [{ accountId: 2, channel: "gmail", account: "Personal", address: "lin@example.com", canSend: true }, { accountId: 3, channel: "gmail", account: "Work", address: "lin@acme.example", canSend: true }],
 };
@@ -106,6 +106,9 @@ export class WispMock {
   accounts = accounts();
   convs = conversations();
   msgs = messages();
+  people = people();
+  reach = reach;
+  pictures = PICTURES;
   failWith = 0;
   ai: Record<number, AI> = {};
   /** GETs of a conversation's AI left before what was asked is made. */
@@ -131,7 +134,7 @@ export class WispMock {
   get streaming() { return this.streams.size; }
   emit(type: string, data: unknown) { const b = `event: ${type}\ndata: ${JSON.stringify({ id: "evt_1", type, at: new Date(T0).toISOString(), data })}\n\n`; for (const c of this.streams) try { c.enqueue(b); } catch { this.streams.delete(c); } }
   posted(path: string) { return this.calls.filter((c) => c.method !== "GET" && c.path === path); }
-  reset() { this.accounts = accounts(); this.convs = conversations(); this.msgs = messages(); this.calls = []; this.failWith = 0; this.ai = { [ADA]: { available: true, summary: { text: SUMMARY, stale: false, state: "ready" } } }; this.making = {}; }
+  reset() { this.accounts = accounts(); this.convs = conversations(); this.msgs = messages(); this.people = people(); this.reach = reach; this.pictures = PICTURES; this.calls = []; this.failWith = 0; this.ai = { [ADA]: { available: true, summary: { text: SUMMARY, stale: false, state: "ready" } } }; this.making = {}; }
 
   counts(): Counts {
     const inInbox = (c: Conversation) => c.triage.state !== "done" && (c.triage.state === "inbox" || !c.triage.until || Date.parse(c.triage.until) <= T0);
@@ -167,8 +170,8 @@ export class WispMock {
     if (m === "GET" && p === "/api/v1/counts") return json(this.counts());
     if (m === "GET" && p === "/api/v1/accounts") return json({ accounts: this.accounts });
     if (m === "GET" && p === "/api/v1/networks") return json({ networks });
-    if (m === "GET" && p === "/api/v1/conversations") return json({ conversations: this.view(u.searchParams.get("view") ?? "inbox") });
-    if (m === "GET" && PICTURES[p]) return new Response(PICTURES[p], { headers: { "content-type": "image/svg+xml" } });
+    if (m === "GET" && p === "/api/v1/conversations") { const acc = Number(u.searchParams.get("account")); return json({ conversations: this.view(u.searchParams.get("view") ?? "inbox").filter((c) => !acc || c.accountId === acc) }); }
+    if (m === "GET" && this.pictures[p]) return new Response(this.pictures[p], { headers: { "content-type": "image/svg+xml" } });
     if (m === "GET" && p === "/api/v1/events") {
       let ctl!: ReadableStreamDefaultController<string>;
       const stream = new ReadableStream<string>({ start: (x) => { ctl = x; this.streams.add(x); x.enqueue(`event: unread.changed\ndata: ${JSON.stringify({ id: "evt_0", type: "unread.changed", data: { unread: this.counts().unread } })}\n\n`); }, cancel: () => { this.streams.delete(ctl); } });
@@ -179,9 +182,9 @@ export class WispMock {
       const hits = Object.values(this.msgs).flat().filter((x) => x.text.toLowerCase().includes(q.replace(/ in:\w+/, "")));
       return json({ hits: hits.map((x) => { const cc = this.convs.find((y) => y.id === x.conversationId)!; return { conversationId: cc.id, conversationTitle: cc.title, channel: cc.channel, message: x }; }), conversations: [], capped: false, invalid: q.includes("bogus:") ? ["bogus:"] : [] });
     }
-    if (m === "GET" && p === "/api/v1/people") { const q = (u.searchParams.get("q") ?? "").toLowerCase(); return json({ people: people().filter((x) => x.name.toLowerCase().includes(q)) }); }
+    if (m === "GET" && p === "/api/v1/people") { const q = (u.searchParams.get("q") ?? "").toLowerCase(); return json({ people: this.people.filter((x) => x.name.toLowerCase().includes(q)) }); }
     const pid = Number(p.match(/^\/api\/v1\/people\/(\d+)$/)?.[1]);
-    if (m === "GET" && pid) { const x = people().find((y) => y.id === pid); return x ? json({ ...x, reach: reach[pid] }) : json({ error: "not found" }, 404); }
+    if (m === "GET" && pid) { const x = this.people.find((y) => y.id === pid); return x ? json({ ...x, reach: this.reach[pid] ?? [] }) : json({ error: "not found" }, 404); }
     if (m === "POST" && p === "/api/v1/compose") {
       const b = body as { accountId: number; to: string[]; text: string };
       const acc = this.accounts.find((a) => a.id === b.accountId)!;

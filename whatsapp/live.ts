@@ -1,125 +1,42 @@
-// The bar's push: OpenWA's socket.io stream (`/events`, the key as
-// `auth.apiKey`), subscribed to the session's message events, so a
-// message refreshes the bar within a second instead of at the next 30 s
-// poll. The poll stays and the stream is never trusted on its word: a
-// subscribe or a ping still unanswered at the next tick reconnects, the gateway
-// dropping us reconnects after RETRY_MS (socket.io gives up on that one by
-// itself), a wake or a network change reconnects, and a poll that finds a
-// newer unread message than any event carried marks it deaf and
-// reconnects once (not again until an event comes).
-import { bar, errorMessage } from "@zcag/pal";
-import { io, type Socket } from "socket.io-client";
-import { base, conf, log, sessionId, sessionName } from "./api.ts";
-import { dropChats, type Chat } from "./data.ts";
+// The bar's push: Wisp's event stream (wisp/live.ts, the Wisp extension's
+// own reader), so a WhatsApp message refreshes the bar within a second
+// instead of at the next 30 s poll. A `message.new` on the WhatsApp
+// account, or an `unread.changed` that moved its unread, drops the chat
+// list and renders the bar again; the poll stays as the floor.
+import { bar } from "@zcag/pal";
+import * as stream from "../wisp/live.ts";
+import { accountId, dropChats } from "./data.ts";
 
-const EVENTS = ["message.received", "message.sent", "message.revoked", "message.edited"];
-const TICK_MS = 30_000, RETRY_MS = 30_000, DEBOUNCE_MS = 300;
-/** How long after a message's own time its event may still be on the way before a poll calls it missed. */
-const GRACE_MS = 15_000;
+const DEBOUNCE_MS = 300;
 
-type WsReply = { type: string; code?: string; message?: string };
-type WsEvent = { type: "event"; payload: { event: string; data?: { timestamp?: number } } } | (WsReply & { type: "error" });
-
-let socket: Socket | undefined, identity = "";
-let tick: ReturnType<typeof setInterval> | undefined, retry: ReturnType<typeof setTimeout> | undefined, debounce: ReturnType<typeof setTimeout> | undefined;
-/** Subscribed since (ms), 0 while not. */
-let upSince = 0;
-/** The newest message time (ms) an event carried. */
-let seenAt = 0;
-let deaf = false;
-/** What the stream was asked and has not answered yet. */
-let awaiting: "subscribe" | "ping" | undefined;
-
-export const healthy = () => upSince > 0 && !deaf;
+let debounce: ReturnType<typeof setTimeout> | undefined, unlisten: (() => void) | undefined, lastUnread: number | undefined;
 
 function refreshSoon() {
   clearTimeout(debounce);
   debounce = setTimeout(() => { dropChats(); bar.refresh("unread", "whatsapp").catch(() => {}); }, DEBOUNCE_MS);
 }
 
-function reconnect(why: string) {
-  if (!socket) return;
-  log(`stream: reconnecting (${why})`);
-  upSince = 0;
-  awaiting = undefined;
-  clearTimeout(retry);
-  socket.disconnect().connect();
+async function heard(e: stream.Event) {
+  const acc = await accountId().catch(() => undefined);
+  if (acc === undefined) return;
+  if (e.type === "message.new" && e.data.accountId === acc) return refreshSoon();
+  if (e.type === "unread.changed") {
+    const n = (e.data as { accounts?: { accountId: number; unread: number }[] }).accounts?.find((a) => a.accountId === acc)?.unread;
+    if (n !== undefined && n !== lastUnread) { const first = lastUnread === undefined; lastUnread = n; if (!first) refreshSoon(); }
+  }
 }
 
-async function subscribe(s: Socket) {
-  awaiting = "subscribe";
-  try {
-    const sid = await sessionId();
-    s.emit("message", { type: "subscribe", sessionId: sid, events: EVENTS }, (r: WsReply) => {
-      if (r?.type !== "subscribed") return refused(s, r?.message ?? JSON.stringify(r));
-      awaiting = undefined;
-      upSince = Date.now();
-      log("stream: subscribed");
-      // Whatever came while it was down.
-      refreshSoon();
-    });
-  } catch (e) { refused(s, errorMessage(e)); }
-}
-
-function refused(s: Socket, why: string) {
-  log(`stream: subscribe failed: ${why}`);
-  awaiting = undefined;
-  s.disconnect();
-  retry = setTimeout(() => s.connect(), RETRY_MS);
-}
-
-/** The tick: a ping; whatever the last tick asked and got no answer to reconnects. */
-function beat() {
-  if (!socket?.connected) return;
-  if (awaiting) return reconnect(`no answer to the ${awaiting}`);
-  if (!upSince) return;
-  awaiting = "ping";
-  socket.emit("message", { type: "ping" }, (r: WsReply) => { if (r?.type === "pong" && awaiting === "ping") awaiting = undefined; });
-}
-
-/** Connected and subscribed for the settings at hand: a no-op when it already is, a new socket when the gateway, key or session changed. */
+/** Listening, the stream connected for Wisp's server and token at hand. */
 export function start() {
-  const key = conf().api_key?.trim();
-  const id = `${base()}|${key}|${sessionName()}`;
-  if (socket && id === identity) return;
-  stop();
-  if (!key) return;
-  identity = id;
-  const s = (socket = io(`${base()}/events`, { auth: { apiKey: key }, transports: ["websocket"], reconnectionDelayMax: 10_000 }));
-  s.on("connect", () => { subscribe(s); });
-  s.on("disconnect", (reason) => {
-    upSince = 0;
-    log(`stream: disconnected (${reason})`);
-    if (reason === "io server disconnect") { clearTimeout(retry); retry = setTimeout(() => s.connect(), RETRY_MS); }
-  });
-  s.on("connect_error", (e) => { log(`stream: ${errorMessage(e)}`); });
-  s.on("message", (m: WsEvent) => {
-    if (m.type === "error") { log(`stream: ${m.code}: ${m.message}`); return; }
-    if (m.type !== "event") return;
-    const at = (m.payload.data?.timestamp ?? 0) * 1000;
-    if (at > seenAt) seenAt = at;
-    deaf = false;
-    refreshSoon();
-  });
-  tick = setInterval(beat, TICK_MS);
+  unlisten ??= stream.listen((e) => { heard(e); });
+  stream.start();
 }
 
 export function stop() {
-  clearInterval(tick); clearTimeout(retry); clearTimeout(debounce);
-  socket?.removeAllListeners();
-  socket?.close();
-  socket = undefined; identity = ""; upSince = 0; deaf = false; awaiting = undefined;
+  unlisten?.(); unlisten = undefined; lastUnread = undefined;
+  clearTimeout(debounce);
+  stream.stop();
 }
 
-/** After a wake or a network change the old socket may be a dead one that has not noticed yet. */
-export const wake = () => reconnect("wake");
-
-/** A poll's chat list held against what the stream said: an unread message newer than every event, old enough that its event should have come, means the stream went deaf. */
-export function check(list: Chat[]) {
-  if (!healthy()) return;
-  const now = Date.now();
-  const missed = list.find((c) => c.unread > 0 && c.at > Math.max(seenAt, upSince) && now - c.at > GRACE_MS);
-  if (!missed) return;
-  deaf = true;
-  reconnect(`missed a message in ${missed.id}`);
-}
+/** After a wake or a network change the old connection may be a dead one that has not noticed yet. */
+export const wake = () => stream.restart();

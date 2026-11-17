@@ -1,17 +1,18 @@
-// WhatsApp through OpenWA (the owner's self-hosted gateway and archive):
-// four palettes and a bar item over one client (api.ts) and one data
+// WhatsApp through Wisp (the owner's self-hosted inbox, which holds the
+// WhatsApp account live with its history): four palettes and a bar item
+// over the Wisp extension's client and token (wisp/api.ts) and one data
 // layer (data.ts); the bar popover's tree is view.ts. Chats is live and
 // primary (a chat is reached by name), Unread is live and holds the
-// root's unread rows, Search WhatsApp is an input palette over the
-// archive's full-text search, Contacts an hourly catalog. The chat list
-// is shared between the bar and the palettes for CHATS_FRESH_MS. Reading
-// and mark-read are always on; with `send` off there is no reply, no
-// reaction and no message field anywhere, whatever the key could do.
-// With it on, a chat row takes the message in the search bar (`args`)
-// for "Send a message"; a bare pick gets the same as a form.
-import { bar, eachId, errorMessage, failed, hint, ignoreStore, imageData, preview, settings, toast, truncate, type Accessory, type Action, type Arg, type BarCtx, type BarItem, type Ctx, type Detail, type Effect, type Extension, type Form, type Item, type LinkParams, type Metadata } from "@zcag/pal";
-import { ApiError, NoKey, RateLimited, SessionError, Unreachable, base, conf, log, markChatRead, markChatUnread, react as apiReact, reply as apiReply, reset as resetApi, sendText } from "./api.ts";
-import { PANE_MSGS, REACTIONS, RUN_MSGS, chat, chatLink, clock, contacts, conversation, conversationMarkdown, dropChats, isGroupId, loadChats, oneLine, currentOpener as opener, phoneOf, prettyPhone, resetData, search, vcard, type Chat, type Hit, type Person } from "./data.ts";
+// root's unread rows, Search WhatsApp is an input palette over Wisp's
+// search, Contacts an input palette over Wisp's people. The chat list is
+// shared between the bar and the palettes for CHATS_FRESH_MS. Reading and
+// mark-read are always on; with `send` off there is no reply, no reaction
+// and no message field anywhere, whatever the token could do. With it on,
+// a chat row takes the message in the search bar (`args`) for "Send a
+// message"; a bare pick gets the same as a form.
+import { bar, eachId, errorMessage, failed, hint, ignoreStore, preview, settings, toast, truncate, type Accessory, type Action, type Arg, type BarCtx, type BarItem, type Ctx, type Detail, type Effect, type Extension, type Form, type Item, type LinkParams, type Metadata } from "@zcag/pal";
+import { ApiError, NotSetUp, Unreachable, markRead, markUnread, react as apiReact, send as apiSend, unreact as apiUnreact } from "../wisp/api.ts";
+import { NoAccount, PANE_MSGS, REACTIONS, RUN_MSGS, chat, chatLink, clock, conf, conversation, conversationMarkdown, dropChats, findPeople, loadChats, log, oneLine, currentOpener as opener, personReach, phoneOf, prettyPhone, resetData, search, settleLatest, vcard, type Chat, type Hit, type Person } from "./data.ts";
 import * as live from "./live.ts";
 import { RECENT_ROWS, actions as barActions, initialIcon, render as renderBar, type BarRow, type BarState } from "./view.ts";
 
@@ -20,26 +21,25 @@ const ICON = { whatsapp: "\u{f05a3}", group: "\u{f0849}", search: "\u{f0349}", a
 const SEARCH_WAIT_MS = 300;
 const SETTINGS_URL = "pal://settings/extensions";
 
-// New settings may mean another gateway, another key or another session: nothing cached applies.
-settings.onChange(() => { resetApi(); resetData(); live.start(); }, "whatsapp");
+// Wisp's server or token changed: nothing cached applies, and the stream connects again.
+settings.onChange(() => { resetData(); live.stop(); live.start(); }, "wisp");
 
 const canSend = () => conf().send === true;
 
 // ---- rows the palettes share ----------------------------------------------------------------
 
-const SETTINGS_ACTION: Action[] = [{ id: "settings", title: "Open WhatsApp settings" }];
+const SETTINGS_ACTION: Action[] = [{ id: "settings", title: "Open Wisp settings" }];
 
-/** What a failed listing shows instead of rows: the setting to fill, the url that did not answer, the session's state, when the limit lifts, or what went wrong. */
+/** What a failed listing shows instead of rows: the Wisp setting to fill, the url that did not answer, the account missing, or what went wrong. */
 function failure(e: unknown): Item[] {
-  if (e instanceof NoKey) return [hint("key", "API key is not set", "Set api_key under Settings › Extensions › WhatsApp: a key from OpenWA's Settings, API keys", { actions: SETTINGS_ACTION, icon: ICON.alert })];
-  if (e instanceof Unreachable) return [hint("unreachable", `OpenWA is unreachable at ${e.url}`, "Check base_url under Settings › Extensions › WhatsApp, and that the gateway is up", { actions: SETTINGS_ACTION, icon: ICON.alert })];
-  if (e instanceof ApiError && e.auth) return [hint("auth", "OpenWA rejected the API key", `${e.status}: check api_key under Settings › Extensions › WhatsApp`, { actions: SETTINGS_ACTION, icon: ICON.alert })];
-  if (e instanceof SessionError) return [hint("session", e.message, e.status === "qr_ready" ? `Scan the QR code at ${base()} to link the phone again` : e.status ? `Check the session at ${base()}` : `Set session under Settings › Extensions › WhatsApp to a session ${base()} lists`, { actions: SETTINGS_ACTION, icon: ICON.alert })];
-  if (e instanceof RateLimited) return [hint("limit", "OpenWA rate limit reached", `Retry at ${clock(e.until.getTime())}`, { icon: ICON.alert })];
+  if (e instanceof NotSetUp) return [hint("setup", "Wisp is not set up", `${e.message}; WhatsApp reads through it`, { actions: SETTINGS_ACTION, icon: ICON.alert })];
+  if (e instanceof Unreachable) return [hint("unreachable", `Wisp is unreachable at ${e.url}`, "Check the server under Settings › Extensions › Wisp, and that it is up", { actions: SETTINGS_ACTION, icon: ICON.alert })];
+  if (e instanceof ApiError && (e.status === 401 || e.status === 403)) return [hint("auth", "Wisp refused the token", `${e.status}: check the token under Settings › Extensions › Wisp`, { actions: SETTINGS_ACTION, icon: ICON.alert })];
+  if (e instanceof NoAccount) return [hint("account", "Wisp has no WhatsApp account", "Connect WhatsApp in Wisp (Accounts), then its chats show here", { icon: ICON.alert })];
   log(errorMessage(e));
-  return [hint("error", "OpenWA did not answer", errorMessage(e), { icon: ICON.alert })];
+  return [hint("error", "Wisp did not answer", errorMessage(e), { icon: ICON.alert })];
 }
-const pickHint = (id: string): Effect | void => (id === "hint:key" || id === "hint:auth" || id === "hint:unreachable" || id === "hint:session" ? { open: SETTINGS_URL } : undefined);
+const pickHint = (id: string): Effect | void => (id === "hint:setup" || id === "hint:auth" || id === "hint:unreachable" ? { open: SETTINGS_URL } : undefined);
 const guard = async (f: () => Promise<Item[]>): Promise<Item[]> => { try { return await f(); } catch (e) { return failure(e); } };
 const SEND_OFF = "Turn on send under Settings › Extensions › WhatsApp";
 
@@ -132,7 +132,7 @@ function chatRow(c: Chat, section?: string): Item {
 /** The pane, a document: the kind and number over the chat's name, its unread count as a chip; the last twenty messages as a conversation (the sender in bold, "You" for yours, the time, a quoted reply as a blockquote, media as a bracketed label); then the time of the newest and the link. */
 async function chatPane(c: Chat): Promise<Detail> {
   const msgs = await conversation(c, PANE_MSGS);
-  const phone = c.group ? undefined : await phoneOf(c.id).catch(() => undefined);
+  const phone = await phoneOf(c).catch(() => undefined);
   const metadata: Metadata[] = [
     ...(c.at ? [{ label: "Newest", value: clock(c.at) }] : []),
     { label: "Open", link: { text: "In the web client", href: chatLink(phone, "web") } },
@@ -141,7 +141,7 @@ async function chatPane(c: Chat): Promise<Detail> {
     caption: [c.group ? "Group" : "Direct message", phone && prettyPhone(phone)].filter(Boolean).join(" · "),
     title: c.name,
     ...(c.unread > 0 && { chips: [{ text: `${plural(c.unread, "message")} unread`, color: "green" as const }] }),
-    markdown: msgs.length ? conversationMarkdown(msgs) : "_No messages the gateway can see; the conversation is on the phone._",
+    markdown: msgs.length ? conversationMarkdown(msgs) : "_No messages in Wisp yet; the conversation is on the phone._",
     metadata,
   };
 }
@@ -151,8 +151,8 @@ const idsOf = (id: string, ctx?: Ctx) => ctx?.ids ?? [id];
 
 async function openChat(c: Chat, where = opener()): Promise<Effect> {
   if (c.group) return { open: chatLink(undefined, where), hud: `${c.name} is a group: WhatsApp opens at the top` };
-  const phone = await phoneOf(c.id).catch(() => undefined);
-  if (!phone) return toast("No number for this chat", `${c.name} has no phone the gateway can resolve`, "failure");
+  const phone = await phoneOf(c).catch(() => undefined);
+  if (!phone) return toast("No number for this chat", `Wisp knows no phone for ${c.name}`, "failure");
   return { open: chatLink(phone, where) };
 }
 
@@ -178,15 +178,9 @@ const reactForm = (c: Chat, errors?: Record<string, string>): Form => ({
 });
 
 /** The latest incoming message's id for a reply that quotes or a reaction, fetched now when the listing did not (a read chat). */
-async function latestOf(c: Chat): Promise<string | undefined> {
-  if (c.latestId !== undefined) return c.latestFromMe ? undefined : c.latestId;
-  const run = await conversation(c, RUN_MSGS);
-  const incoming = [...run].reverse().find((m) => !m.fromMe);
-  const top = run[run.length - 1];
-  c.latestId = incoming?.id ?? top?.id;
-  c.latestFromMe = !incoming;
-  if (top && !c.last) { c.last = top.who === "You" || !c.group ? top.text : `${top.who}: ${top.text}`; c.who = top.who; }
-  return incoming?.id;
+async function latestOf(c: Chat): Promise<number | undefined> {
+  if (c.latestId === undefined) settleLatest(c, await conversation(c, RUN_MSGS, false));
+  return c.latestFromMe ? undefined : c.latestId;
 }
 
 /** A write from a palette: the chat list is stale, and the bar, which no `keep` re-renders from here, is told. */
@@ -198,14 +192,14 @@ async function pickChat(c: Chat, action: string | undefined, ctx?: Ctx): Promise
   switch (action) {
     case "read": {
       const refused: string[] = [];
-      for (const id of ids) { try { await markChatRead(id); } catch (e) { refused.push((await chat(id)).name); log(`read ${id}: ${errorMessage(e)}`); } }
+      for (const id of ids) { try { await markRead(Number(id)); } catch (e) { refused.push((await chat(id)).name); log(`read ${id}: ${errorMessage(e)}`); } }
       changed();
       if (refused.length) return failed("mark read", refused.join(", "));
       return toast("Marked read", n > 1 ? plural(n, "chat") : c.name);
     }
     case "unread": {
       const refused: string[] = [];
-      for (const id of ids) { try { await markChatUnread(id); } catch (e) { refused.push((await chat(id)).name); log(`unread ${id}: ${errorMessage(e)}`); } }
+      for (const id of ids) { try { await markUnread(Number(id)); } catch (e) { refused.push((await chat(id)).name); log(`unread ${id}: ${errorMessage(e)}`); } }
       changed();
       if (refused.length) return failed("mark unread", refused.join(", "));
       return toast("Marked unread", n > 1 ? plural(n, "chat") : c.name);
@@ -218,8 +212,7 @@ async function pickChat(c: Chat, action: string | undefined, ctx?: Ctx): Promise
       const quote = ctx.values.quote === true || ctx.values.quote === "quote";
       if (!text) return { form: messageForm(c, { text: "Required" }, "", quote) };
       try {
-        if (quote && c.latestId && !c.latestFromMe) await apiReply(c.id, c.latestId, text);
-        else await sendText(c.id, text);
+        await apiSend(Number(c.id), text, quote && c.latestId && !c.latestFromMe ? c.latestId : undefined);
       } catch (e) { return { form: messageForm(c, { text: errorMessage(e) }, text, quote) }; }
       changed();
       return toast("Sent", `${c.name}: ${truncate(text, 60)}`);
@@ -235,15 +228,19 @@ async function pickChat(c: Chat, action: string | undefined, ctx?: Ctx): Promise
       const emoji = String(ctx?.values?.emoji ?? "");
       const target = await latestOf(c).catch(() => undefined);
       if (!target) return toast("Nothing to react to", `The latest message in ${c.name} is yours, or there is none`, "failure");
-      try { await apiReact(c.id, target, emoji); } catch (e) { return { form: reactForm(c, { emoji: errorMessage(e) }) }; }
+      try {
+        if (emoji) await apiReact(target, emoji);
+        else if (c.latestMine) await apiUnreact(target, c.latestMine);
+        c.latestMine = emoji || undefined;
+      } catch (e) { return { form: reactForm(c, { emoji: errorMessage(e) }) }; }
       return toast(emoji ? `Reacted ${emoji}` : "Reaction removed", c.name);
     }
     case "ignore": case "unignore": return pickIgnore(ids, action === "ignore");
     case "web": return openChat(c, "web");
     case "copy-name": return { copy: c.name };
     case "copy-number": {
-      const phone = await phoneOf(c.id).catch(() => undefined);
-      return phone ? { copy: `+${phone}` } : toast("No number for this chat", `${c.name} has no phone the gateway can resolve`, "failure");
+      const phone = await phoneOf(c).catch(() => undefined);
+      return phone ? { copy: `+${phone}` } : toast("No number for this chat", `Wisp knows no phone for ${c.name}`, "failure");
     }
     default: return openChat(c);
   }
@@ -256,7 +253,7 @@ const IGNORED = "Ignored until the next message";
 
 async function chatRows(ctx?: Ctx): Promise<Item[]> {
   const list = await chats(!!ctx?.refresh);
-  if (!list.length) return [hint("empty", "No chats", "The session lists no chats yet; the phone's chats appear once WhatsApp Web has loaded them")];
+  if (!list.length) return [hint("empty", "No chats", "Wisp's WhatsApp account lists no chats yet; they appear once it has synced")];
   return list.map((c) => chatRow(c, isIgnored(c) ? IGNORED : c.unread > 0 ? "Unread" : "Recent"));
 }
 
@@ -293,26 +290,27 @@ function hitRow(h: Hit): Item {
     name: truncate(h.text, 100),
     // A hit in a direct chat with its sender: the chat's name is the sender already.
     subtitle: h.fromMe ? `You in ${h.chat}` : h.who !== h.chat ? `${h.who} in ${h.chat}` : h.chat,
-    icon: isGroupId(h.chatId) ? ICON.group : initialIcon(h.chat),
+    icon: h.group ? ICON.group : initialIcon(h.chat),
     keywords: [h.chat, h.who],
     accessories: [{ date: h.at }],
     actions: [{ id: "open", title: "Open chat" }, { id: "copy", title: "Copy message", shortcut: "cmd+c", multi: true }, { id: "web", title: "Open in the web client", shortcut: "cmd+shift+o" }],
   };
 }
 
-async function searchRows(query = "", ctx?: Ctx): Promise<Item[]> {
+async function searchRows(query = ""): Promise<Item[]> {
   const q = query.trim();
-  if (q.length < 2) return [hint("search", "Search WhatsApp", "Words from any message in the archive, back to the first chat", { icon: ICON.search })];
+  if (q.length < 2) return [hint("search", "Search WhatsApp", "Words from any message, back to the first chat; Wisp's operators work (from:, after:, has:)", { icon: ICON.search })];
   // A newer keystroke supersedes this one: wait a beat, and answer the last rows if one came.
   const seq = ++searchSeq;
   await Bun.sleep(SEARCH_WAIT_MS);
   if (seq !== searchSeq) return lastSearch;
   let found: Hit[];
-  try { found = await search(q, (have) => { if (seq === searchSeq) ctx?.partial?.(have.map(hitRow)); }); } catch (e) {
-    if (e instanceof ApiError && !e.auth) return (lastSearch = [hint("down", "WhatsApp search is unavailable", `${base()} answered ${e.status}: ${truncate(e.message, 80)}`, { icon: ICON.alert })]);
+  try { found = await search(q); } catch (e) {
+    if (e instanceof ApiError && e.status !== 401 && e.status !== 403) return (lastSearch = [hint("down", "WhatsApp search is unavailable", `Wisp answered ${e.status}: ${truncate(e.message, 80)}`, { icon: ICON.alert })]);
     throw e;
   }
-  lastSearch = found.length ? found.map(hitRow) : [hint("empty", "No messages found", `Nothing in the archive matches "${q}"`, { icon: ICON.search })];
+  if (seq !== searchSeq) return lastSearch;
+  lastSearch = found.length ? found.map(hitRow) : [hint("empty", "No messages found", `Nothing on WhatsApp matches "${q}"`, { icon: ICON.search })];
   return lastSearch;
 }
 
@@ -324,17 +322,13 @@ async function pickHit(h: Hit, action?: string): Promise<Effect> {
 
 // ---- contacts -----------------------------------------------------------------------------------------
 
-const people = new Map<string, Person>();
-
 function personRow(p: Person): Item {
-  people.set(p.id, p);
-  const phone = prettyPhone(p.phone);
   return {
     id: p.id,
     name: p.name,
-    ...(p.name !== phone && { subtitle: phone }),
-    icon: initialIcon(p.name),
-    keywords: [p.phone, prettyPhone(p.phone)],
+    ...(p.last && { subtitle: truncate(oneLine(p.last), 110) }),
+    icon: p.avatar ? { image: p.avatar } : initialIcon(p.name),
+    ...(p.at && { accessories: [{ date: p.at }] }),
     actions: [
       { id: "open", title: "Open chat" },
       { id: "copy-number", title: "Copy number", shortcut: "cmd+c", multi: true },
@@ -344,17 +338,23 @@ function personRow(p: Person): Item {
   };
 }
 
-async function contactRows(ctx?: Ctx): Promise<Item[]> {
-  const list = await contacts(!!ctx?.refresh);
-  people.clear();
-  if (!list.length) return [hint("none", "No contacts", "The session lists no saved contact; the phone's address book appears once WhatsApp Web has synced it")];
-  return list.map(personRow);
+let peopleSeq = 0;
+let lastPeople: Item[] = [];
+
+/** Wisp's people with a WhatsApp identity: the best matches for what is typed, the most recent with nothing typed. */
+async function contactRows(query = ""): Promise<Item[]> {
+  const q = query.trim();
+  const seq = ++peopleSeq;
+  if (q) { await Bun.sleep(SEARCH_WAIT_MS); if (seq !== peopleSeq) return lastPeople; }
+  const list = await findPeople(q);
+  if (seq !== peopleSeq) return lastPeople;
+  lastPeople = list.length ? list.map(personRow) : [hint("none", q ? "Nobody found" : "No contacts", q ? `Nobody on WhatsApp matches "${q}"` : "Wisp knows nobody on WhatsApp yet", { icon: ICON.contact })];
+  return lastPeople;
 }
 
 async function pickPerson(id: string, action?: string): Promise<Effect> {
-  let p = people.get(id);
-  if (!p) { await contactRows(); p = people.get(id); }
-  if (!p) throw new Error(`no contact ${id}`);
+  const p = await personReach(id);
+  if (!p.phone) return toast("No number for this contact", `Wisp knows no WhatsApp number for ${p.name}`, "failure");
   if (action === "copy-number") return { copy: `+${p.phone}` };
   if (action === "copy-vcard") return { copy: vcard(p.name, p.phone), hud: `Copied ${p.name} as a vCard` };
   return { open: chatLink(p.phone, action === "web" ? "web" : opener()) };
@@ -385,7 +385,7 @@ async function barRows(list: Chat[]): Promise<BarRow[]> {
   const picked = unread.length ? [...unread.filter((c) => !c.group), ...unread.filter((c) => c.group)] : list.filter((c) => !isIgnored(c)).slice(0, RECENT_ROWS);
   return Promise.all(picked.map(async (c): Promise<BarRow> => ({
     id: c.id, name: c.name, group: c.group, text: c.last ? oneLine(c.last) : c.group ? "Group" : "", time: c.at ? clock(c.at) : undefined, n: c.unread,
-    avatar: c.avatar ? await imageData(c.avatar) : undefined,
+    avatar: c.avatar,
   })));
 }
 
@@ -402,10 +402,9 @@ async function unreadItem(ctx: BarCtx): Promise<BarItem> {
   if (ctx.reason === "wake" || ctx.reason === "network") live.wake();
   live.start();
   try { list = await chats(ctx.reason === "every" || ctx.reason === "cli" || ctx.reason === "update"); } catch (e) {
-    if (e instanceof NoKey) return { hidden: true, states: { unread: null, direct: null } };
+    if (e instanceof NotSetUp || e instanceof NoAccount) return { hidden: true, states: { unread: null, direct: null } };
     throw e;
   }
-  live.check(list);
   const unread = list.filter(counts);
   const direct = unread.filter((c) => !c.group).length, groups = unread.length - direct;
   const menu = { view: renderBar(await barState(list)) };
@@ -426,7 +425,7 @@ async function unreadAction(action: string, ctx?: BarCtx): Promise<Effect> {
   if (action === "read-all") {
     const refused: string[] = [];
     // What the popover lists: an ignored chat stays unread on the phone.
-    for (const c of (await chats()).filter(counts)) { try { await markChatRead(c.id); } catch (e) { refused.push(c.name); log(`read ${c.id}: ${errorMessage(e)}`); } }
+    for (const c of (await chats()).filter(counts)) { try { await markRead(Number(c.id)); } catch (e) { refused.push(c.name); log(`read ${c.id}: ${errorMessage(e)}`); } }
     dropChats();
     return refused.length ? toast("Some could not be marked", refused.join(", "), "failure") : { keep: true, hud: "Marked read" };
   }
@@ -459,7 +458,7 @@ async function unreadAction(action: string, ctx?: BarCtx): Promise<Effect> {
       if (!c) { barReplying = undefined; return redraw(); }
       if (!canSend()) { barReplying = undefined; barDraft = undefined; return { ...(await redraw()), toast: { title: "Sending is off", message: SEND_OFF, style: "failure" } }; }
       if (!text) return { ...(await redraw()), toast: { title: "Nothing to send", message: "Type the message first", style: "failure" } };
-      try { await sendText(c.id, text); } catch (e) { barDraft = text; return { ...(await redraw()), toast: { title: "Could not send", message: errorMessage(e), style: "failure" } }; }
+      try { await apiSend(Number(c.id), text); } catch (e) { barDraft = text; return { ...(await redraw()), toast: { title: "Could not send", message: errorMessage(e), style: "failure" } }; }
       barReplying = undefined; barDraft = undefined;
       dropChats();
       return { ...(await redraw()), toast: { title: "Sent", message: `${c.name}: ${truncate(text, 60)}`, style: "success" } };
@@ -469,7 +468,7 @@ async function unreadAction(action: string, ctx?: BarCtx): Promise<Effect> {
       const ids = ctx?.ids ?? (cur && cur.n > 0 ? [cur.id] : []);
       if (!ids.length) return { keep: true };
       const refused: string[] = [];
-      for (const id of ids) { try { await markChatRead(id); } catch (e) { refused.push(st.rows.find((r) => r.id === id)?.name ?? id); log(`read ${id}: ${errorMessage(e)}`); } }
+      for (const id of ids) { try { await markRead(Number(id)); } catch (e) { refused.push(st.rows.find((r) => r.id === id)?.name ?? id); log(`read ${id}: ${errorMessage(e)}`); } }
       changed();
       if (refused.length) return failed("mark read", refused.join(", "));
       return { keep: true, hud: ids.length > 1 ? `Marked ${ids.length} read` : `${st.rows.find((r) => r.id === ids[0])?.name ?? "Chat"}: read` };
@@ -478,24 +477,25 @@ async function unreadAction(action: string, ctx?: BarCtx): Promise<Effect> {
     case "web": return cur ? openChat(await chat(cur.id), "web") : { open: chatLink(undefined, "web") };
   }
   // A chat id as a link or the CLI names it: the row itself.
-  if (/@(c\.us|lid|g\.us)$/.test(action)) return openChat(await chat(action));
+  if (/^\d+$/.test(action)) return openChat(await chat(action));
   return { keep: true };
 }
 
 // ---- links -----------------------------------------------------------------------------------------------------
 
-/** `open?chat=`: a chat id, a phone (digits, `+` allowed), or a name the chat list or the contacts have. */
+/** `open?chat=`: Wisp's conversation id, a WhatsApp id with a phone in it, a phone (digits, `+` allowed), or a name the chat list or Wisp's people have. */
 async function openLink(what: string): Promise<Effect> {
   const s = what.trim();
   if (!s) throw new Error("chat is required");
-  if (/@(c\.us|lid|g\.us)$/.test(s)) return openChat(await chat(s));
-  if (/^\+?[\d\s()-]{6,}$/.test(s)) return { open: chatLink(s.replace(/\D/g, ""), opener()) };
+  if (/^\d{1,9}$/.test(s)) return openChat(await chat(s));
+  const jid = /^(\d+)@(s\.whatsapp\.net|c\.us)$/.exec(s);
+  if (jid || /^\+?[\d\s()-]{6,}$/.test(s)) return { open: chatLink((jid?.[1] ?? s).replace(/\D/g, ""), opener()) };
   const lower = s.toLowerCase();
   const list = await loadChats();
   const c = list.find((c) => c.name.toLowerCase() === lower) ?? list.find((c) => c.name.toLowerCase().startsWith(lower));
   if (c) return openChat(c);
-  const p = (await contacts()).find((p) => p.name.toLowerCase() === lower) ?? (await contacts()).find((p) => p.name.toLowerCase().startsWith(lower));
-  if (p) return { open: chatLink(p.phone, opener()) };
+  const p = (await findPeople(s))[0];
+  if (p) { const r = await personReach(p.id); if (r.phone) return { open: chatLink(r.phone, opener()) }; }
   throw new Error(`no chat or contact named "${s}"`);
 }
 
@@ -526,7 +526,7 @@ export default {
       title: "Search WhatsApp",
       input: true,
       placeholder: "Words from any message",
-      list: (query, ctx) => guard(() => searchRows(query, ctx)),
+      list: (query) => guard(() => searchRows(query)),
       pick: (id, action, ctx) => {
         if (id.startsWith("hint:")) return pickHint(id);
         const one = (x: string) => { const h = hits.get(x); if (!h) throw new Error(`no message ${x}`); return pickHit(h, action); };
@@ -536,9 +536,9 @@ export default {
     },
     contacts: {
       title: "Contacts",
-      lazy: true,
+      input: true,
       placeholder: "A name or a number",
-      list: (_q, ctx) => guard(() => contactRows(ctx)),
+      list: (query) => guard(() => contactRows(query)),
       // Marked contacts' numbers or vCards (one .vcf holds several) on one clipboard.
       pick: (id, action, ctx) => (id.startsWith("hint:") ? pickHint(id) : many(action, ctx) ? copyEach(ctx.ids, (x) => pickPerson(x, action)) : pickPerson(id, action)),
     },

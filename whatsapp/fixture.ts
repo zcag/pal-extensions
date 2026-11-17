@@ -1,10 +1,9 @@
 // Writes test/shots/whatsapp.json and bar-whatsapp.json, the
 // store screenshots' fixtures: the palettes listed through the host
-// harness against the OpenWA mock (test/whatsapp-mock.ts,
+// harness against Wisp's mock with a WhatsApp account (test/whatsapp-mock.ts,
 // invented people and messages, nothing the owner's) at the fixed clock,
-// with `send` on so the message form shows, the pictures the mock serves
-// inlined by `settle`, the bar item rendered the same way with its popover
-// from view.ts. `bun run whatsapp/fixture.ts`, then
+// with `send` on so the message form shows, the bar item rendered the
+// same way with its popover from view.ts. `bun run whatsapp/fixture.ts`, then
 // `node app/scripts/shots.mjs whatsapp`.
 import { writeFileSync } from "node:fs";
 import { pinClock, settle, writeFixture } from "../.pal/app/scripts/fixture-kit.ts";
@@ -12,41 +11,38 @@ import type { View } from "../.pal/sdk/src/protocol.ts";
 
 // Before the mock and the harness load: the mock dates its messages by the SDK's clock, read once at load.
 pinClock();
-const { KEY, WhatsAppMock } = await import("../test/whatsapp-mock.ts");
+const { TOKEN, WhatsAppMock, MARA: MARA_ID } = await import("../test/whatsapp-mock.ts");
 const { Host, stored } = await import("../.pal/host/test/harness.ts");
 
-const MARA = "254011223344556@lid";
+const MARA = String(MARA_ID);
 
 const mock = new WhatsAppMock();
 stored.clear();
-const host = await Host.bundled({ settings: { whatsapp: { settings: { base_url: mock.url, api_key: KEY, send: true, open: "web" } } }, timeout: 8000 });
+const host = await Host.bundled({ settings: { whatsapp: { settings: { send: true, open: "web" } }, wisp: { settings: { url: mock.url, token: TOKEN } } }, only: ["whatsapp", "wisp"], timeout: 8000 });
 
 try {
   const l = host.loaded().find((l) => l.extension === "whatsapp")!;
   const [chats, unread, search, contacts] = l.palettes;
-  // The pictures land from a background pass after the first listing; the second listing carries them.
-  await host.list("whatsapp", "chats");
-  await host.until(() => stored.has("whatsapp\0pictures"), 3000, "the picture pass");
   const chatRows = await host.list("whatsapp", "chats");
   const unreadRows = await host.list("whatsapp", "unread");
   const details = Object.fromEntries(await Promise.all(chatRows.slice(0, 3).map(async (r) => [r.id, await host.detail("whatsapp", "chats", r.id)])));
   const byQuery = { parser: await host.list("whatsapp", "search", "parser"), cabin: await host.list("whatsapp", "search", "cabin") };
-  const contactRows = await host.list("whatsapp", "contacts");
+  const contactRows = await host.list("whatsapp", "contacts", "");
   const form = (await host.pick("whatsapp", "chats", MARA, "reply")).form;
   const fixture = {
     palettes: {
       chats: { title: chats.title, icon: chats.icon, live: true, tier: chats.tier, placeholder: chats.placeholder, items: chatRows, details },
       unread: { title: unread.title, icon: unread.icon, live: true, placeholder: unread.placeholder, items: unreadRows, details },
       search: { title: search.title, icon: search.icon, input: true, placeholder: search.placeholder, byQuery },
-      contacts: { title: contacts.title, icon: contacts.icon, tier: contacts.tier, placeholder: contacts.placeholder, items: contactRows },
+      contacts: { title: contacts.title, icon: contacts.icon, input: true, placeholder: contacts.placeholder, byQuery: { "": contactRows } },
     },
     effects: { [`chats/${MARA}:reply`]: { form } },
     shots: {
       "1-chats": { palette: "chats", keys: ["down"], caption: "Chats: unread first, the picture, the newest message and who sent it, the count, the time" },
-      "2-detail": { palette: "chats", keys: ["cmd+i", "wait:400"], caption: "The pane: the last messages as a conversation, a quoted reply indented, a photo as [photo]" },
+      "2-detail": { palette: "chats", keys: ["cmd+i", "wait:400"], caption: "The pane: the last messages as a conversation, a photo drawn inline" },
       "3-unread": { palette: "unread", keys: ["down"], caption: "Unread: direct messages then groups, the same keys" },
       "4-search": { palette: "search", keys: ["type:parser", "wait:500"], caption: "Search WhatsApp: the matching line, who said it where, when" },
-      "5-contacts": { palette: "contacts", keys: ["down*3"], caption: "Contacts: each name with its number, a number alone when it has none; copy it or a vCard" },
+      "5-contacts": { palette: "contacts", keys: ["down*3"], caption: "Contacts: the people you write to, the latest message, when; copy the number or a vCard" },
       "6-message": { palette: "chats", keys: ["cmd+k", "wait:200", "type:Send a", "wait:200", "enter", "wait:300"], caption: "Send a message (send on): a form for the text, the latest message there to quote" },
     },
   };

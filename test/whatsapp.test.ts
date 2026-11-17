@@ -1,24 +1,24 @@
-// WhatsApp: data.ts's pure parts by import (the media labels, a message
-// from the live and the archive shapes, the links, the opener, the vCard,
+// WhatsApp: data.ts's pure parts by import (the media labels, a Wisp
+// message as one of the conversation's, the links, the opener, the vCard,
 // the phone spelling) and view.ts's tree from a state; then the extension
-// through the harness against whatsapp-mock.ts (a Bun mock of OpenWA):
-// the session resolved once from its name and kept in storage, the chat
-// rows with their pictures, the unread run's sender, the pane as a
-// conversation, the unread palette, the search (and its 503), the
-// contacts, mark read and unread against the mock, every send refused
+// through the harness against whatsapp-mock.ts (Wisp's mock with a
+// WhatsApp account): the chat rows with their pictures, the unread run's
+// sender, the pane as a conversation, the unread palette, the search, the
+// contacts from Wisp's people, mark read and unread, every send refused
 // with `send` off and made with it on (a message, a quoted reply, a
-// reaction), the bar item and its popover keys, the links, a 401, a 429,
-// a session that is not ready, an unreachable gateway, no key.
+// reaction and its removal), the bar item and its popover keys, the
+// links, the stream, a wrong token, Wisp not set up, Wisp unreachable.
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
-import { chatLink, conversationMarkdown, MAX_PICTURE, mediaLabel, msgOf, msgOfDb, opener, pictureExpiry, pictureFresh, prettyPhone, REACTIONS, vcard } from "../whatsapp/data.ts";
+import { chatLink, conversationMarkdown, mediaLabel, msgOf, opener, phoneOfJid, prettyPhone, REACTIONS, vcard } from "../whatsapp/data.ts";
 import { initial, initialIcon, render, type BarState } from "../whatsapp/view.ts";
 import type { Item, View, ViewNode } from "../.pal/sdk/src/protocol.ts";
 import { checkView } from "../.pal/sdk/src/view.ts";
 import { Host, marksOf, stored, bundledIcon } from "../.pal/host/test/harness.ts";
-import { KEY, SESSION_ID, WhatsAppMock, m } from "./whatsapp-mock.ts";
+import { FAMILY, HIKE as HIKE_ID, KARGO as KARGO_ID, MARA as MARA_ID, TOKEN, TOMAS as TOMAS_ID, WhatsAppMock, chatMessages } from "./whatsapp-mock.ts";
+import { iso } from "./wisp-mock.ts";
 
 const X = "whatsapp";
-const MARA = "254011223344556@lid", HIKE = "120363012345678901@g.us", TOMAS = "905559876543@c.us", FAMILY = "120363099887766554@g.us", OLA = "905551112233@c.us", LINA = "301122334455667@lid";
+const MARA = String(MARA_ID), HIKE = String(HIKE_ID), TOMAS = String(TOMAS_ID);
 
 const nodes = (n: ViewNode): ViewNode[] => [n, ...("children" in n ? n.children.flatMap(nodes) : [])];
 const texts = (v: View) => nodes(v.tree).flatMap((n) => (n.type === "text" ? [n.value] : []));
@@ -32,52 +32,43 @@ const viewOf = (x: unknown): View => {
 const tags = (i: Item) => (i.accessories ?? []).flatMap((a) => ("tag" in a ? [a.tag] : []));
 
 describe("whatsapp helpers", () => {
-  test("mediaLabel: text as is, media in brackets with the caption or file name after it", () => {
+  test("mediaLabel: text as is, media in brackets with the caption, file name or transcript after it", () => {
     expect(mediaLabel("text", " hi ")).toBe("hi");
-    expect(mediaLabel("chat", "hi")).toBe("hi");
     expect(mediaLabel("image", "")).toBe("[photo]");
     expect(mediaLabel("image", "look")).toBe("[photo] look");
-    expect(mediaLabel("ptt", "")).toBe("[voice message]");
+    expect(mediaLabel("voice", "on my way")).toBe("[voice message] on my way");
     expect(mediaLabel("document", "cv.pdf")).toBe("[document] cv.pdf");
-    expect(mediaLabel("revoked", "")).toBe("[message deleted]");
-    expect(mediaLabel("poll_creation", "")).toBe("[poll]");
+    expect(mediaLabel("contact", "")).toBe("[contact card]");
     expect(mediaLabel("some_new_kind", "")).toBe("[some new kind]");
-    expect(mediaLabel("unknown", "")).toBe("[message]");
-    expect(mediaLabel("unknown", "a template")).toBe("a template");
   });
 
-  test("msgOf: the live shape with the archive's row over it (name, quote); msgOfDb: the archive alone; You for what is ours", () => {
-    const names = (jid: string) => (jid === "905551112233@c.us" ? "Ola Berg" : jid.split("@")[0]);
-    const live = { id: "m1", from: "g@g.us", to: "me@c.us", chatId: "g@g.us", body: "trailhead at 8:30", type: "text", timestamp: 1789627000, fromMe: false, isGroup: true, author: "301122334455667@lid" };
-    expect(msgOf(live, undefined, names, "Weekend hike")).toEqual({ id: "m1", at: 1789627000000, fromMe: false, who: "301122334455667", text: "trailhead at 8:30", type: "text" });
-    const db = { id: "row", waMessageId: "m1", chatId: "g@g.us", chatName: "Lina Kova", from: "g@g.us", to: "me@c.us", body: "trailhead at 8:30", type: "text", direction: "incoming" as const, timestamp: 1789627000, metadata: { quotedMessage: { id: "q", body: "before nine " } } };
-    expect(msgOf(live, db, names, "Weekend hike")).toMatchObject({ who: "Lina Kova", quoted: "before nine" });
-    expect(msgOf({ ...live, fromMe: true, author: undefined }, db, names, "Weekend hike").who).toBe("You");
-    // A direct chat's incoming message is the chat's other side.
-    expect(msgOf({ ...live, isGroup: false, author: undefined, from: "905551112233@c.us", chatId: "905551112233@c.us" }, undefined, names, "Ola").who).toBe("Ola Berg");
-    expect(msgOf({ ...live, isGroup: false, author: undefined, from: "x@lid", chatId: "x@lid", body: "", type: "image" }, undefined, () => "", "Mara Lind")).toMatchObject({ who: "Mara Lind", text: "[photo]" });
-    expect(msgOfDb({ ...db, direction: "outgoing" }, names, "Weekend hike", true)).toMatchObject({ id: "m1", who: "You", quoted: "before nine" });
-    expect(msgOfDb({ ...db, chatName: undefined, author: "905551112233@c.us" }, names, "Weekend hike", true).who).toBe("Ola Berg");
-    // A picture whose bytes the archive kept rides as a data url; a document's, or one over the cap, does not.
-    const photo = { ...db, type: "image", body: "", metadata: { media: { mimetype: "image/jpeg", data: "/9j/4AAQ" } } };
-    expect(msgOfDb(photo, names, "Weekend hike", true)).toMatchObject({ text: "[photo]", image: "data:image/jpeg;base64,/9j/4AAQ" });
-    expect(msgOf({ ...live, type: "image", body: "" }, photo, names, "Weekend hike").image).toBe("data:image/jpeg;base64,/9j/4AAQ");
-    expect(msgOfDb({ ...photo, metadata: { media: { mimetype: "application/pdf", data: "JVBE" } } }, names, "Weekend hike", true).image).toBeUndefined();
-    expect(msgOfDb({ ...photo, metadata: { media: { mimetype: "image/jpeg", data: "x".repeat(MAX_PICTURE + 1) } } }, names, "Weekend hike", true).image).toBeUndefined();
+  test("msgOf: the sender's name, You for ours, the chat's name for a nameless sender in a direct chat; a photo's path, a transcript, a deleted message, your reaction", () => {
+    const all = chatMessages();
+    const [ask, mine, photo] = all[MARA_ID]!;
+    expect(msgOf(ask!, "Mara Lind", false)).toEqual({ id: ask!.id, at: Date.parse(ask!.sentAt), fromMe: false, who: "Mara Lind", from: "905551234567@s.whatsapp.net", text: "can you look at the parser before standup?", kind: "text" });
+    expect(msgOf(mine!, "Mara Lind", false)).toMatchObject({ who: "You", fromMe: true });
+    expect(msgOf(photo!, "Mara Lind", false)).toMatchObject({ text: "[photo]", imagePath: "/api/v1/attachments/9101" });
+    expect(msgOf(all[HIKE_ID]![2]!, "Weekend hike", true)).toMatchObject({ who: "Tomas Ruiz", text: "[voice message] running late, start without me" });
+    expect(msgOf({ ...ask!, sender: { id: "x", name: "" } }, "Mara Lind", false).who).toBe("Mara Lind");
+    expect(msgOf({ ...ask!, sender: { id: "x", name: "" } }, "Weekend hike", true).who).toBe("Unknown");
+    expect(msgOf({ ...ask!, deleted: true }, "Mara Lind", false).text).toBe("[message deleted]");
+    expect(msgOf({ ...ask!, reactions: [{ emoji: "👍", sender: { id: "", name: "" }, fromMe: true }] }, "Mara Lind", false).mine).toBe("👍");
+    expect(phoneOfJid("905551234567@s.whatsapp.net")).toBe("905551234567");
+    expect(phoneOfJid("905551234567@c.us")).toBe("905551234567");
+    expect(phoneOfJid("301122334455667@lid")).toBeUndefined();
   });
 
-  test("conversationMarkdown: the sender in bold with the time, a quote as a blockquote, media in italics, markup escaped", () => {
+  test("conversationMarkdown: the sender in bold with the time, media in italics, a picture inline, markup escaped", () => {
     const at = Date.parse("2026-09-17T09:41:00+03:00");
     const md = conversationMarkdown([
-      { id: "a", at, fromMe: false, who: "Mara *Lind*", text: "see #4471 <now>", type: "text" },
-      { id: "b", at, fromMe: true, who: "You", text: "ok", type: "text", quoted: "see #4471\n<now>" },
-      { id: "c", at, fromMe: false, who: "Mara", text: "[photo] the cabin", type: "image" },
-      { id: "d", at, fromMe: false, who: "Mara", text: "[photo] the *lake*", type: "image", image: "data:image/jpeg;base64,/9j/" },
+      { id: 1, at, fromMe: false, who: "Mara *Lind*", from: "", text: "see #4471 <now>", kind: "text" },
+      { id: 2, at, fromMe: true, who: "You", from: "", text: "ok", kind: "text" },
+      { id: 3, at, fromMe: false, who: "Mara", from: "", text: "[photo] the cabin", kind: "image" },
+      { id: 4, at, fromMe: false, who: "Mara", from: "", text: "[photo] the *lake*", kind: "image", image: "data:image/jpeg;base64,/9j/" },
     ]);
     const paragraphs = md.split("\n\n");
     expect(paragraphs[0]).toMatch(/^\*\*Mara \\\*Lind\\\*\*\* · /);
     expect(paragraphs[1]).toBe("see \\#4471 \\<now\\>");
-    expect(paragraphs[2]).toMatch(/^\*\*You\*\* · .+\n> see \\#4471 \\<now\\>$/);
     expect(paragraphs[3]).toBe("ok");
     expect(paragraphs[5]).toBe("_[photo]_ the cabin");
     expect(paragraphs.slice(7)).toEqual(["![photo](data:image/jpeg;base64,/9j/)", "the \\*lake\\*"]);
@@ -101,16 +92,6 @@ describe("whatsapp helpers", () => {
     expect(initial("+90 555")).toBe("9");
     expect(initial("mara")).toBe("M");
     expect(initialIcon("Mara").image).toMatch(/^data:image\/svg\+xml;utf8,.*%3EM%3C/);
-    // A picture url's expiry (`oe`, hex seconds); an entry stands until a day before it, a miss for a day.
-    const url = "https://pps.whatsapp.net/v/t61.24694-24/x.jpg?ccb=11-4&oh=abc&oe=6AB81B3B&_nc_sid=5e03e0";
-    expect(pictureExpiry(url)).toBe(0x6ab81b3b * 1000);
-    expect(pictureExpiry("https://pps.whatsapp.net/x.jpg")).toBeUndefined();
-    const now = 0x6ab81b3b * 1000 - 3 * 24 * 3600_000;
-    expect(pictureFresh({ u: url, t: 0 }, now)).toBe(true);
-    expect(pictureFresh({ u: url, t: 0 }, now + 2.5 * 24 * 3600_000)).toBe(false);
-    expect(pictureFresh({ u: null, t: now - 3600_000 }, now)).toBe(true);
-    expect(pictureFresh({ u: null, t: now - 25 * 3600_000 }, now)).toBe(false);
-    expect(pictureFresh(undefined, now)).toBe(false);
   });
 
   test("view: the sections, the cursor, the hints, the reply field; nothing unread is one calm line", () => {
@@ -154,156 +135,128 @@ describe("whatsapp helpers", () => {
 describe("whatsapp", () => {
   let mock: WhatsAppMock;
   let host: Host;
-  const settings = (extra: Record<string, unknown> = {}) => ({ base_url: mock.url, api_key: KEY, open: "web", ...extra });
-  /** Search waits this long after a keystroke before it asks (SEARCH_WAIT_MS, whatsapp/index.ts). */
+  const wispSettings = (extra: Record<string, unknown> = {}) => ({ url: mock.url, token: TOKEN, ...extra });
+  const settings = (extra: Record<string, unknown> = {}) => ({ open: "web", ...extra });
+  /** Search and Contacts wait this long after a keystroke before they ask (SEARCH_WAIT_MS, whatsapp/index.ts). */
   const SEARCH_WAIT_MS = 300;
-  /** A listing; search's waits out its keystroke debounce first. */
   const list = async (palette: string, q = "", ctx?: Parameters<Host["list"]>[3]) => {
     const r = host.list(X, palette, q, ctx);
-    if (palette === "search") await host.advance(SEARCH_WAIT_MS);
-    return r;
-  };
-  const searchStream = async (q: string) => {
-    const r = host.listStream(X, "search", q);
-    await host.advance(SEARCH_WAIT_MS);
+    if (palette === "search" || (palette === "contacts" && q)) await host.advance(SEARCH_WAIT_MS);
     return r;
   };
   const ctx = { reason: "open" as const, compact: true as const };
+  const gets = (path: string | RegExp) => mock.calls.filter((c) => c.method === "GET" && (typeof path === "string" ? c.path === path : path.test(c.path)));
+  const wrote = (kind: string) => mock.writes(kind).map((c) => Number(c.path.split("/")[4]));
+  const relist = () => list("chats", "", { refresh: true });
 
   beforeAll(async () => {
     stored.clear();
     mock = new WhatsAppMock();
-    host = await Host.bundled({ settings: { [X]: { settings: settings() } }, timeout: 8000 });
+    host = await Host.bundled({ settings: { [X]: { settings: settings() }, wisp: { settings: wispSettings() } }, only: [X, "wisp"], timeout: 8000 });
   });
   afterAll(() => { host.kill(); mock.stop(); });
 
-  test("meta: the tile, four palettes (chats live primary with a pane, unread live, search input, contacts an hourly catalog), the bar item, two links, the settings", () => {
+  test("meta: the tile, four palettes (chats live primary with a pane, unread live, search and contacts input), the bar item, two links, the settings, Wisp required", () => {
     const loaded = host.loaded().find((l) => l.extension === X)!;
     expect(loaded.warnings).toEqual([]);
     expect(loaded.manifest.icon).toEqual(bundledIcon("whatsapp"));
-    expect(loaded.palettes.map((p) => [p.name, p.title, p.live, p.input, p.lazy, p.ttl, p.tier, p.detail])).toEqual([
-      ["chats", "Chats", true, false, true, undefined, "primary", "lazy"],
-      ["unread", "Unread", true, false, true, undefined, undefined, "lazy"],
-      ["search", "Search WhatsApp", false, true, undefined, undefined, undefined, "lazy"],
-      ["contacts", "Contacts", false, false, true, 3600, "catalog", undefined],
+    expect(loaded.manifest.requires).toEqual(["wisp"]);
+    expect(loaded.palettes.map((p) => [p.name, p.title, p.live, p.input, p.lazy, p.tier, p.detail])).toEqual([
+      ["chats", "Chats", true, false, true, "primary", "lazy"],
+      ["unread", "Unread", true, false, true, undefined, "lazy"],
+      ["search", "Search WhatsApp", false, true, undefined, undefined, "lazy"],
+      ["contacts", "Contacts", false, true, undefined, undefined, undefined],
     ]);
     expect(loaded.bar.map((b) => [b.id, b.refresh?.every])).toEqual([["unread", 30]]);
     expect(Object.keys(loaded.manifest.links ?? {})).toEqual(["open", "search"]);
-    expect(loaded.manifest.settings!.map((s) => [s.id, s.kind, s.default])).toEqual([["base_url", "text", "http://wp.lan"], ["api_key", "secret", ""], ["session", "text", "main"], ["send", "boolean", false], ["open", "select", "auto"]]);
+    expect(loaded.manifest.settings!.map((s) => [s.id, s.kind, s.default])).toEqual([["send", "boolean", false], ["open", "select", "auto"]]);
     for (const p of Object.values(loaded.manifest.palettes ?? {})) for (const k of p.keys ?? []) expect(["cmd+i", "cmd+r", "cmd+k", "cmd+backspace"]).not.toContain(k.keys);
   });
 
-  test("chats: the session resolved once by name and kept in storage; unread first with the run's sender, the pictures, the group tag, the count, the time; the status chat dropped", async () => {
-    const first = await list("chats");
-    expect(first.map((r) => [r.id, r.section])).toEqual([[MARA, "Unread"], [HIKE, "Unread"], [TOMAS, "Unread"], [FAMILY, "Recent"], [OLA, "Recent"], [LINA, "Recent"], ["120363055544433322@g.us", "Recent"], ["905557778899@c.us", "Recent"]]);
-    // The pictures are not on the listing's path: the first listing has the initial, the background pass (one batch of the eight) lands them for the next.
-    expect(first[0].icon).toEqual(initialIcon("Mara Lind"));
-    await host.until(() => stored.has(`${X}\0pictures`), 3000, "the picture pass");
-    expect(mock.calls(/profile-pictures$/)).toHaveLength(1);
-    expect(mock.calls(/profile-pictures$/)[0].query.ids.split(",")).toHaveLength(8);
-    expect(Object.entries(stored.get(`${X}\0pictures`) as Record<string, { u: string | null }>).filter(([, e]) => e.u).map(([id]) => id).sort()).toEqual([MARA, HIKE, OLA].sort());
+  test("chats: the WhatsApp account's, unread first with the run's sender, the pictures, the group tag, the count, the time; the broadcast and the SMS left out", async () => {
     const rows = await list("chats");
-    expect(rows[0]).toMatchObject({ name: "Mara Lind", subtitle: "standup in 20?", icon: { image: `${mock.url}/pic/${encodeURIComponent(MARA)}.svg` }, keywords: ["chat"] });
+    expect(rows.map((r) => [r.name, r.section])).toEqual([["Mara Lind", "Unread"], ["Weekend hike", "Unread"], ["Tomas Ruiz", "Unread"], ["Family", "Recent"], ["Ola Berg", "Recent"], ["Lina Kova", "Recent"], ["pal beta", "Recent"], ["Acme Support", "Recent"]]);
+    // The account found once; the conversations of it alone.
+    expect(gets("/api/v1/accounts")).toHaveLength(1);
+    expect(new URLSearchParams(gets("/api/v1/conversations")[0]!.query).get("account")).toBe("1");
+    expect(rows[0]).toMatchObject({ id: MARA, subtitle: "standup in 20?", keywords: ["chat"] });
+    expect((rows[0].icon as { image: string }).image).toStartWith("data:image/svg+xml;base64,");
     expect(tags(rows[0])).toEqual(["3"]);
-    expect(rows[0].accessories).toContainEqual({ date: m(2) * 1000 });
-    // A group's newest message names its sender (from the archive's row) and a media message its kind; the sender is a keyword.
+    expect(rows[0].accessories).toContainEqual({ date: Date.parse(iso(2)) });
+    // A group's newest message names its sender and a media message its kind; the sender is a keyword.
     expect(rows[1]).toMatchObject({ name: "Weekend hike", subtitle: "Ola Berg: [location]", keywords: ["group", "Ola Berg"] });
-    // The count outranks the group tag (two accessories at most); a read group keeps the tag.
     expect(tags(rows[1])).toEqual(["5"]);
     expect(tags(rows[3])).toEqual(["group"]);
-    // A chat with a text lastMessage and one unread: the run agrees; no picture is the initial on a tile; a group without one the group glyph.
     expect(rows[2]).toMatchObject({ subtitle: "the cabin is booked, sending the map", icon: initialIcon("Tomas Ruiz") });
-    expect(rows[3]).toMatchObject({ name: "Family", subtitle: "Dinner at eight on Sunday?", icon: "\u{f0849}" });
+    expect(rows[3]).toMatchObject({ name: "Family", subtitle: "You: Dinner at eight on Sunday?", icon: "\u{f0849}" });
     expect(rows[6]).toMatchObject({ name: "pal beta", subtitle: "Group" });
-    expect(rows.find((r) => r.name === "Status")).toBeUndefined();
-    // Read chats: Open, Mark as unread, web, copy; with send off no message or reaction, and no message field.
-    // Each also carries the other way at the end, so marked chats that mix read and unread share both.
     expect(rows[0].actions!.map((a) => a.id)).toEqual(["open", "read", "web", "copy-number", "ignore", "unread"]);
     expect(rows[0].args).toBeUndefined();
     expect(rows[3].actions!.map((a) => a.id)).toEqual(["open", "unread", "web", "copy-name", "read"]);
-    expect(rows[0].actions!.at(-1)).toEqual({ id: "unread", title: "Mark as unread", multi: true });
-    expect(rows[3].actions!.at(-1)).toEqual({ id: "read", title: "Mark as read", multi: true });
     expect(rows[0].actions![1]).toEqual({ id: "read", title: "Mark as read", shortcut: "cmd+enter", multi: true });
-    // One session lookup, kept in storage; the histories only for the unread three, sized to their count (5 at most); one picture batch.
-    expect(mock.calls("/api/sessions")).toHaveLength(1);
-    expect(stored.get(`${X}\0session:main`)).toBe(SESSION_ID);
-    // Fetched together, so in whatever order they land.
-    const byChat = (x: string[][]) => [...x].sort((a, b) => a[0].localeCompare(b[0]));
-    expect(byChat(mock.calls(/\/history$/).map((c) => [decodeURIComponent(c.path.split("/")[5]), c.query.limit]))).toEqual(byChat([[MARA, "3"], [HIKE, "5"], [TOMAS, "1"]]));
-    // A second listing inside the window is the shared list: no new call.
-    const n = mock.seen.length;
+    // Messages only for the unread three; a second listing inside the window is the shared list.
+    expect(gets(/\/messages$/).map((c) => Number(c.path.split("/")[4])).sort()).toEqual([MARA_ID, HIKE_ID, TOMAS_ID]);
+    const n = mock.calls.length;
     await list("chats");
-    expect(mock.seen.length).toBe(n);
+    expect(mock.calls.length).toBe(n);
   });
 
-  test("the pane: the last messages as a conversation with the sender, the time, a quoted reply and a photo; the chat's facts; a group's senders named from the archive", async () => {
+  test("the pane: the last messages as a conversation with the sender, the time and a photo; the chat's number from its messages, or from Wisp's people for a LID", async () => {
     const d = await host.detail(X, "chats", MARA);
     const md = d.markdown!;
     expect(md.split("\n\n").filter((p) => p.startsWith("**")).map((p) => p.split(" · ")[0])).toEqual(["**Mara Lind**", "**You**", "**Mara Lind**", "**Mara Lind**", "**Mara Lind**"]);
-    expect(md).toContain("\n\n_[photo]_\n\n");
-    expect(md).toContain("\n> on it, give me ten\n\nthe tests are green now, the diff is small");
+    expect(md).toContain("![photo](data:image/svg+xml;base64,");
     expect(md.endsWith("standup in 20?")).toBe(true);
-    // The header: the kind and number over the name, the unread count as a chip; the metadata what it does not say.
     expect(d).toMatchObject({ caption: "Direct message · +90 555 123 45 67", title: "Mara Lind", chips: [{ text: "3 messages unread", color: "green" }] });
     expect(d.metadata).toEqual([
       { label: "Newest", value: expect.any(String) },
       { label: "Open", link: { text: "In the web client", href: "https://web.whatsapp.com/send?phone=905551234567" } },
     ]);
-    // The LID's phone came from the resolve route, once.
-    expect(mock.calls(`/api/sessions/${SESSION_ID}/contacts/${encodeURIComponent(MARA)}/phone`)).toHaveLength(1);
     const g = await host.detail(X, "chats", HIKE);
     expect(g.markdown!.split("\n\n").filter((p) => p.startsWith("**")).map((p) => p.split(" · ")[0])).toEqual(["**Ola Berg**", "**You**", "**Tomas Ruiz**", "**Lina Kova**", "**Ola Berg**"]);
-    expect(g.markdown).toContain("_[voice message]_");
+    expect(g.markdown).toContain("_[voice message]_ running late, start without me");
     expect(g.caption).toBe("Group");
+    expect((await host.detail(X, "chats", "206")).caption).toBe("Direct message · +90 555 333 44 55");
+    expect(gets("/api/v1/people/14")).toHaveLength(1);
   });
 
   test("unread: the three, direct messages then groups; nothing unread is one hint", async () => {
     const rows = await list("unread");
     expect(rows.map((r) => [r.name, r.section])).toEqual([["Mara Lind", "Direct messages"], ["Weekend hike", "Groups"], ["Tomas Ruiz", "Direct messages"]]);
-    const was = mock.chats;
-    mock.chats = was.map((c) => ({ ...c, unread: 0 }));
+    for (const id of [MARA_ID, HIKE_ID, TOMAS_ID]) mock.chat(id).unread = 0;
     try {
       expect((await list("unread", "", { refresh: true })).map((r) => [r.id, r.name])).toEqual([["hint:none", "Nothing unread"]]);
-    } finally { mock.chats = was; await list("chats", "", { refresh: true }); }
+    } finally { mock.reset(); await relist(); }
   });
 
-  test("open: the web client with the chat's number (a LID resolved), a group at the top with a HUD line, copy number and name", async () => {
+  test("open: the web client with the chat's number, a group at the top with a HUD line, copy number and name, the app by setting", async () => {
     expect(await host.pick(X, "chats", MARA)).toEqual({ open: "https://web.whatsapp.com/send?phone=905551234567" });
-    expect(await host.pick(X, "chats", TOMAS, "open")).toEqual({ open: "https://web.whatsapp.com/send?phone=905559876543" });
     expect(await host.pick(X, "chats", HIKE)).toEqual({ open: "https://web.whatsapp.com/", hud: "Weekend hike is a group: WhatsApp opens at the top" });
-    expect(await host.pick(X, "chats", MARA, "copy-number")).toEqual({ copy: "+905551234567" });
     expect(await host.pick(X, "chats", HIKE, "copy-name")).toEqual({ copy: "Weekend hike" });
     expect(await host.pick(X, "chats", MARA, "copy-number", { ids: [MARA, TOMAS] })).toEqual({ copy: "+905551234567\n+905559876543" });
-    // The app, when the setting says so.
     host.changeSettings(X, { settings: settings({ open: "app" }) });
     await host.until(() => host.coreCalls.length > 0);
     expect(await host.pick(X, "chats", TOMAS)).toEqual({ open: "whatsapp://send?phone=905559876543" });
-    expect(await host.pick(X, "chats", HIKE, "web")).toEqual({ open: "https://web.whatsapp.com/", hud: "Weekend hike is a group: WhatsApp opens at the top" });
     host.changeSettings(X, { settings: settings() });
   });
 
-  test("mark read and unread against the mock, over the marked rows too; the list is fetched again after and the bar told", async () => {
+  test("mark read and unread through Wisp, over the marked rows too; the list is fetched again after and the bar told", async () => {
     const refreshes = () => host.coreCalls.filter((c) => c.method === "bar.refresh" && (c.params as { extension: string }).extension === X).length;
     const n = refreshes();
     expect(await host.pick(X, "chats", MARA, "read")).toEqual({ keep: true, toast: { title: "Marked read", message: "Mara Lind" } });
     expect(refreshes()).toBe(n + 1);
-    expect(mock.read).toEqual([MARA]);
-    expect(mock.chat(MARA)!.unread).toBe(0);
     expect(await host.pick(X, "unread", HIKE, "read", { ids: [HIKE, TOMAS] })).toEqual({ keep: true, toast: { title: "Marked read", message: "2 chats" } });
-    expect(mock.read).toEqual([MARA, HIKE, TOMAS]);
+    expect(wrote("read")).toEqual([MARA_ID, HIKE_ID, TOMAS_ID]);
     expect(await list("unread")).toMatchObject([{ id: "hint:none" }]);
     expect(await host.pick(X, "chats", MARA, "unread")).toEqual({ keep: true, toast: { title: "Marked unread", message: "Mara Lind" } });
-    expect(mock.unread).toEqual([MARA]);
+    expect(wrote("unread")).toEqual([MARA_ID]);
     expect((await list("chats"))[0]).toMatchObject({ id: MARA, section: "Unread" });
-    // Back to the fixture's counts for the tests below.
-    mock.chat(HIKE)!.unread = 5;
-    mock.chat(TOMAS)!.unread = 1;
-    mock.chat(MARA)!.unread = 3;
-    await list("chats", "", { refresh: true });
+    mock.reset();
+    await relist();
   });
 
-  test("send off: no message, no reaction, no reply field, whatever the pick asks; nothing reaches the mock", async () => {
-    const before = mock.seen.length;
+  test("send off: no message, no reaction, no reply field, whatever the pick asks; nothing reaches Wisp", async () => {
+    const before = mock.calls.length;
     expect(await host.pick(X, "chats", MARA, "reply")).toEqual({ keep: true, toast: { title: "Sending is off", message: "Turn on send under Settings › Extensions › WhatsApp", style: "failure" } });
     expect(await host.pick(X, "chats", MARA, "send", { values: { text: "hi" } })).toMatchObject({ toast: { title: "Sending is off", style: "failure" } });
     expect(await host.pick(X, "chats", MARA, "react")).toMatchObject({ toast: { title: "Reactions are off", style: "failure" } });
@@ -311,308 +264,197 @@ describe("whatsapp", () => {
     const bar = checkView(viewOf(await host.render(X, "unread", { reason: "load" })));
     expect(bar.actions.map((a) => a.id)).not.toContain("reply");
     expect(checkView(viewOf(await host.barAction(X, "unread", "reply", ctx))).input).toBeUndefined();
-    expect(mock.sent).toEqual([]);
-    expect(mock.reacted).toEqual([]);
-    expect(mock.seen.slice(before).filter((s) => s.method === "POST")).toEqual([]);
+    expect(mock.calls.slice(before).filter((s) => s.method !== "GET")).toEqual([]);
   });
 
   test("send on: the message form (the latest message quotable), a plain send, a quoted reply, the empty text refused, a reaction from the six and its removal", async () => {
     host.changeSettings(X, { settings: settings({ send: true }) });
     await host.until(() => host.coreCalls.length > 0);
-    const rows = await list("chats", "", { refresh: true });
+    const rows = await relist();
     expect(rows[0].actions!.map((a) => a.id)).toEqual(["open", "read", "reply", "react", "web", "copy-number", "ignore", "unread"]);
-    // The message is the row's typed argument for Send (Enter still opens the chat); a quote choice when the latest message is theirs.
-    expect(rows[0].actions![2]).toEqual({ id: "reply", title: "Send a message", shortcut: "cmd+shift+r", args: true });
     expect(rows[0].args).toEqual([{ id: "text", placeholder: "Message", required: true }, { id: "quote", placeholder: "Reply", kind: "select", default: "", options: [{ id: "", title: "New message" }, { id: "quote", title: "Quote “standup in 20?”" }] }]);
     expect(rows[3].args).toEqual([{ id: "text", placeholder: "Message", required: true }]);
+    const latest = mock.msgs[MARA_ID]!.at(-1)!.id;
     expect(await host.pick(X, "chats", MARA, "reply", { values: { text: "see you there", quote: "" } })).toEqual({ keep: true, toast: { title: "Sent", message: "Mara Lind: see you there" } });
     expect(await host.pick(X, "chats", MARA, "reply", { values: { text: "yes", quote: "quote" } })).toMatchObject({ toast: { title: "Sent" } });
-    expect(mock.sent).toEqual([{ chatId: MARA, text: "see you there" }, { chatId: MARA, text: "yes", quoted: "false_254011223344556@lid_A5" }]);
-    mock.sent.length = 0;
+    expect(mock.writes("messages").map((c) => c.body)).toEqual([{ text: "see you there" }, { text: "yes", replyTo: latest }]);
     expect(await host.pick(X, "chats", MARA, "reply", { values: { text: " ", quote: "" } })).toMatchObject({ form: { errors: { text: "Required" } } });
-    // Without values (a hotkey, `pal run`): the form, the quote as a checkbox.
-    const form = (await host.pick(X, "chats", MARA, "reply")).form!;
-    expect(form).toMatchObject({ id: MARA, title: "Message Mara Lind", submit: { id: "send", title: "Send" } });
+    const form = (await host.pick(X, "chats", TOMAS, "reply")).form!;
+    expect(form).toMatchObject({ id: TOMAS, title: "Message Tomas Ruiz", submit: { id: "send", title: "Send" } });
     expect(form.fields.map((f) => [f.id, f.kind])).toEqual([["text", "textarea"], ["quote", "checkbox"]]);
-    expect(form.fields[1]).toMatchObject({ text: "Quote the latest message: “standup in 20?”" });
-    expect(await host.pick(X, "chats", MARA, "send", { values: { text: "  ", quote: false } })).toMatchObject({ form: { errors: { text: "Required" } } });
-    expect(await host.pick(X, "chats", MARA, "send", { values: { text: "on my way", quote: false } })).toEqual({ keep: true, toast: { title: "Sent", message: "Mara Lind: on my way" } });
-    expect(await host.pick(X, "chats", MARA, "send", { values: { text: "yes, 20", quote: true } })).toMatchObject({ toast: { title: "Sent" } });
-    expect(mock.sent).toEqual([{ chatId: MARA, text: "on my way" }, { chatId: MARA, text: "yes, 20", quoted: "false_254011223344556@lid_A5" }]);
+    expect(await host.pick(X, "chats", TOMAS, "send", { values: { text: "on my way", quote: true } })).toEqual({ keep: true, toast: { title: "Sent", message: "Tomas Ruiz: on my way" } });
+    expect(mock.writes("messages").at(-1)!.body).toEqual({ text: "on my way", replyTo: mock.msgs[TOMAS_ID]![0]!.id });
     // A read chat's latest message is fetched at form time: Family's newest is ours, so nothing to quote and nothing to react to.
-    const fam = (await host.pick(X, "chats", FAMILY, "reply")).form!;
-    expect(fam.fields.map((f) => f.id)).toEqual(["text"]);
-    expect(await host.pick(X, "chats", FAMILY, "react")).toMatchObject({ toast: { title: "Nothing to react to" } });
+    expect((await host.pick(X, "chats", String(FAMILY), "reply")).form!.fields.map((f) => f.id)).toEqual(["text"]);
+    expect(await host.pick(X, "chats", String(FAMILY), "react")).toMatchObject({ toast: { title: "Nothing to react to" } });
     const react = (await host.pick(X, "chats", HIKE, "react")).form!;
     expect(react).toMatchObject({ id: HIKE, title: "React in Weekend hike", submit: { id: "react-send" } });
     expect((react.fields[0] as { options: { id: string }[] }).options.map((o) => o.id)).toEqual([...REACTIONS, ""]);
     expect(await host.pick(X, "chats", HIKE, "react-send", { values: { emoji: "❤️" } })).toEqual({ keep: true, toast: { title: "Reacted ❤️", message: "Weekend hike" } });
     expect(await host.pick(X, "chats", HIKE, "react-send", { values: { emoji: "" } })).toMatchObject({ toast: { title: "Reaction removed" } });
-    expect(mock.reacted).toEqual([{ chatId: HIKE, messageId: "false_120363012345678901@g.us_B5", emoji: "❤️" }, { chatId: HIKE, messageId: "false_120363012345678901@g.us_B5", emoji: "" }]);
+    const target = mock.msgs[HIKE_ID]!.at(-1)!.id;
+    expect(mock.calls.filter((c) => c.path === `/api/v1/messages/${target}/react`).map((c) => [c.method, c.body ?? c.query])).toEqual([["POST", { emoji: "❤️" }], ["DELETE", `?emoji=${encodeURIComponent("❤️")}`]]);
+    mock.reset();
+    host.changeSettings(X, { settings: settings() });
+    await relist();
   });
 
-  test("search: the archive's hits with the chat, the sender and the time, the marks stripped; Enter opens the chat, cmd+c copies; the pane is the chat's; the 503 is one hint naming the gateway", async () => {
+  test("search: Wisp's WhatsApp hits with the chat, the sender and the time; another network's left out; Enter opens the chat, cmd+c copies; the pane is the chat's; Wisp failing is one hint", async () => {
     expect((await list("search", "t")).map((r) => r.id)).toEqual(["hint:search"]);
     const rows = await list("search", "parser");
     expect(rows.map((r) => [r.name, r.subtitle])).toEqual([["can you look at the parser before standup?", "Mara Lind"], ["the invoice for september is missing the parser line", "You in Acme Support"]]);
-    expect(rows[0].icon).toEqual(initialIcon("Mara Lind"));
-    expect(rows[0].accessories).toEqual([{ date: m(40) * 1000 }]);
+    expect(new URLSearchParams(gets("/api/v1/search").at(-1)!.query).get("q")).toBe("parser in:whatsapp");
+    expect(rows[0].accessories).toEqual([{ date: Date.parse(iso(40)) }]);
     expect(rows[0].actions!.map((a) => [a.id, a.shortcut])).toEqual([["open", undefined], ["copy", "cmd+c"], ["web", "cmd+shift+o"]]);
-    expect(mock.calls("/api/search").at(-1)!.query).toEqual({ q: "parser", limit: "40", sessionId: SESSION_ID });
-    const hike = await list("search", "trailhead");
-    expect(hike[0]).toMatchObject({ subtitle: "Lina Kova in Weekend hike", icon: "\u{f0849}" });
+    expect((await list("search", "trailhead"))[0]).toMatchObject({ subtitle: "Lina Kova in Weekend hike", icon: "\u{f0849}" });
     expect(await host.pick(X, "search", rows[0].id)).toEqual({ open: "https://web.whatsapp.com/send?phone=905551234567" });
     expect(await host.pick(X, "search", rows[0].id, "copy")).toEqual({ copy: "can you look at the parser before standup?" });
-    expect((await host.detail(X, "search", rows[0].id)).title).toBe("Mara Lind");
+    expect((await host.detail(X, "search", rows[1].id)).title).toBe("Acme Support");
     expect((await list("search", "zzzz")).map((r) => r.name)).toEqual(["No messages found"]);
-    mock.searchDown = true;
-    try {
-      const down = await list("search", "parser");
-      expect(down).toMatchObject([{ id: "hint:down", name: "WhatsApp search is unavailable", subtitle: `${mock.url} answered 503: wsearch /search -> 500 Internal Server Error` }]);
-    } finally { mock.searchDown = false; }
+    mock.failWith = 502;
+    try { expect(await list("search", "parser")).toMatchObject([{ id: "hint:down", name: "WhatsApp search is unavailable", subtitle: "Wisp answered 502: broken" }]); } finally { mock.failWith = 0; }
   });
 
-  test("search streams: the hits whose chat is named show while a chat the list lacks waits on its contact; the answer adds it and the rest below", async () => {
-    let open!: () => void;
-    mock.contactGate = new Promise((r) => (open = r));
-    mock.searchOnly = [
-      { id: "false_254011223344556@lid_Q1", chatId: "254011223344556@lid", fromMe: false, body: "quokka photos", type: "text", at: m(1) },
-      { id: "false_905554445566@c.us_Q2", chatId: "905554445566@c.us", fromMe: false, body: "a quokka at the ferry", type: "text", at: m(5) },
-      { id: "false_905557778899@c.us_Q3", chatId: "905557778899@c.us", fromMe: false, body: "quokka plush restocked", type: "text", at: m(10) },
-    ];
-    try {
-      const from = host.coreCalls.length;
-      const pending = searchStream("quokka");
-      await host.until(() => host.coreCalls.slice(from).some((c) => c.method === "list.partial"), 3000, "a partial");
-      open();
-      const r = await pending;
-      expect(r.partials.map((p) => p.map((i) => [i.name, i.subtitle]))).toEqual([[["quokka photos", "Mara Lind"]]]);
-      expect(r.items.map((i) => [i.name, i.subtitle])).toEqual([["quokka photos", "Mara Lind"], ["a quokka at the ferry", "someone"], ["quokka plush restocked", "Acme Support"]]);
-      expect(r.partials[0][0]).toEqual(r.items[0]);
-      // Every chat named: nothing early.
-      expect((await searchStream("parser")).partials).toEqual([]);
-    } finally { open(); mock.contactGate = undefined; mock.searchOnly = []; }
-  });
-
-  test("contacts: the saved ones by name with the number, one per number (the LID twin folded), the pushName-only and nameless left out, a name without a letter or digit or that is the number itself as the number alone; open, copy number, copy vCard", async () => {
+  test("contacts: Wisp's people on WhatsApp, the recent ones or the matches, the picture and the latest line; open, copy number, copy vCard from the reach", async () => {
     const rows = await list("contacts");
-    expect(rows.map((r) => [r.name, r.subtitle])).toEqual([["+90 555 222 33 44", undefined], ["+90 555 888 99 00", undefined], ["Acme Support", "+90 555 777 88 99"], ["Dana Ruiz", "+90 555 000 11 22"], ["Lina Kova", "+90 555 333 44 55"], ["Mara Lind", "+90 555 123 45 67"], ["Ola Berg", "+90 555 111 22 33"], ["Tomas Ruiz", "+90 555 987 65 43"]]);
-    expect(rows[5]).toMatchObject({ id: "905551234567@c.us", icon: initialIcon("Mara Lind"), keywords: ["905551234567", "+90 555 123 45 67"] });
-    expect(rows[5].actions!.map((a) => [a.id, a.shortcut])).toEqual([["open", undefined], ["copy-number", "cmd+c"], ["copy-vcard", "cmd+shift+c"], ["web", "cmd+shift+o"]]);
-    expect(mock.calls(`/api/sessions/${SESSION_ID}/contacts`).map((c) => c.query)).toEqual([{ limit: "1000", offset: "0" }]);
-    expect(await host.pick(X, "contacts", rows[5].id)).toEqual({ open: "https://web.whatsapp.com/send?phone=905551234567" });
-    expect(await host.pick(X, "contacts", rows[5].id, "copy-number")).toEqual({ copy: "+905551234567" });
-    expect(await host.pick(X, "contacts", rows[5].id, "copy-vcard")).toEqual({ copy: vcard("Mara Lind", "905551234567"), hud: "Copied Mara Lind as a vCard" });
-    // Marked contacts: every number, or every vCard (one .vcf holds several), one per line.
-    const two = [rows[5].id, rows[6].id];
-    expect(await host.pick(X, "contacts", two[0]!, "copy-number", { ids: two })).toEqual({ copy: "+905551234567\n+905551112233" });
-    expect(await host.pick(X, "contacts", two[0]!, "copy-vcard", { ids: two })).toEqual({ copy: `${vcard("Mara Lind", "905551234567")}\n${vcard("Ola Berg", "905551112233")}`, hud: "Copied Mara Lind as a vCard and 1 more" });
+    expect(rows.map((r) => [r.name, r.subtitle])).toEqual([["Mara Lind", "standup in 20?"], ["Tomas Ruiz", "the cabin is booked, sending the map"], ["Ola Berg", "Thanks, got it"], ["Lina Kova", "see you friday"], ["Dana Ruiz", undefined]]);
+    expect((rows[0].icon as { image: string }).image).toStartWith("data:image/svg+xml;base64,");
+    expect(rows[0].actions!.map((a) => [a.id, a.shortcut])).toEqual([["open", undefined], ["copy-number", "cmd+c"], ["copy-vcard", "cmd+shift+c"], ["web", "cmd+shift+o"]]);
+    expect((await list("contacts", "ruiz")).map((r) => r.name)).toEqual(["Tomas Ruiz", "Dana Ruiz"]);
+    expect(await list("contacts", "nobody")).toMatchObject([{ id: "hint:none", name: "Nobody found" }]);
+    expect(await host.pick(X, "contacts", "15")).toEqual({ open: "https://web.whatsapp.com/send?phone=905550001122" });
+    expect(await host.pick(X, "contacts", "11", "copy-number")).toEqual({ copy: "+905551234567" });
+    expect(await host.pick(X, "contacts", "11", "copy-vcard")).toEqual({ copy: vcard("Mara Lind", "905551234567"), hud: "Copied Mara Lind as a vCard" });
+    expect(await host.pick(X, "contacts", "11", "copy-number", { ids: ["11", "13"] })).toEqual({ copy: "+905551234567\n+905551112233" });
+    expect(gets("/api/v1/people/11")).toHaveLength(1);
   });
 
-  test("the bar item: the count of unread chats, urgent for a direct one, the popover's rows with the pictures as data urls; one list shared with the palettes", async () => {
-    const before = mock.calls(/\/chats$/).length;
+  test("the bar item: the count of unread chats, the popover's rows with the pictures as data urls; one list shared with the palettes", async () => {
+    const before = gets("/api/v1/conversations").length;
     const item = await host.render(X, "unread", { reason: "cli" });
     expect(item).toMatchObject({ icon: "\u{f05a3}", badge: 3, tooltip: "3 chats unread: 2 direct messages, 1 group", states: { unread: 3, direct: 2 } });
-    expect(mock.calls(/\/chats$/)).toHaveLength(before + 1);
-    // The poll fetches (its period is the cache's); the palette shares what it got.
-    await host.render(X, "unread", { reason: "every" });
     await list("unread");
-    expect(mock.calls(/\/chats$/)).toHaveLength(before + 2);
+    expect(gets("/api/v1/conversations")).toHaveLength(before + 1);
     const view = checkView(viewOf(item));
     expect(view).toMatchObject({ id: "unread", keys: "actions", title: "3 chats unread" });
     const stacks = nodes(view.tree).filter((n): n is Extract<ViewNode, { type: "stack" }> => n.type === "stack" && !!n.action?.startsWith("focus:"));
     expect(stacks.map((s) => s.action)).toEqual([`focus:${MARA}`, `focus:${TOMAS}`, `focus:${HIKE}`]);
-    expect(stacks.map((s) => !!s.selected)).toEqual([true, false, false]);
     const images = nodes(view.tree).filter((n): n is Extract<ViewNode, { type: "image" }> => n.type === "image");
     expect(images.map((i) => [i.alt, i.src.slice(0, 26)])).toEqual([["Mara Lind", "data:image/svg+xml;base64,"], ["Weekend hike", "data:image/svg+xml;base64,"]]);
-    expect(nodes(view.tree).find((n) => n.type === "tile")).toMatchObject({ text: "T", fill: "solid" });
-    expect(keycaps(view)).toEqual(["enter", "space", "r", "m", "i", "a", "p"]);
-    // Urgency is the manifest's dm rule over whatsapp/direct, not the render's.
+    expect(keycaps(view)).toEqual(["enter", "space", "m", "i", "a", "p"]);
     expect(item).not.toHaveProperty("urgent");
-    expect(item.states).toEqual({ unread: 3, direct: 2 });
   });
 
   test("ignore: an unread chat leaves the count, the popover and the Unread section until its next message, still unread (nothing sent); Show again by hand", async () => {
-    const ctx = { reason: "open" as const, compact: true as const };
-    const TOMAS = "905559876543@c.us";
-    const posts = () => mock.calls(/./).length;
     await host.render(X, "unread", { reason: "cli" });
-    const before = posts();
+    const before = mock.calls.length;
     expect(await host.pick(X, "chats", TOMAS, "ignore")).toEqual({ keep: true, toast: { title: "Ignored until the next message", message: "Tomas Ruiz" } });
-    expect(posts()).toBe(before);
+    expect(mock.calls.length).toBe(before);
     expect(await host.render(X, "unread", { reason: "update" })).toMatchObject({ badge: 2, states: { unread: 2, direct: 1 } });
     expect((await list("unread")).map((r) => r.name)).toEqual(["Mara Lind", "Weekend hike"]);
     const rows = await list("unread", "", { filter: "ignored" });
     expect(rows.map((r) => [r.name, r.section])).toEqual([["Tomas Ruiz", "Ignored until the next message"]]);
-    expect(rows[0].accessories).toEqual(expect.arrayContaining([{ tag: "1", color: "green" }]));
     expect(rows[0].actions!.find((a) => a.id === "unignore")).toMatchObject({ title: "Show again" });
     // His next message: counted again, the entry gone.
-    const was = mock.chats;
-    mock.chats = was.map((c) => (c.id === TOMAS ? { ...c, unread: 2, at: m(0) } : c));
+    Object.assign(mock.chat(TOMAS_ID), { unread: 2, lastMessageAt: iso(0) });
     try {
       expect(await host.render(X, "unread", { reason: "cli" })).toMatchObject({ badge: 3 });
       expect(Object.keys((stored.get(`${X}\0ignored`) ?? {}) as object)).toEqual([]);
-    } finally { mock.chats = was; await host.render(X, "unread", { reason: "cli" }); }
-    // The popover's i ignores the chat under the cursor, the next slides under it; Show again brings it back.
+    } finally { mock.reset(); await host.render(X, "unread", { reason: "cli" }); }
     await host.barAction(X, "unread", `focus:${TOMAS}`, ctx);
-    const v = checkView(viewOf(await host.barAction(X, "unread", "ignore", ctx)));
-    expect(texts(v)).not.toContain("Tomas Ruiz");
+    expect(texts(checkView(viewOf(await host.barAction(X, "unread", "ignore", ctx))))).not.toContain("Tomas Ruiz");
     expect(await host.pick(X, "unread", TOMAS, "unignore")).toMatchObject({ toast: { title: "Shown again", message: "Tomas Ruiz" } });
     expect(await host.render(X, "unread", { reason: "update" })).toMatchObject({ badge: 3 });
-    await host.barAction(X, "unread", "focus:254011223344556@lid", ctx);
+    await host.barAction(X, "unread", `focus:${MARA}`, ctx);
   });
 
-  test("popover keys: the cursor, Enter opens, m marks read, r opens the field and Enter sends, Escape cancels, a marks all, o and p; a chat id as the action", async () => {
+  test("popover keys: the cursor, Enter opens, space previews, r opens the field and Enter sends, Escape cancels, m and a mark read, o and p; a chat id as the action", async () => {
+    host.changeSettings(X, { settings: settings({ send: true }) });
+    await host.until(() => host.coreCalls.length > 0);
     await host.render(X, "unread", { reason: "cli" });
     let r = await host.barAction(X, "unread", "down", ctx);
     expect(nodes(checkView(viewOf(r)).tree).filter((n) => n.type === "stack" && !!n.selected).map((n) => n.action)).toEqual([`focus:${TOMAS}`]);
     expect(await host.barAction(X, "unread", "open", ctx)).toEqual({ open: "https://web.whatsapp.com/send?phone=905559876543" });
-    r = await host.barAction(X, "unread", `focus:${HIKE}`, ctx);
-    expect(nodes(checkView(viewOf(r)).tree).filter((n) => n.type === "stack" && !!n.selected).map((n) => n.action)).toEqual([`focus:${HIKE}`]);
+    await host.barAction(X, "unread", `focus:${HIKE}`, ctx);
     expect(await host.barAction(X, "unread", "open", ctx)).toEqual({ open: "https://web.whatsapp.com/", hud: "Weekend hike is a group: WhatsApp opens at the top" });
-    expect(await host.barAction(X, "unread", "web", ctx)).toMatchObject({ open: "https://web.whatsapp.com/" });
-    // Space reads the chat in full: its conversation pane, the keys that work on one chat.
-    const pv = await host.barAction(X, "unread", "preview", ctx) as { show: { title: string; markdown: string; actions: { id: string }[] } };
+    const pv = await host.barAction(X, "unread", "preview", ctx) as { show: { title: string; actions: { id: string }[] } };
     expect(pv.show.title).toBe("Weekend hike");
-    expect(pv.show.markdown.length).toBeGreaterThan(0);
     expect(pv.show.actions.map((a) => a.id)).toEqual(["open", "reply", "read", "ignore", "web"]);
-    // r: the field on the focused row; an empty send keeps it; Enter sends through send-text; Escape cancels.
     r = await host.barAction(X, "unread", "reply", ctx);
     expect(checkView(viewOf(r)).input).toEqual({ value: "", placeholder: "Message Weekend hike", submit: "send", cancel: "cancel" });
-    r = await host.barAction(X, "unread", "send", { ...ctx, values: { input: " " } });
-    expect(r.toast).toMatchObject({ title: "Nothing to send" });
-    expect(checkView(viewOf(r)).input).toBeDefined();
-    const sent = mock.sent.length;
+    expect((await host.barAction(X, "unread", "send", { ...ctx, values: { input: " " } })).toast).toMatchObject({ title: "Nothing to send" });
     r = await host.barAction(X, "unread", "send", { ...ctx, values: { input: "see you at the trailhead" } });
     expect(r.toast).toEqual({ title: "Sent", message: "Weekend hike: see you at the trailhead", style: "success" });
-    expect(checkView(viewOf(r)).input).toBeUndefined();
-    expect(mock.sent.slice(sent)).toEqual([{ chatId: HIKE, text: "see you at the trailhead" }]);
+    expect(mock.writes("messages").map((c) => [c.path, c.body])).toEqual([[`/api/v1/conversations/${HIKE}/messages`, { text: "see you at the trailhead" }]]);
     await host.barAction(X, "unread", "reply", ctx);
     expect(checkView(viewOf(await host.barAction(X, "unread", "cancel", ctx))).input).toBeUndefined();
-    // m on the focused row, then over marked rows (`ctx.ids`), then a over whatever is left.
-    const read = mock.read.length;
+    mock.reset();
+    await host.render(X, "unread", { reason: "cli" });
+    await host.barAction(X, "unread", `focus:${HIKE}`, ctx);
     expect(await host.barAction(X, "unread", "read", ctx)).toEqual({ keep: true, hud: "Weekend hike: read" });
-    expect(mock.read.slice(read)).toEqual([HIKE]);
     expect(await host.barAction(X, "unread", "read", { ...ctx, ids: [MARA, TOMAS] })).toEqual({ keep: true, hud: "Marked 2 read" });
-    expect(mock.read.slice(read + 1)).toEqual([MARA, TOMAS]);
     expect(await host.barAction(X, "unread", "read-all", ctx)).toEqual({ keep: true, hud: "Marked read" });
-    expect(mock.read.slice(read + 3)).toEqual([]);
+    expect(wrote("read")).toEqual([HIKE_ID, MARA_ID, TOMAS_ID]);
     expect(await host.barAction(X, "unread", "open-pal", ctx)).toEqual({ push: { extension: X, palette: "unread" } });
     expect(await host.barAction(X, "unread", "open-whatsapp", ctx)).toEqual({ open: "https://web.whatsapp.com/" });
     expect(await host.barAction(X, "unread", MARA)).toEqual({ open: "https://web.whatsapp.com/send?phone=905551234567" });
-    // Everything read: unread 0 (the manifest's quiet rule hides it), the glyph and the popover listing the recent chats its empty shape.
     const stays = await host.render(X, "unread", { reason: "cli" });
     expect(stays).toMatchObject({ tooltip: "Nothing unread", states: { unread: 0, direct: 0 }, empty: { icon: "\u{f05a3}", tooltip: "Nothing unread" } });
-    expect(stays).not.toHaveProperty("hidden");
-    expect(stays.badge).toBeUndefined();
     expect(texts(checkView(viewOf(stays.empty!)))).toEqual(expect.arrayContaining(["Recent", "Mara Lind", "Weekend hike"]));
-    for (const [id, n] of [[MARA, 3], [HIKE, 5], [TOMAS, 1]] as const) mock.chat(id)!.unread = n;
-    await list("chats", "", { refresh: true });
+    mock.reset();
+    host.changeSettings(X, { settings: settings() });
+    await relist();
   });
 
-  test("links: open by id, by number, by name (a chat, then a contact), the refusals; search pushes the palette with the query", async () => {
-    expect(await host.request<unknown>("link", { extension: X, route: "open", params: { chat: TOMAS } })).toEqual({ open: "https://web.whatsapp.com/send?phone=905559876543" });
-    expect(await host.request<unknown>("link", { extension: X, route: "open", params: { chat: "+90 555 000 11 22" } })).toEqual({ open: "https://web.whatsapp.com/send?phone=905550001122" });
-    expect(await host.request<unknown>("link", { extension: X, route: "open", params: { chat: "mara" } })).toEqual({ open: "https://web.whatsapp.com/send?phone=905551234567" });
-    expect(await host.request<unknown>("link", { extension: X, route: "open", params: { chat: "Dana Ruiz" } })).toEqual({ open: "https://web.whatsapp.com/send?phone=905550001122" });
-    await expect(host.request("link", { extension: X, route: "open", params: { chat: "nobody" } })).rejects.toThrow('no chat or contact named "nobody"');
-    await expect(host.request("link", { extension: X, route: "open", params: {} })).rejects.toThrow("chat is required");
+  test("links: open by Wisp's id, by number or WhatsApp id, by name (a chat, then a person), the refusals; search pushes the palette with the query", async () => {
+    const open = (chat?: string) => host.request<unknown>("link", { extension: X, route: "open", params: chat === undefined ? {} : { chat } });
+    expect(await open(TOMAS)).toEqual({ open: "https://web.whatsapp.com/send?phone=905559876543" });
+    expect(await open("+90 555 000 11 22")).toEqual({ open: "https://web.whatsapp.com/send?phone=905550001122" });
+    expect(await open("905550001122@s.whatsapp.net")).toEqual({ open: "https://web.whatsapp.com/send?phone=905550001122" });
+    expect(await open("mara")).toEqual({ open: "https://web.whatsapp.com/send?phone=905551234567" });
+    expect(await open("Dana")).toEqual({ open: "https://web.whatsapp.com/send?phone=905550001122" });
+    await expect(open("nobody")).rejects.toThrow('no chat or contact named "nobody"');
+    await expect(open()).rejects.toThrow("chat is required");
     expect(await host.request<unknown>("link", { extension: X, route: "search", params: { q: "cabin" } })).toEqual({ push: { extension: X, palette: "search", query: "cabin" } });
   });
 
-  test("the stream: subscribed for the session's messages, an event refreshes the bar at once; dropped by the gateway it subscribes again; a poll finding a message no event carried reconnects; an unanswered ping reconnects", async () => {
+  test("the stream: a WhatsApp message refreshes the bar at once, another network's does not; the WhatsApp unread moving does", async () => {
     const refreshes = () => host.coreCalls.filter((c) => c.method === "bar.refresh" && (c.params as { extension: string }).extension === X).length;
     await host.render(X, "unread", { reason: "cli" });
-    await host.until(() => mock.subscribed.length > 0, 3000, "a subscribe");
-    expect(mock.subscribed[0]).toEqual({ sessionId: SESSION_ID, events: ["message.received", "message.sent", "message.revoked", "message.edited"] });
-    // The catch-up refresh after subscribing, then one per burst of events.
-    await host.advanceUntil(300, () => refreshes() > 0, "the catch-up");
-    let n = refreshes();
-    mock.emit("message.received", { timestamp: m(0) });
-    mock.emit("message.received", { timestamp: m(0) });
+    await host.until(() => mock.streaming > 0, 3000, "the stream");
+    await host.advance(300);
+    const n = refreshes();
+    mock.emit("message.new", { conversationId: KARGO_ID, accountId: 5, channel: "sms" });
+    await host.advance(300);
+    expect(refreshes()).toBe(n);
+    mock.emit("message.new", { conversationId: MARA_ID, accountId: 1, channel: "whatsapp" });
+    mock.emit("message.new", { conversationId: MARA_ID, accountId: 1, channel: "whatsapp" });
     await host.advanceUntil(300, () => refreshes() > n, "a refresh");
     await host.advance(300);
     expect(refreshes()).toBe(n + 1);
-    mock.drop();
-    await host.advanceUntil(30_000, () => mock.subscribed.length === 2, "a subscribe again");
-    await host.advance(20_000);
-    const was = mock.chats;
-    mock.chats = was.map((c) => (c.id === TOMAS ? { ...c, unread: 2, at: Math.floor((host.now() - 16_000) / 1000) } : c));
-    try {
-      await host.render(X, "unread", { reason: "cli" });
-      await host.until(() => mock.subscribed.length === 3, 3000, "a reconnect");
-      // Its catch-up; then the tick only pings (the 30 s poll is the host's).
-      await host.advance(300);
-      n = refreshes();
-      await host.advance(30_000);
-      expect(refreshes()).toBe(n);
-      // Wedged: the ping one tick sent is unanswered at the next, which reconnects.
-      mock.wedged = true;
-      await host.advance(30_000);
-      await host.advance(30_000);
-      await host.until(() => mock.subscribed.length === 4, 3000, "a reconnect");
-    } finally { mock.wedged = false; mock.chats = was; await host.render(X, "unread", { reason: "cli" }); }
+    // The first count is the baseline (Wisp opens the stream with one); a move from it refreshes, a count that stays does not.
+    mock.emit("unread.changed", { unread: 9, accounts: [{ accountId: 1, unread: 3 }] });
+    mock.emit("unread.changed", { unread: 8, accounts: [{ accountId: 1, unread: 3 }, { accountId: 5, unread: 0 }] });
+    await host.advance(300);
+    expect(refreshes()).toBe(n + 1);
+    mock.emit("unread.changed", { unread: 7, accounts: [{ accountId: 1, unread: 2 }] });
+    await host.advanceUntil(300, () => refreshes() > n + 1, "a refresh");
   });
 
-  test("a 429 is refused locally until Retry-After, then the next call goes through", async () => {
-    mock.limited = true;
-    try {
-      const rows = await list("chats", "", { refresh: true });
-      expect(rows).toMatchObject([{ id: "hint:limit", name: "OpenWA rate limit reached" }]);
-      expect(rows[0].subtitle).toMatch(/^Retry at /);
-      mock.limited = false;
-      const n = mock.seen.length;
-      expect(await list("chats", "", { refresh: true })).toMatchObject([{ id: "hint:limit" }]);
-      expect(mock.seen.length).toBe(n);
-      // The mock's Retry-After: 1.
-      await host.advance(1000);
-      expect((await list("chats", "", { refresh: true }))[0]).toMatchObject({ id: MARA });
-    } finally { mock.limited = false; }
-  });
-
-  test("a session that is not ready (the chat list's 409) is one hint naming the state and the url to scan at; the bar goes stale", async () => {
-    mock.status = "qr_ready";
-    try {
-      const rows = await list("chats", "", { refresh: true });
-      expect(rows).toMatchObject([{ id: "hint:session", name: 'WhatsApp session "main" is qr ready', subtitle: `Scan the QR code at ${mock.url} to link the phone again`, actions: [{ id: "settings", title: "Open WhatsApp settings" }] }]);
-      expect(await host.pick(X, "chats", "hint:session")).toEqual({ open: "pal://settings/extensions" });
-      await expect(host.render(X, "unread", { reason: "cli" })).rejects.toThrow('WhatsApp session "main" is qr ready');
-    } finally { mock.status = "ready"; }
-    await list("chats", "", { refresh: true });
-  });
-
-  test("a wrong key is a 401 hint naming the setting; no key at all a hint and a hidden bar item, with no call made; a session name nobody has; an unreachable gateway names the url", async () => {
-    host.changeSettings(X, { settings: settings({ api_key: "k-wrong" }) });
+  test("a wrong token is a hint naming Wisp's setting; Wisp not set up a hint and a hidden bar item; an unreachable server names the url", async () => {
+    host.changeSettings("wisp", { settings: wispSettings({ token: "wrong" }) });
     await host.until(() => host.coreCalls.length > 0);
-    expect(await list("chats", "", { refresh: true })).toMatchObject([{ id: "hint:auth", name: "OpenWA rejected the API key", subtitle: "401: check api_key under Settings › Extensions › WhatsApp" }]);
-    expect(mock.seen.at(-1)!.key).toBe("k-wrong");
-    host.changeSettings(X, { settings: settings({ api_key: "" }) });
+    expect(await relist()).toMatchObject([{ id: "hint:auth", name: "Wisp refused the token", subtitle: "401: check the token under Settings › Extensions › Wisp", actions: [{ id: "settings", title: "Open Wisp settings" }] }]);
+    expect(await host.pick(X, "chats", "hint:auth")).toEqual({ open: "pal://settings/extensions" });
+    host.changeSettings("wisp", { settings: wispSettings({ token: "" }) });
     await host.until(() => host.coreCalls.length > 0);
-    const n = mock.seen.length;
-    expect(await list("chats", "", { refresh: true })).toMatchObject([{ id: "hint:key", name: "API key is not set", subtitle: "Set api_key under Settings › Extensions › WhatsApp: a key from OpenWA's Settings, API keys" }]);
+    expect(await relist()).toMatchObject([{ id: "hint:setup", name: "Wisp is not set up" }]);
     expect(await host.render(X, "unread", { reason: "cli" })).toEqual({ hidden: true, states: { unread: null, direct: null } });
-    expect(mock.seen.length).toBe(n);
-    host.changeSettings(X, { settings: settings({ session: "nope" }) });
+    host.changeSettings("wisp", { settings: wispSettings({ url: "http://127.0.0.1:1" }) });
     await host.until(() => host.coreCalls.length > 0);
-    expect(await list("chats", "", { refresh: true })).toMatchObject([{ id: "hint:session", name: 'No WhatsApp session named "nope"', subtitle: `Set session under Settings › Extensions › WhatsApp to a session ${mock.url} lists` }]);
-    host.changeSettings(X, { settings: settings({ base_url: "http://127.0.0.1:1" }) });
+    expect(await relist()).toMatchObject([{ id: "hint:unreachable", name: "Wisp is unreachable at http://127.0.0.1:1" }]);
+    host.changeSettings("wisp", { settings: wispSettings() });
     await host.until(() => host.coreCalls.length > 0);
-    const down = await list("chats", "", { refresh: true });
-    expect(down).toMatchObject([{ id: "hint:unreachable", name: "OpenWA is unreachable at http://127.0.0.1:1", subtitle: "Check base_url under Settings › Extensions › WhatsApp, and that the gateway is up" }]);
-    host.changeSettings(X, { settings: settings() });
-    await host.until(() => host.coreCalls.length > 0);
-    expect((await list("chats", "", { refresh: true }))[0]).toMatchObject({ id: MARA });
-  });
-
-  test("a stale session UUID in storage (the session recreated) is resolved again once and the call retried", async () => {
-    stored.set(`${X}\0session:main`, "00000000-0000-0000-0000-000000000000");
-    // A changed setting drops the resolved UUID from memory, so the stale one in storage is what the next call takes.
-    host.changeSettings(X, { settings: settings({ open: "app" }) });
-    await host.until(() => host.coreCalls.length > 0);
-    const before = mock.calls("/api/sessions").length;
-    expect((await list("chats", "", { refresh: true }))[0]).toMatchObject({ id: MARA });
-    expect(mock.calls("/api/sessions")).toHaveLength(before + 1);
-    expect(mock.calls("/api/sessions/00000000-0000-0000-0000-000000000000/chats")).toHaveLength(1);
-    expect(stored.get(`${X}\0session:main`)).toBe(SESSION_ID);
+    expect((await relist())[0]).toMatchObject({ id: MARA });
   });
 });

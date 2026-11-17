@@ -1,7 +1,7 @@
 {
   "name": "whatsapp",
   "title": "WhatsApp",
-  "description": "Your WhatsApp chats in the panel through a self-hosted OpenWA gateway: recent chats with the unread ones first, full-text search over your whole history, and your contacts. Reading is always on; sending and reacting only if you turn it on.",
+  "description": "Your WhatsApp chats in the panel through Wisp, your self-hosted inbox: recent chats with the unread ones first, search over your whole history, and the people you write to. It uses the Wisp extension's server and token. Reading is always on; sending and reacting only if you turn it on.",
   "keywords": [
     "wa"
   ],
@@ -15,39 +15,17 @@
   },
   "author": "pal",
   "repo": "bundled",
+  "requires": [
+    "wisp"
+  ],
   "license": "MIT",
   "settings": [
-    {
-      "kind": "text",
-      "id": "base_url",
-      "label": "OpenWA URL",
-      "description": "Where the OpenWA gateway answers (its /api is under it). The owner's runs at http://wp.lan; a generic install is http://localhost:3000.",
-      "placeholder": "http://wp.lan",
-      "default": "http://wp.lan"
-    },
-    {
-      "kind": "secret",
-      "id": "api_key",
-      "required": true,
-      "label": "API key",
-      "description": "A key from OpenWA's Settings, API keys, sent as x-api-key. Kept in the OS keychain; the file holds a reference.",
-      "placeholder": "owa_...",
-      "default": ""
-    },
-    {
-      "kind": "text",
-      "id": "session",
-      "label": "Session",
-      "description": "The OpenWA session's name (the UUID it resolves to is cached); the one your phone is linked to.",
-      "placeholder": "main",
-      "default": "main"
-    },
     {
       "kind": "boolean",
       "id": "send",
       "label": "Send",
       "text": "Send messages, reply and react from pal",
-      "description": "Off (the default) leaves WhatsApp read and mark-read only: no message field, no reply, no reaction, whatever the key could do. On adds Send a message (the text typed in the bar, or a form) and React to a chat row and the reply field to the bar popover; nothing is sent without your text.",
+      "description": "Off (the default) leaves WhatsApp read and mark-read only: no message field, no reply, no reaction, whatever the token could do. On adds Send a message (the text typed in the bar, or a form) and React to a chat row and the reply field to the bar popover; nothing is sent without your text.",
       "default": false
     },
     {
@@ -143,7 +121,7 @@
     },
     "search": {
       "title": "Search WhatsApp",
-      "description": "Full-text search over the archive (every message back to the first chat): the matching line, who said it where, and when.",
+      "description": "Wisp's search over every WhatsApp message back to the first chat (its operators too: from:, after:, has:): the matching line, who said it where, and when.",
       "kind": "input",
       "keys": [
         {
@@ -162,11 +140,8 @@
     },
     "contacts": {
       "title": "Contacts",
-      "description": "Every saved contact with the number; open a chat, copy the number, copy a vCard.",
-      "kind": "list",
-      "lazy": true,
-      "ttl": 3600,
-      "tier": "catalog",
+      "description": "The people you write to on WhatsApp, as Wisp knows them: the most recent first, or the best matches for a name or a number; open a chat, copy the number, copy a vCard.",
+      "kind": "input",
       "keys": [
         {
           "keys": "enter",
@@ -248,7 +223,7 @@
           }
         },
         "out": {
-          "title": "No gateway key",
+          "title": "Wisp not set up",
           "item": {
             "hidden": true
           }
@@ -326,15 +301,15 @@
     }
   },
   "store": {
-    "tagline": "Your WhatsApp chats, search and contacts in the panel",
+    "tagline": "Your WhatsApp chats, search and contacts in the panel, through Wisp",
     "category": "integration",
     "features": [
       "Chats newest first, unread on top, with the latest message, who sent it and the unread count",
       "`enter` opens the chat in WhatsApp, `cmd+enter` marks it read; the side pane shows the last twenty messages",
-      "Full-text search across your whole archive, with who said it, where and when",
-      "Contacts with their numbers: open a chat, copy the number or a vCard",
+      "Search across your whole history with Wisp's search, with who said it, where and when",
+      "Contacts: the people you write to, by name or number: open a chat, copy the number or a vCard",
       "A bar item counting unread chats, hidden at zero and red while a direct chat waits; `space` in its popover reads a chat, `i` ignores it until the next message without the blue ticks",
-      "Sending, replying and reacting stay off until you turn them on; your chats go only to your own gateway"
+      "Sending, replying and reacting stay off until you turn them on; everything goes through your own Wisp server"
     ],
     "permissions": [
       "network",
@@ -351,7 +326,7 @@
       },
       {
         "file": "2-detail.png",
-        "caption": "The pane: the last messages as a conversation, a quoted reply indented, a photo as [photo]"
+        "caption": "The pane: the last messages as a conversation, a photo drawn inline"
       },
       {
         "file": "3-unread.png",
@@ -363,7 +338,7 @@
       },
       {
         "file": "5-contacts.png",
-        "caption": "Contacts: each name with its number, a number alone when it has none; copy it or a vCard"
+        "caption": "Contacts: the people you write to, the latest message, when; copy the number or a vCard"
       },
       {
         "file": "6-message.png",
@@ -454,8 +429,8 @@
         "keys": "cmd+shift+c"
       },
       {
-        "title": "Open WhatsApp settings",
-        "description": "On a hint row: the extension's settings."
+        "title": "Open Wisp settings",
+        "description": "On a hint row: the Wisp extension's settings, whose server and token WhatsApp uses."
       }
     ]
   }

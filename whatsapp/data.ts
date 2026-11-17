@@ -1,125 +1,101 @@
-// The model over api.ts: chats with their unread run, a chat's last
-// twenty messages as a conversation, the contacts, the archive search,
-// profile pictures and the phone behind a `@lid`. Pure where it can be
-// (the message shapes, the labels, the links: `msgOf`, `mediaLabel`,
-// `chatLink`, `vcard` take no network), the loaders memoised so the bar
-// item and the palettes share one chat list within `CHATS_FRESH_MS`.
+// The model over Wisp's v1 API (wisp/api.ts, the Wisp extension's own
+// client and its server and token): the WhatsApp account's chats with the
+// unread ones' newest messages, a chat's last twenty messages as a
+// conversation, the archive search, people, and the phone behind a chat.
+// Pure where it can be (the message shapes, the labels, the links:
+// `msgOf`, `mediaLabel`, `chatLink`, `vcard` take no network), the loaders
+// memoised so the bar item and the palettes share one chat list within
+// `CHATS_FRESH_MS`.
 import { existsSync } from "node:fs";
-import { errorMessage, forgetImages, mdEscape, oneLine, storage, when } from "@zcag/pal";
-import { archived, chats as apiChats, conf, contact, contactsPage, history, log, pictures as apiPictures, resolvePhone, search as apiSearch, type ChatSummary, type Contact, type DbMessage, type LiveMessage, type SearchHit, PAGE } from "./api.ts";
+import { errorMessage, mdEscape, oneLine, settings, when } from "@zcag/pal";
+import * as wisp from "../wisp/api.ts";
+
+export type Conf = { send?: boolean; open?: "auto" | "app" | "web" };
+export const conf = (): Conf => settings.get<Conf>("whatsapp");
+export const log = (msg: string) => console.error(`[whatsapp] ${msg}`);
+
+/** Wisp holds no WhatsApp account (or none turned on). */
+export class NoAccount extends Error { constructor() { super("Wisp has no WhatsApp account"); } }
 
 export type Chat = {
-  /** The chat's id as OpenWA spells it: `<phone>@c.us`, `<lid>@lid` (most direct chats since WhatsApp's LID era), `<id>@g.us`. */
+  /** Wisp's conversation id, as a row's id. */
   id: string;
   name: string;
   group: boolean;
   unread: number;
   /** Unix ms of the newest message. */
   at: number;
-  /** The newest message as one line: the chat list's own text, or what the unread run says (with the sender for a group). */
+  /** The newest message as one line: Wisp's preview, or what the unread run says (with the sender for a group). */
   last?: string;
   /** Who wrote the newest message, when known (the unread run was fetched): "You", the chat's name, a group member. */
   who?: string;
   /** The newest incoming message's id, for a reply that quotes or a reaction. */
-  latestId?: string;
+  latestId?: number;
   latestFromMe?: boolean;
-  /** The picture url (pps.whatsapp.net, expiring) when the account has one; absent until asked. */
+  /** Your reaction on that message, so React can take it back. */
+  latestMine?: string;
+  /** Wisp's path to the picture. */
+  avatarPath?: string;
+  /** The picture as a data url, once fetched. */
   avatar?: string;
 };
 
 export type Msg = {
-  id: string;
+  id: number;
   at: number;
   fromMe: boolean;
-  /** "You" for an outgoing message, else the sender's name (the contact's saved name, the archive's, or the number). */
+  /** "You" for an outgoing message, else the sender's name. */
   who: string;
+  /** The sender's address on WhatsApp (`<phone>@s.whatsapp.net`, a `@lid`). */
+  from: string;
   /** The text, or the media label (`mediaLabel`) when there is none. */
   text: string;
-  type: string;
-  /** What the message replied to, when the archive knows it. */
-  quoted?: string;
-  /** The picture as a data url, when the archive kept its bytes. */
+  kind: string;
+  /** Your own reaction on it. */
+  mine?: string;
+  /** Wisp's path to a photo or sticker in it. */
+  imagePath?: string;
+  /** That picture as a data url, when fetched. */
   image?: string;
 };
 
-export type Person = { id: string; name: string; phone: string };
-
 /** How long one chat list serves the bar and the palettes. */
 export const CHATS_FRESH_MS = 30_000;
-/** Unread chats whose newest messages are fetched live, so their rows say who said what. */
+/** Wisp answers 200 conversations a page; this many pages are the list. */
+export const CHAT_PAGES = 3;
+/** Unread chats whose newest messages are fetched, so their rows say who said what. */
 export const MAX_RUNS = 12;
 /** Messages fetched per unread chat for the row and the popover; the pane asks for `PANE_MSGS`. */
 export const RUN_MSGS = 5;
 export const PANE_MSGS = 20;
-/**
- * Pictures are asked for off the listing's path: the gateway resolves
- * them one by one at ~150 ms each (50 ids took 11.5 s live), so a pass
- * asks for `PICTURE_PASS` ids, passes chain in the background until the
- * top `PICTURE_WARM` chats are known, and the urls (good for about nine
- * days, `oe` in their query) are kept in storage under `pictures`.
- */
-export const PICTURE_PASS = 8;
+/** The chats whose pictures are fetched with the list (Wisp scales each to 64 px; the rest keep the initial). */
 export const PICTURE_WARM = 48;
-/** How many urls storage keeps (about 300 bytes each). */
-export const PICTURE_KEEP = 200;
-/** A url without a readable expiry, and a chat known to have no picture, are asked again after this long. */
-export const PICTURE_TTL_MS = 24 * 3600_000;
-/** A url is refreshed this long before its expiry. */
-const PICTURE_MARGIN_MS = 24 * 3600_000;
-export const CONTACTS_TTL_MS = 3600_000;
 export const SEARCH_LIMIT = 40;
-/** A picture the pane draws inline, at most this much base64 (about 2 MB of file); a bigger one stays a label. */
-export const MAX_PICTURE = 3_000_000;
+export const PEOPLE_LIMIT = 50;
 
-const s2ms = (s: number) => Math.round(s * 1000);
-export const isGroupId = (id: string) => id.endsWith("@g.us");
-export const isLid = (id: string) => id.endsWith("@lid");
-/** The digits of a `<phone>@c.us` id; undefined for a LID or a group. */
-export const phoneOfId = (id: string): string | undefined => (id.endsWith("@c.us") ? id.slice(0, -5) : undefined);
+const ms = (iso: string | undefined) => (iso ? Date.parse(iso) || 0 : 0);
+/** The digits of a WhatsApp address with a phone in it (`<phone>@s.whatsapp.net`, `@c.us`); undefined for a LID or a group. */
+export const phoneOfJid = (jid: string): string | undefined => /^(\d{6,})@(s\.whatsapp\.net|c\.us)$/.exec(jid)?.[1];
 
 // ---- message shapes --------------------------------------------------------------------------
 
-/**
- * What a media message reads as on a row and in the pane: the kind in
- * brackets, the caption or file name after it. The gateway answers
- * `unknown` for what it cannot classify (a contact card in a group, a
- * business template, a reaction): its text alone when it has some, else
- * `[message]`, never the word "unknown" on a row.
- */
-export function mediaLabel(type: string, body: string): string {
-  const kind: Record<string, string> = { image: "photo", video: "video", gif: "GIF", ptt: "voice message", voice: "voice message", audio: "audio", document: "document", sticker: "sticker", location: "location", vcard: "contact card", multi_vcard: "contact cards", contact: "contact card", poll_creation: "poll", poll: "poll", revoked: "message deleted", ciphertext: "waiting for the message", call_log: "call", e2e_notification: "security notice", notification_template: "notice", groups_v4_invite: "group invite" };
+/** What a message reads as on a row and in the pane: the kind in brackets, the caption, file name or transcript after it. */
+export function mediaLabel(kind: string, body: string): string {
+  const label: Record<string, string> = { image: "photo", video: "video", gif: "GIF", voice: "voice message", audio: "audio", document: "document", sticker: "sticker", location: "location", contact: "contact card", poll: "poll", call: "call" };
   const text = body.trim();
-  if (type === "unknown") return text || "[message]";
-  const label = kind[type] ?? (type === "chat" || type === "text" ? "" : type.replace(/_/g, " "));
-  if (!label) return text;
-  return text ? `[${label}] ${text}` : `[${label}]`;
+  const l = label[kind] ?? (kind === "text" || kind === "email" || !kind ? "" : kind.replace(/_/g, " "));
+  if (!l) return text;
+  return text ? `[${l}] ${text}` : `[${l}]`;
 }
 
-/** The archive row's picture as a data url: an image or sticker whose bytes it kept, under `MAX_PICTURE`. */
-export function pictureOf(d: DbMessage | undefined): string | undefined {
-  const m = d?.metadata?.media;
-  if (!m?.data || !m.mimetype?.startsWith("image/") || m.data.length > MAX_PICTURE) return undefined;
-  return `data:${m.mimetype.split(";")[0]};base64,${m.data}`;
-}
-
-/** One message of a conversation from the live shape, the archive's row for it (names, quotes) when at hand, and a resolver for a sender's id. */
-export function msgOf(m: LiveMessage, db: DbMessage | undefined, nameOf: (jid: string) => string, chatName: string): Msg {
-  const sender = m.author || (m.isGroup ? undefined : m.from);
-  const who = m.fromMe ? "You" : db?.chatName?.trim() || (sender ? nameOf(sender) : "") || (m.isGroup ? "" : chatName) || "Unknown";
-  const text = mediaLabel(m.type, m.body ?? "") || (db?.metadata?.media?.filename ? `[document] ${db.metadata.media.filename}` : "");
-  const quoted = db?.metadata?.quotedMessage?.body?.trim();
-  const image = pictureOf(db);
-  return { id: m.id, at: s2ms(m.timestamp), fromMe: !!m.fromMe, who, text: text || "(no text)", type: m.type, ...(quoted && { quoted }), ...(image && { image }) };
-}
-
-/** The archive's row as a message (a chat the live history cannot reach, or the search's hit opened). */
-export function msgOfDb(d: DbMessage, nameOf: (jid: string) => string, chatName: string, group: boolean): Msg {
-  const fromMe = d.direction === "outgoing";
-  const sender = d.author || (group ? undefined : d.from);
-  const who = fromMe ? "You" : d.chatName?.trim() || (sender ? nameOf(sender) : "") || (group ? "" : chatName) || "Unknown";
-  const quoted = d.metadata?.quotedMessage?.body?.trim();
-  const image = pictureOf(d);
-  return { id: d.waMessageId || d.id, at: s2ms(d.timestamp), fromMe, who, text: mediaLabel(d.type, d.body ?? "") || "(no text)", type: d.type, ...(quoted && { quoted }), ...(image && { image }) };
+/** A Wisp message as one of the conversation's. */
+export function msgOf(m: wisp.Message, chatName: string, group: boolean): Msg {
+  const who = m.fromMe ? "You" : m.sender.name?.trim() || (group ? "" : chatName) || "Unknown";
+  const file = m.attachments.find((a) => a.filename)?.filename;
+  const picture = m.attachments.find((a) => (a.kind === "image" || a.kind === "sticker") && a.url);
+  const text = m.deleted ? "[message deleted]" : mediaLabel(m.kind, m.text || m.transcript || (m.kind === "document" ? file ?? "" : ""));
+  const mine = m.reactions.find((r) => r.fromMe)?.emoji;
+  return { id: m.id, at: ms(m.sentAt), fromMe: m.fromMe, who, from: m.sender.id, text: text || "(no text)", kind: m.kind, ...(mine && { mine }), ...(picture?.url && { imagePath: picture.url }) };
 }
 
 /** WhatsApp's own quick reactions, in its order. */
@@ -127,17 +103,16 @@ export const REACTIONS = ["👍", "❤️", "😂", "😮", "😢", "🙏"];
 
 export { oneLine };
 /** A moment as the SDK writes it: the clock today, the day before it otherwise. */
-export const clock = (ms: number) => when(ms);
+export const clock = (t: number) => when(t);
 
-/** The pane: one paragraph per message, `**who** · time`, the quoted reply under it as a blockquote, then the text (a media label in italics, or the picture itself with its caption under it), markup escaped for marked. */
+/** The pane: one paragraph per message, `**who** · time`, then the text (a media label in italics, or the picture itself with its caption under it), markup escaped for marked. */
 export function conversationMarkdown(msgs: Msg[]): string {
   return msgs.map((m) => {
     const head = `**${mdEscape(m.who)}** · ${clock(m.at)}`;
-    const quoted = m.quoted ? `\n> ${mdEscape(oneLine(m.quoted))}` : "";
     const media = /^\[([^\]]+)\]\s?([\s\S]*)$/.exec(m.text);
     const caption = media?.[2] ? mdEscape(media[2]) : "";
     const body = !media ? mdEscape(m.text) : m.image ? `![${media[1]}](${m.image})${caption ? `\n\n${caption}` : ""}` : `_[${media[1]}]_${caption ? ` ${caption}` : ""}`;
-    return `${head}${quoted}\n\n${body.trim()}`;
+    return `${head}\n\n${body.trim()}`;
   }).join("\n\n");
 }
 
@@ -182,12 +157,26 @@ export function prettyPhone(digits: string): string {
   return `+${cc ? `${cc} ` : ""}${local.slice(0, 3)} ${local.slice(3, 6)} ${local.slice(6, 8)} ${local.slice(8)}`.trim();
 }
 
+// ---- the account ---------------------------------------------------------------------------------
+
+let account: Promise<number> | undefined;
+
+/** Wisp's WhatsApp account: the first one turned on, asked once. */
+export function accountId(): Promise<number> {
+  account ??= wisp.accounts().then((all) => {
+    const a = all.find((x) => x.channel === "whatsapp" && x.enabled) ?? all.find((x) => x.channel === "whatsapp");
+    if (!a) throw new NoAccount();
+    return a.id;
+  }).catch((e) => { account = undefined; throw e; });
+  return account;
+}
+
 // ---- chats --------------------------------------------------------------------------------------
 
 let chatList: { at: number; chats: Chat[] } | undefined;
 let loading: Promise<Chat[]> | undefined;
 const byId = new Map<string, Chat>();
-/** The unread run per chat, keyed by the chat's newest timestamp so a refresh where nothing moved fetches nothing. */
+/** The unread run per chat, keyed by the chat's newest time so a refresh where nothing moved fetches nothing. */
 const runs = new Map<string, { at: number; msgs: Msg[] }>();
 
 /** The chats, unread first then newest first, one list shared for `CHATS_FRESH_MS` (or `refresh`); one fetch at a time. */
@@ -199,256 +188,142 @@ export function loadChats(refresh = false): Promise<Chat[]> {
 export const dropChats = () => { chatList = undefined; };
 
 async function fetchChats(): Promise<Chat[]> {
-  const raw = (await apiChats()).filter((c) => c.kind === "individual" || c.kind === "group" || (c.kind === "unknown" && !c.id.endsWith("@broadcast")));
-  const list = raw.map(chatOf).sort((a, b) => (b.unread > 0 ? 1 : 0) - (a.unread > 0 ? 1 : 0) || b.at - a.at);
+  const acc = await accountId();
+  const raw: wisp.Conversation[] = [];
+  let cursor: string | undefined;
+  for (let i = 0; i < CHAT_PAGES; i++) {
+    const page = await wisp.conversations("all", { account: acc, limit: 200, cursor });
+    raw.push(...page.conversations);
+    if (!(cursor = page.next)) break;
+  }
+  const list = raw.filter((c) => c.kind === "direct" || c.kind === "group").map(chatOf).sort((a, b) => (b.unread > 0 ? 1 : 0) - (a.unread > 0 ? 1 : 0) || b.at - a.at);
   byId.clear();
   for (const c of list) byId.set(c.id, c);
-  // The unread chats' newest messages, live, so the row and the popover say who said what; memoised on the chat's timestamp.
-  await Promise.all(list.filter((c) => c.unread > 0).slice(0, MAX_RUNS).map(async (c) => {
-    try {
-      const run = await unreadRun(c);
-      const top = run[run.length - 1];
-      if (top) { c.last = top.who === "You" || !c.group ? top.text : `${top.who}: ${top.text}`; c.who = top.who; }
-      const incoming = [...run].reverse().find((m) => !m.fromMe);
-      c.latestId = incoming?.id ?? top?.id;
-      c.latestFromMe = !incoming;
-    } catch (e) { log(`history ${c.id}: ${errorMessage(e)}`); }
-  }));
-  await loadPictures();
-  applyPictures(list);
-  schedulePictures(list);
+  await Promise.all([
+    // The unread chats' newest messages, so the row and the popover say who said what; memoised on the chat's time.
+    ...list.filter((c) => c.unread > 0).slice(0, MAX_RUNS).map(async (c) => {
+      try { settleLatest(c, await unreadRun(c)); } catch (e) { log(`messages ${c.id}: ${errorMessage(e)}`); }
+    }),
+    ...list.slice(0, PICTURE_WARM).map(async (c) => { c.avatar = await wisp.picture(c.avatarPath); }),
+  ]);
   return list;
 }
 
-const chatOf = (c: ChatSummary): Chat => ({
-  id: c.id,
-  name: c.name?.trim() || phoneOfId(c.id) || c.id.split("@")[0],
-  group: c.isGroup || c.kind === "group",
-  unread: c.unreadCount ?? 0,
-  at: s2ms(c.timestamp ?? 0),
-  ...(c.lastMessage?.trim() && { last: c.lastMessage.trim() }),
+const chatOf = (c: wisp.Conversation): Chat => ({
+  id: String(c.id),
+  name: c.title?.trim() || `Chat ${c.id}`,
+  group: c.kind === "group",
+  unread: c.unread ?? 0,
+  at: ms(c.lastMessageAt),
+  ...(c.lastPreview?.trim() && { last: (c.lastFromMe && !/^You: /.test(c.lastPreview) ? "You: " : "") + c.lastPreview.trim() }),
+  ...(c.avatar && { avatarPath: c.avatar }),
 });
+
+/** The row's newest line and the message a reply or reaction targets, from the chat's latest messages. */
+export function settleLatest(c: Chat, run: Msg[]): void {
+  const top = run[run.length - 1];
+  if (top) { c.last = top.who === "You" ? `You: ${top.text}` : c.group ? `${top.who}: ${top.text}` : top.text; c.who = top.who; }
+  const incoming = [...run].reverse().find((m) => !m.fromMe);
+  c.latestId = incoming?.id ?? top?.id;
+  c.latestFromMe = !incoming;
+  c.latestMine = incoming?.mine;
+}
 
 /** The newest `RUN_MSGS` of an unread chat, oldest first, from the memo when the chat has not moved. */
 async function unreadRun(c: Chat): Promise<Msg[]> {
   const have = runs.get(c.id);
   if (have && have.at === c.at) return have.msgs;
-  const msgs = await conversation(c, Math.min(Math.max(c.unread, 1), RUN_MSGS));
+  const msgs = await conversation(c, Math.min(Math.max(c.unread, 1), RUN_MSGS), false);
   runs.set(c.id, { at: c.at, msgs });
   return msgs;
 }
 
-/**
- * The last `n` messages of a chat as a conversation, oldest first: the
- * live history (what the phone shows) with the archive's rows laid over
- * it by id for the sender's saved name and the quoted reply; the archive
- * alone when the live history answers nothing (a LID-era chat the
- * gateway never saw).
- */
-export async function conversation(c: Chat, n = PANE_MSGS): Promise<Msg[]> {
-  const [live, db] = await Promise.all([history(c.id, n).catch((e) => { log(`history ${c.id}: ${errorMessage(e)}`); return [] as LiveMessage[]; }), archived(c.id, Math.max(n, 40)).catch(() => [] as DbMessage[])]);
-  // The senders to name: a group's authors, a direct chat's other side; never our own number (an outgoing message's `from`).
-  await warmNames([...live.filter((m) => !m.fromMe).map((m) => m.author || m.from), ...db.filter((d) => d.direction !== "outgoing").map((d) => d.author || d.from)].filter((j): j is string => !!j && !isGroupId(j)), c.id);
-  const resolve = (jid: string) => nameOf(jid, c);
-  if (!live.length) return db.slice(0, n).reverse().map((d) => msgOfDb(d, resolve, c.name, c.group));
-  const rows = new Map(db.map((d) => [d.waMessageId || d.id, d]));
-  return live.slice(-n).map((m) => msgOf(m, rows.get(m.id), resolve, c.name));
+const phones = new Map<string, string>();
+
+/** The last `n` messages of a chat, oldest first; `pictures` fetches the photos in them for the pane. A direct chat's incoming sender tells its phone. */
+export async function conversation(c: Chat, n = PANE_MSGS, pictures = true): Promise<Msg[]> {
+  const page = await wisp.messages(Number(c.id), { limit: n });
+  const msgs = page.messages.slice(-n).map((m) => msgOf(m, c.name, c.group));
+  if (!c.group && !phones.has(c.id)) { const p = msgs.map((m) => (m.fromMe ? undefined : phoneOfJid(m.from))).find(Boolean); if (p) phones.set(c.id, p); }
+  if (pictures) await Promise.all(msgs.map(async (m) => { if (m.imagePath) m.image = await wisp.picture(m.imagePath, wisp.PHOTO_PX); }));
+  return msgs;
 }
 
-/** A chat by id, from the list at hand or a fresh one; a chat the list lacks (a link naming a phone) is built from the id alone. */
+/** A chat by id, from the list at hand or a fresh one; one the list lacks is asked of Wisp. */
 export async function chat(id: string): Promise<Chat> {
   const have = byId.get(id);
   if (have) return have;
   await loadChats();
-  return byId.get(id) ?? { id, name: phoneOfId(id) ?? id.split("@")[0], group: isGroupId(id), unread: 0, at: 0 };
+  const listed = byId.get(id);
+  if (listed) return listed;
+  const c = chatOf(await wisp.conversation(Number(id)));
+  c.avatar = await wisp.picture(c.avatarPath);
+  return c;
 }
 
 /** The chats with something unread, the list's order. */
 export const unreadChats = async (refresh = false): Promise<Chat[]> => (await loadChats(refresh)).filter((c) => c.unread > 0);
 
-// ---- names and phones ------------------------------------------------------------------------------
+// ---- phones and people ------------------------------------------------------------------------------
 
-/** Saved names by jid: the chat list's, then `GET /contacts/<id>` once per id. */
-const names = new Map<string, string>();
-const nameLookups = new Map<string, Promise<void>>();
-
-/** A sender's name from what is known now: a chat of that id, a contact looked up before, else its number. */
-export function nameOf(jid: string, chatCtx?: Chat): string {
-  if (chatCtx && jid === chatCtx.id) return chatCtx.name;
-  const c = byId.get(jid);
-  if (c) return c.name;
-  const n = names.get(jid);
-  if (n) return n;
-  const p = phoneOfId(jid);
-  return p ? prettyPhone(p) : jid.split("@")[0];
+/**
+ * The phone behind a direct chat: an incoming message's sender, else the
+ * person Wisp merged the chat into (`/people?q=` by its name, the reach
+ * whose conversation it is); undefined for a group or a chat with no
+ * number Wisp knows (a LID-only sender).
+ */
+export async function phoneOf(c: Chat): Promise<string | undefined> {
+  if (c.group) return undefined;
+  if (!phones.has(c.id)) await conversation(c, PANE_MSGS, false).catch(() => undefined);
+  if (!phones.has(c.id)) {
+    for (const p of (await wisp.people(c.name, 5).catch(() => [])).filter((p) => p.channels.includes("whatsapp")).slice(0, 3)) {
+      const reach = (await wisp.person(p.id).catch(() => undefined))?.reach.find((r) => r.channel === "whatsapp" && String(r.conversationId) === c.id);
+      if (reach) { const d = reach.address.replace(/\D/g, ""); if (d) phones.set(c.id, d); break; }
+    }
+  }
+  return phones.get(c.id);
 }
 
-/** One `GET /contacts/<id>` per unknown sender, in parallel, remembered for the process (a miss too, as the number). */
-async function warmNames(jids: string[], skip?: string): Promise<void> {
-  const want = [...new Set(jids)].filter((j) => j !== skip && !byId.has(j) && !names.has(j));
-  await Promise.all(want.map((j) => {
-    let p = nameLookups.get(j);
-    if (!p) {
-      p = contact(j).then((c) => { names.set(j, contactName(c) || (c.number ? prettyPhone(c.number) : "") || nameOf(j)); }, () => { names.set(j, nameOf(j)); });
-      nameLookups.set(j, p);
-    }
-    return p;
+export type Person = { id: string; name: string; avatar?: string; last?: string; at: number; phone?: string; conversation?: string };
+
+const people = new Map<string, Person>();
+
+/** People with a WhatsApp identity: the best matches for `q`, or the most recent without one. */
+export async function findPeople(q: string): Promise<Person[]> {
+  const found = (await wisp.people(q.trim(), PEOPLE_LIMIT)).filter((p) => p.channels.includes("whatsapp"));
+  return Promise.all(found.map(async (p) => {
+    const person: Person = { ...people.get(String(p.id)), id: String(p.id), name: p.name, at: ms(p.lastMessageAt), ...(p.lastPreview && { last: (p.lastFromMe ? "You: " : "") + p.lastPreview }), ...(p.avatar && { avatar: await wisp.picture(p.avatar) }) };
+    people.set(person.id, person);
+    return person;
   }));
 }
 
-/** A contact's name as the owner saved it, else what the person calls themselves. */
-export const contactName = (c: Contact): string => c.name?.trim() || c.pushName?.trim() || "";
-
-const phones = new Map<string, string>();
-
-/** The phone behind a chat: the digits of a `@c.us` id, else `GET /contacts/<lid>/phone` once; undefined for a group. */
-export async function phoneOf(id: string): Promise<string | undefined> {
-  if (isGroupId(id)) return undefined;
-  const direct = phoneOfId(id);
-  if (direct) return direct;
-  const have = phones.get(id);
-  if (have) return have;
-  const p = (await resolvePhone(id)).replace(/\D/g, "");
-  if (p) phones.set(id, p);
-  return p || undefined;
-}
-
-// ---- pictures -----------------------------------------------------------------------------------------
-
-type PictureEntry = { u: string | null; t: number };
-let pictureMap: Record<string, PictureEntry> | undefined;
-let picturePass: Promise<void> | undefined;
-
-/** The unix ms a pps.whatsapp.net url stops working (`oe`, hex seconds), undefined when the url carries none. */
-export function pictureExpiry(url: string): number | undefined {
-  const oe = /[?&]oe=([0-9a-f]+)/i.exec(url)?.[1];
-  return oe ? parseInt(oe, 16) * 1000 : undefined;
-}
-
-/** Whether an entry still stands: a url until a day before its expiry (or `PICTURE_TTL_MS` without one), a miss for `PICTURE_TTL_MS`. */
-export function pictureFresh(e: PictureEntry | undefined, now = Date.now()): boolean {
-  if (!e) return false;
-  if (e.u === null) return now - e.t < PICTURE_TTL_MS;
-  const exp = pictureExpiry(e.u);
-  return exp ? now < exp - PICTURE_MARGIN_MS : now - e.t < PICTURE_TTL_MS;
-}
-
-async function loadPictures(): Promise<void> {
-  pictureMap ??= (await storage.get<Record<string, PictureEntry>>("pictures", "whatsapp").catch(() => null)) ?? {};
-}
-
-/** Each chat's `avatar` from the map at hand. */
-function applyPictures(list: Chat[]): void {
-  for (const c of list) { const e = pictureMap?.[c.id]; if (e?.u && pictureFresh(e)) c.avatar = e.u; }
-}
-
-/** One pass of `PICTURE_PASS` ids among the top `PICTURE_WARM` chats not known yet, then the next while any is wanted; one chain at a time. */
-function schedulePictures(list: Chat[]): void {
-  if (picturePass || !pictureMap) return;
-  const now = Date.now();
-  const want = list.slice(0, PICTURE_WARM).filter((c) => !pictureFresh(pictureMap![c.id], now)).slice(0, PICTURE_PASS);
-  if (!want.length) return;
-  picturePass = apiPictures(want.map((c) => c.id)).then(async (got) => {
-    for (const c of want) { const u = got[c.id] ?? null; pictureMap![c.id] = { u, t: now }; if (u) c.avatar = u; }
-    const keep = Object.entries(pictureMap!).sort((a, b) => b[1].t - a[1].t).slice(0, PICTURE_KEEP);
-    pictureMap = Object.fromEntries(keep);
-    await storage.set("pictures", pictureMap, "whatsapp").catch((e) => log(`pictures: ${errorMessage(e)}`));
-  }).catch((e) => log(`pictures: ${errorMessage(e)}`)).finally(() => {
-    picturePass = undefined;
-    if (chatList) schedulePictures(chatList.chats);
-  });
-}
-
-// ---- contacts ------------------------------------------------------------------------------------------
-
-let people: { at: number; list: Person[] } | undefined;
-let peopleLoading: Promise<Person[]> | undefined;
-
-/**
- * The owner's contacts (`isMyContact`, the ones with a saved name): the
- * store paged `PAGE` at a time, the first page then the rest in
- * parallel; one entry per number (the store lists a person twice when a
- * LID row also carries the name); an hour in memory.
- */
-export function contacts(refresh = false): Promise<Person[]> {
-  if (!refresh && people && Date.now() - people.at < CONTACTS_TTL_MS) return Promise.resolve(people.list);
-  peopleLoading ??= fetchContacts().then((list) => { people = { at: Date.now(), list }; return list; }).finally(() => { peopleLoading = undefined; });
-  return peopleLoading;
-}
-
-async function fetchContacts(): Promise<Person[]> {
-  const pages: Contact[][] = [await contactsPage(0)];
-  if (pages[0].length >= PAGE) {
-    // The store is ~5.4k on the owner's: five pages at once, then one at a time past that.
-    pages.push(...(await Promise.all([1, 2, 3, 4, 5].map((i) => contactsPage(i * PAGE)))));
-    for (let i = 6; pages[pages.length - 1].length >= PAGE; i++) pages.push(await contactsPage(i * PAGE));
-  }
-  const seen = new Map<string, Person>();
-  for (const c of pages.flat()) {
-    const saved = contactName(c);
-    if (!c.isMyContact || !saved) continue;
-    const phone = (phoneOfId(c.id) ?? c.number ?? "").replace(/\D/g, "");
-    if (!phone || isLid(c.id)) continue;
-    // A contact saved as "?" or as its own number reads as the number.
-    const name = /[\p{L}\p{N}]/u.test(saved) ? saved : prettyPhone(phone);
-    if (!seen.has(phone)) seen.set(phone, { id: c.id, name, phone });
-    names.set(c.id, name);
-  }
-  return [...seen.values()].sort((a, b) => a.name.localeCompare(b.name));
+/** A person with the number and the chat Wisp reaches them at on WhatsApp, asked once. */
+export async function personReach(id: string): Promise<Person> {
+  const have = people.get(id);
+  if (have?.phone !== undefined) return have;
+  const p = await wisp.person(Number(id));
+  const r = p.reach.find((x) => x.channel === "whatsapp");
+  const person: Person = { ...have, id, name: p.name, at: ms(p.lastMessageAt), phone: r?.address.replace(/\D/g, "") ?? "", ...(r?.conversationId && { conversation: String(r.conversationId) }) };
+  people.set(id, person);
+  return person;
 }
 
 // ---- search ---------------------------------------------------------------------------------------------
 
-export type Hit = { id: string; chatId: string; chat: string; who: string; text: string; at: number; fromMe: boolean; type: string };
+export type Hit = { id: string; chatId: string; chat: string; who: string; text: string; at: number; fromMe: boolean; group: boolean };
 
-const STRIP_MARK = /<\/?mark>/g;
-
-/**
- * The archive's hits for `q`, newest of equal rank first: the chat's name
- * from the list, the sender's from what is known. `early` hears the hits
- * whose chat is already named, in order up to the first that is not (a
- * LID-era id reads as a wrong number until its contact answers): once when
- * the search answers, if the chat list (the last one read, while a stale
- * one refetches) names any, and once the list is in, if a chat still waits
- * on its contact.
- */
-export async function search(q: string, early?: (have: Hit[]) => void): Promise<Hit[]> {
-  let listed = false;
-  const chats = loadChats().catch(() => []).then(() => { listed = true; });
-  const hits = (await apiSearch(q, SEARCH_LIMIT)).hits ?? [];
-  let shown = 0;
-  const report = () => {
-    let n = 0;
-    while (n < hits.length && (byId.has(hits[n].chatId) || names.has(hits[n].chatId) || (listed && isGroupId(hits[n].chatId)))) n++;
-    // All named with the list in: the answer is now, nothing early.
-    if (early && n > shown && (n < hits.length || !listed)) { shown = n; early(hits.slice(0, n).map(hitOf)); }
-  };
-  report();
-  await chats;
-  report();
-  await Promise.all(hits.map((h) => (byId.has(h.chatId) ? undefined : warmChatName(h.chatId))));
-  return hits.map(hitOf);
-}
-
-/** A hit's chat when the list has no such id (a LID-era `<lid>@c.us` the search still labels chats with): its contact record, once. */
-const warmChatName = (chatId: string) => (isGroupId(chatId) ? Promise.resolve() : warmNames([chatId]));
-
-export function hitOf(h: SearchHit): Hit {
-  const chat = byId.get(h.chatId);
-  const group = chat?.group ?? isGroupId(h.chatId);
-  const fromMe = h.direction === "outgoing";
-  const sender = group ? h.from : h.chatId;
-  return {
-    id: h.waMessageId || h.messageId,
-    chatId: h.chatId,
-    chat: chat?.name ?? nameOf(h.chatId),
-    who: fromMe ? "You" : nameOf(sender),
-    text: (h.snippet || h.body || "").replace(STRIP_MARK, "").replace(/\s+/g, " ").trim() || mediaLabel(h.type, "") || "(no text)",
-    at: s2ms(h.timestamp),
-    fromMe,
-    type: h.type,
-  };
+/** Wisp's hits for `q` on WhatsApp (its search language: prefixes, accents folded, operators), newest first as Wisp ranks them. */
+export async function search(q: string): Promise<Hit[]> {
+  await loadChats().catch(() => []);
+  const found = await wisp.search(`${q} in:whatsapp`, SEARCH_LIMIT);
+  return found.hits.filter((h) => h.channel === "whatsapp").map((h) => {
+    const listed = byId.get(String(h.conversationId));
+    const group = listed?.group ?? false;
+    const m = msgOf(h.message, h.conversationTitle, group);
+    return { id: String(m.id), chatId: String(h.conversationId), chat: h.conversationTitle, who: m.who, text: oneLine(m.text), at: m.at, fromMe: m.fromMe, group };
+  });
 }
 
 /** Forget everything memoised (settings changed, tests). */
-export const resetData = () => { chatList = undefined; byId.clear(); runs.clear(); names.clear(); nameLookups.clear(); phones.clear(); pictureMap = undefined; forgetImages(); people = undefined; };
+export const resetData = () => { chatList = undefined; account = undefined; byId.clear(); runs.clear(); phones.clear(); people.clear(); wisp.forgetPictures(); };
