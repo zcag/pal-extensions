@@ -126,14 +126,8 @@ function troubleNode(st: PopState): ViewNode[] {
   ], { key: `trouble-${t.id}`, gap: 1, minHeight: 20, action: `account:${t.id}` }));
 }
 
-function hints(st: PopState, cur: PopRow | undefined): ViewNode {
-  if (st.replying) return row([...keyHint("enter", "send"), ...keyHint("escape", "cancel")], { key: "hints", gap: 1, minHeight: 22 });
-  const kids: ViewNode[] = [];
-  if (cur) kids.push(...keyHint("enter", "open"), ...keyHint("r", "reply"), ...keyHint("m", cur.n ? "read" : "unread"), ...keyHint("t", "to do"), ...keyHint("e", "done"));
-  else kids.push(...keyHint("w", "Wisp"));
-  kids.push(...keyHint("p", "pal"));
-  return row(kids, { key: "hints", gap: 1, minHeight: 22 });
-}
+/** The two ways out of an empty popover, which has no rows to put an action on. */
+const wayOut = (): ViewNode => row([...keyHint("w", "Wisp"), ...keyHint("p", "pal")], { key: "hints", gap: 1, minHeight: 22 });
 
 export function actions(st: PopState): Action[] {
   const v = visible(st), cur = current(st);
@@ -174,7 +168,7 @@ export function render(st: PopState): View {
       { type: "tile", key: "zero", width: 48, height: 48, text: "!", color: "amber", fill: "soft" },
       text("Wisp is out of reach", { style: "title", key: "zero-t" }),
       text(st.problem, { style: "muted", size: "sm", align: "center" }),
-      row([...keyHint("w", "Wisp"), ...keyHint("p", "pal")], { key: "hints", gap: 1, minHeight: 22 }),
+      wayOut(),
     ], { key: "compact", padding: 3, gap: 2, align: "center" });
   } else if (!st.rows.length) {
     tree = column([
@@ -182,14 +176,13 @@ export function render(st: PopState): View {
       text("Inbox zero", { style: "title", key: "zero-t" }),
       text(st.later ? `Nothing waiting; ${st.later} To do${st.later === 1 ? "" : "s"} for later` : "Nothing unread and nothing to do", { style: "muted", size: "sm", align: "center" }),
       ...troubleNode(st),
-      hints(st, undefined),
+      wayOut(),
     ], { key: "compact", padding: 3, gap: 2, align: "center" });
   } else {
     tree = column([
       ...tabsNode(st),
       ...(shown.length ? sections(st, cur) : [text("Nothing here", { key: "none", style: "muted", size: "sm", align: "center" })]),
       ...troubleNode(st),
-      hints(st, cur),
     ], { key: "compact", padding: 3, gap: 2 });
   }
   const replying = st.rows.find((r) => r.id === st.replying);

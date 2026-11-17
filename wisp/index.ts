@@ -157,6 +157,7 @@ async function conversationRow(c: Conversation, accs: Accs, pic: boolean, sectio
     keywords: [n.name, accountLabel(accs, c), ...(isGroup(c) ? ["group"] : [])],
     section,
     accessories: accessories(c),
+    ...(!c.unread && !isTodo(c) && { quiet: true }),
     ...(send && { args: ARGS }),
     actions: rowActions(c, send),
   };
