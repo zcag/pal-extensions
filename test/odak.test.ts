@@ -142,8 +142,10 @@ describe("odak", () => {
 
     test("Complete: the toast, the row gone at once from the patched cache (one PATCH, no GET), an Undo row at the top that reopens it; the time kept for Completed", async () => {
       const bank = id("Call the bank");
+      const before = calls("GET", "/todos").length;
       expect(await pick("odak", bank)).toEqual({ keep: true, toast: { title: "Done", message: "Call the bank about the card" } });
       expect(calls("PATCH", `/todos/${bank}/done`)).toHaveLength(1);
+      await host.until(() => calls("GET", "/todos").length > before);
       const gets = calls("GET", "/todos").length;
       const items = await list("odak");
       expect(calls("GET", "/todos").length).toBe(gets);
