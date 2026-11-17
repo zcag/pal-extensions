@@ -14,7 +14,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { isConference, joinLink, links, parseAccounts, text, toEvent } from "../calendar/google.ts";
 import type { CalendarEvent } from "../.pal/sdk/src/index.ts";
-import { Host, writeTool } from "../.pal/host/test/harness.ts";
+import { Host, writeTool, type CoreTable } from "../.pal/host/test/harness.ts";
 import fixture from "./calendar-google.fixture.json" with { type: "json" };
 
 const E = "calendar";
@@ -48,6 +48,9 @@ const server = Bun.serve({
 const runs = (name: string) => { try { return readFileSync(join(dir, `${name}.runs`), "utf8").length; } catch { return 0; } };
 
 let host: Host;
+/** The core calls a test stands in for on the shared host, emptied after it. */
+const core: CoreTable = {};
+let ACCOUNTS: { settings: Record<string, unknown> };
 beforeAll(async () => {
   dir = mkdtempSync(join(tmpdir(), "pal-gcal-"));
   writeFileSync(join(dir, "token.txt"), personalToken);
@@ -58,7 +61,8 @@ beforeAll(async () => {
 
 
   process.env.PAL_GOOGLE_API = `http://127.0.0.1:${server.port}`;
-  host = await Host.bundled({ settings: { [E]: { settings: { accounts: [`personal = ${join(dir, "tok-personal.sh")}`, { name: "work", token_command: join(dir, "tok-work.sh"), calendars: ["primary"] }] } } } });
+  ACCOUNTS = { settings: { accounts: [`personal = ${join(dir, "tok-personal.sh")}`, { name: "work", token_command: join(dir, "tok-work.sh"), calendars: ["primary"] }] } };
+  host = await Host.bundled({ core, settings: { [E]: ACCOUNTS } });
 });
 afterAll(() => { host.kill(); server.stop(true); rmSync(dir, { recursive: true, force: true }); delete process.env.PAL_NOW; });
 
@@ -211,18 +215,19 @@ describe("google source", () => {
 
   test("source = system with accounts still listed goes to the core; auto without accounts too", async () => {
     const calls: string[] = [];
-    const h2 = await Host.bundled({ core: { "calendar.permission": () => "granted", "calendar.calendars": () => [], "calendar.events": () => { calls.push("events"); return [] as CalendarEvent[]; } }, settings: { [E]: { settings: { source: "system", accounts: [`personal = ${join(dir, "tok-personal.sh")}`] } } } });
+    Object.assign(core, { "calendar.permission": () => "granted", "calendar.calendars": () => [], "calendar.events": () => { calls.push("events"); return [] as CalendarEvent[]; } });
     try {
-      const rows = await h2.list(E, "today");
-      expect(rows[0]).toMatchObject({ id: "nothing", name: "Nothing today" });
+      host.changeSettings(E, { settings: { source: "system", accounts: [`personal = ${join(dir, "tok-personal.sh")}`] } });
+      expect((await host.list(E, "today"))[0]).toMatchObject({ id: "nothing", name: "Nothing today" });
       expect(calls).toEqual(["events"]);
-      expect((await h2.list(E, "schedule")).map((r) => r.id)).toEqual(["new"]);
-      expect(await h2.render(E, "upcoming", { reason: "load" })).toMatchObject({ hidden: true, states: { phase: "none" } });
-    } finally { h2.kill(); }
-    const h3 = await Host.bundled({ core: { "calendar.permission": () => "unavailable" }, settings: { [E]: { settings: { source: "google", accounts: [] } } } });
-    try {
-      const rows = await h3.list(E, "today");
-      expect(rows[0]).toMatchObject({ id: "hint:calendar", name: "Could not read the calendar", subtitle: "No Google account is set: add one under Settings › Extensions › Calendar" });
-    } finally { h3.kill(); }
+      expect((await host.list(E, "schedule")).map((r) => r.id)).toEqual(["new"]);
+      expect(await host.render(E, "upcoming", { reason: "load" })).toMatchObject({ hidden: true, states: { phase: "none" } });
+      core["calendar.permission"] = () => "unavailable";
+      host.changeSettings(E, { settings: { source: "google", accounts: [] } });
+      expect((await host.list(E, "today"))[0]).toMatchObject({ id: "hint:calendar", name: "Could not read the calendar", subtitle: "No Google account is set: add one under Settings › Extensions › Calendar" });
+    } finally {
+      for (const k of Object.keys(core)) delete core[k];
+      host.changeSettings(E, ACCOUNTS);
+    }
   });
 });
