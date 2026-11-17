@@ -9,7 +9,7 @@
 // stream redrawing it, the links, and a refused token or no server.
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import { render as renderChat, BUDGET, type ChatState } from "../wisp/chat.ts";
-import { render as renderPopover, visible, type PopRow, type PopState } from "../wisp/view.ts";
+import { MAX_ROWS, render as renderPopover, visible, type PopRow, type PopState } from "../wisp/view.ts";
 import type { Item, View, ViewNode } from "../.pal/sdk/src/protocol.ts";
 import { checkView } from "../.pal/sdk/src/view.ts";
 import { Host } from "../.pal/host/test/harness.ts";
@@ -46,6 +46,12 @@ describe("wisp views", () => {
     expect(texts(pop({ rows: [], later: 2 }))).toEqual(expect.arrayContaining(["Inbox zero", "Nothing waiting; 2 To dos for later"]));
     expect(texts(pop({ trouble: [{ id: 4, label: "Acme", glyph: "s", state: "degraded", detail: "2 conversations could not sync" }] }))).toContain("Acme: 2 conversations could not sync");
     expect(texts(pop({ rows: [], problem: "Wisp is unreachable at http://x: refused" }))).toContain("Wisp is out of reach");
+    // A real inbox: 300 conversations, the unread ones oldest. The view stays under the node limit (checkView), every unread row is drawn, the rest is one line.
+    const big = Array.from({ length: 300 }, (_, i) => row({ id: 100 + i, title: `C${i}`, n: i >= 290 ? 1 : 0 }));
+    const capped = pop({ rows: big });
+    expect(visible({ rows: big, tab: "all" })).toHaveLength(MAX_ROWS);
+    expect(visible({ rows: big, tab: "all" }).filter((r) => r.n).length).toBe(10);
+    expect(texts(capped)).toEqual(expect.arrayContaining(["300", `${300 - MAX_ROWS} more read ones in the inbox`]));
   });
 
   test("conversation: a line per day, theirs and yours, a group's senders, the photo inline, the field where sending is allowed, the budget from the newest back", () => {

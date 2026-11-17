@@ -59,10 +59,22 @@ const AVATAR_COLORS: HexColor[] = ["#1d6a73", "#2a9d8f", "#e76f51", "#f4a261", "
 export const avatarColor = (name: string): HexColor => { let h = 5381; for (const ch of name) h = ((h * 33) ^ ch.codePointAt(0)!) >>> 0; return AVATAR_COLORS[h % AVATAR_COLORS.length]; };
 export const initial = (name: string) => { const n = name.replace(/^[#@+\s]+/, "").trim(); return n ? [...n][0]!.toUpperCase() : "?"; };
 
-/** The rows the tab shows, in section order: what the cursor walks. */
-export function visible(st: Pick<PopState, "rows" | "tab">): PopRow[] {
+/** The most rows the popover draws (a real inbox holds hundreds, past the view's node limit); the ones that want you go first. */
+export const MAX_ROWS = 40;
+const wants = (r: PopRow) => r.n > 0 || !!r.todo;
+
+/** Every row of the tab, in section order. */
+function inTab(st: Pick<PopState, "rows" | "tab">): PopRow[] {
   const rows = st.tab === "all" ? st.rows : st.rows.filter((r) => r.channel === st.tab);
   return SECTION_ORDER.flatMap((s) => rows.filter((r) => r.section === s)).concat(rows.filter((r) => !SECTION_ORDER.includes(r.section)));
+}
+
+/** The rows the popover draws, in section order: what the cursor walks. */
+export function visible(st: Pick<PopState, "rows" | "tab">): PopRow[] {
+  const all = inTab(st);
+  if (all.length <= MAX_ROWS) return all;
+  const kept = new Set([...all.filter(wants), ...all.filter((r) => !wants(r))].slice(0, MAX_ROWS));
+  return all.filter((r) => kept.has(r));
 }
 export const current = (st: PopState): PopRow | undefined => { const v = visible(st); return v.find((r) => r.id === st.cursor) ?? v[0]; };
 
@@ -72,19 +84,19 @@ function avatar(r: PopRow, quiet: boolean): ViewNode {
 }
 
 function rowNode(r: PopRow, focused: boolean, replying: boolean): ViewNode {
-  const wants = r.n > 0 || !!r.todo;
+  const want = wants(r);
   const tint = r.forMe ? "red" : r.n ? "blue" : "amber";
   const count: ViewNode = r.n ? { type: "badge", key: "n", text: r.forMe ? `@${r.n}` : String(r.n), color: r.forMe ? "red" : r.color } : r.todo ? { type: "badge", key: "n", text: r.todo, color: "amber" } : { type: "spacer", key: "n", size: 1 };
-  const dot: ViewNode = wants ? { type: "tile", key: "dot", width: DOT, height: DOT, color: tint, fill: "solid" } : { type: "spacer", key: "dot", size: DOT };
+  const dot: ViewNode = want ? { type: "tile", key: "dot", width: DOT, height: DOT, color: tint, fill: "solid" } : { type: "spacer", key: "dot", size: DOT };
   return row(
     [
-      row([dot, avatar(r, !wants)], { key: "lead", gap: 1 }),
+      row([dot, avatar(r, !want)], { key: "lead", gap: 1 }),
       column([
-        text(r.title, { size: "md", weight: wants ? "semibold" : "regular", color: wants ? undefined : "muted", width: TEXT_W }),
-        text(r.line || " ", { size: "sm", color: replying ? "accent" : wants ? undefined : "faint", width: TEXT_W }),
+        text(r.title, { size: "md", weight: want ? "semibold" : "regular", color: want ? undefined : "muted", width: TEXT_W }),
+        text(r.line || " ", { size: "sm", color: replying ? "accent" : want ? undefined : "faint", width: TEXT_W }),
       ], { key: "t", gap: 0 }),
       column([
-        row([text(r.glyph, { style: "glyph", size: "xs", color: wants ? r.color : "faint" }), text(r.time, { size: "xs", weight: wants ? "medium" : "regular", color: wants ? "muted" : "faint" })], { key: "when", gap: 1, justify: "end" }),
+        row([text(r.glyph, { style: "glyph", size: "xs", color: want ? r.color : "faint" }), text(r.time, { size: "xs", weight: want ? "medium" : "regular", color: want ? "muted" : "faint" })], { key: "when", gap: 1, justify: "end" }),
         row([count], { key: "c", gap: 0, justify: "end" }),
       ], { key: "side", gap: 1, width: SIDE_W, align: "end" }),
     ],
@@ -110,13 +122,15 @@ function tabsNode(st: PopState): ViewNode[] {
 }
 
 function sections(st: PopState, cur: PopRow | undefined): ViewNode[] {
-  const rows = visible(st);
+  const all = inTab(st), rows = visible(st);
   const names = [...new Set(rows.map((r) => r.section))];
-  return names.map((s) => {
+  const drawn = names.map((s) => {
     const of = rows.filter((r) => r.section === s);
-    const label = row([text(s, { size: "xs", weight: "semibold", color: "muted" }), text(String(of.length), { size: "xs", color: "faint" })], { key: `h-${s}`, gap: 1, padding: 1, minHeight: 22 });
+    const label = row([text(s, { size: "xs", weight: "semibold", color: "muted" }), text(String(all.filter((r) => r.section === s).length), { size: "xs", color: "faint" })], { key: `h-${s}`, gap: 1, padding: 1, minHeight: 22 });
     return column([label, ...of.map((r) => rowNode(r, r.id === cur?.id, st.replying === r.id))], { key: `s-${s}`, gap: 0 });
   });
+  const more = all.length - rows.length;
+  return more ? [...drawn, row([text(`${more} more read ones in the inbox`, { size: "xs", color: "muted" }), ...keyHint("p", "pal")], { key: "more", gap: 1, minHeight: 22, action: "pal" })] : drawn;
 }
 
 function troubleNode(st: PopState): ViewNode[] {
