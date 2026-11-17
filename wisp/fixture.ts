@@ -48,7 +48,7 @@ try {
     states: [{ id: "conversation", item: { menu: { view: popChat } } }],
     shots: {
       "menubar": { target: "menubar", caption: "On the menu bar: an @ count for mentions meant for you, each network's glyph with its unread count, the To dos that are due" },
-      "popover": { target: "menubar", popover: true, caption: "A click opens every inbox behind a tab per network: Enter opens a conversation, r replies, m marks read, t makes a To do, e marks it done" },
+      "popover": { target: "menubar", popover: true, caption: "A click opens every inbox: unread first, then the To dos, then a line per read conversation, one chip per network with something unread; Enter opens, r replies, m marks read, t To do, e done" },
       "popover-conversation": { target: "menubar", popover: true, state: "conversation", caption: "A group conversation in the popover, each sender named, answered without opening pal" },
       "sketchybar": { target: "sketchybar", caption: "On sketchybar: the same counts, each network in its colour and the @ in red" },
     },

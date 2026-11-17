@@ -587,7 +587,7 @@ function hook() {
 type Look = "mono" | "capsule" | "colour" | "glyphs";
 type BarSettings = { split?: Split; uncounted?: boolean; look?: Look };
 let barConf: BarSettings = {};
-let tab = "all", cursor: number | undefined, replying: number | undefined, draft: string | undefined;
+let tab = "all", cursor: number | undefined, replying: number | undefined, draft: string | undefined, allRead = false;
 let last: { rows: Conversation[]; counts?: Counts; accs: Account[]; problem?: string } = { rows: [], accs: [] };
 
 async function popRows(cs: Conversation[]): Promise<PopRow[]> {
@@ -595,7 +595,7 @@ async function popRows(cs: Conversation[]): Promise<PopRow[]> {
     const n = net(c.channel);
     return {
       id: c.id, title: c.title, line: lastLine(c), time: short(c.lastMessageAt), n: c.unread, forMe: forMe(c), channel: c.channel, glyph: n.glyph, color: n.color,
-      section: sectionOf(c), group: isGroup(c), avatar: await picture(c.avatar),
+      group: isGroup(c), avatar: await picture(c.avatar),
       ...(isTodo(c) && !c.unread && { todo: c.triage.state === "waiting" ? "waiting" : "to do" }),
     };
   }));
@@ -607,7 +607,7 @@ async function popState(): Promise<PopState> {
   if (tab !== "all" && !t.some((x) => x.id === tab)) tab = "all";
   if (replying && !rows.some((r) => r.id === replying)) { replying = undefined; draft = undefined; }
   const later = (await list("todo").catch(() => [] as Conversation[])).filter((c) => !isDue(c)).length;
-  const st: PopState = { rows, tabs: t, tab, cursor, replying, draft, later, problem: last.problem, trouble: last.accs.filter((a) => !healthy(a)).map((a) => ({ id: a.id, label: a.label, glyph: net(a.channel).glyph, state: a.state, detail: a.detail })) };
+  const st: PopState = { rows, tabs: t, tab, cursor, replying, draft, allRead, later, problem: last.problem, trouble: last.accs.filter((a) => !healthy(a)).map((a) => ({ id: a.id, label: a.label, glyph: net(a.channel).glyph, state: a.state, detail: a.detail })) };
   cursor = current(st)?.id;
   return { ...st, cursor };
 }
@@ -676,14 +676,15 @@ async function popAction(action: string, ctx?: BarCtx): Promise<Effect> {
   if (ctx?.settings) barConf = ctx.settings as BarSettings;
   if (action === "pal") return { push: { extension: EXT, palette: "inbox" } };
   if (action.startsWith("at:")) { cursor = Number(action.slice(3)); return redrawPop(); }
-  if (action.startsWith("tab:")) { tab = action.slice(4); cursor = undefined; return redrawPop(); }
+  if (action.startsWith("tab:")) { tab = action.slice(4); cursor = undefined; allRead = false; return redrawPop(); }
+  if (action === "all-read") { allRead = true; return redrawPop(); }
   if (action.startsWith("account:")) return { open: accountUrl(Number(action.slice(8))) };
   // A click on a network's count opens the popover on its tab (a per-account count on its network's); the @ and To do counts on All.
   if (action.startsWith("segment:")) {
     const id = action.slice(8);
     const account = /^a\d+$/.test(id) ? last.counts?.accounts.find((a) => `a${a.id}` === id)?.channel : undefined;
     tab = account ?? (id === "for_me" || id === "todo" || id === "all" ? "all" : id);
-    cursor = undefined;
+    cursor = undefined; allRead = false;
     return redrawPop();
   }
   const st = await popState();
@@ -698,7 +699,7 @@ async function popAction(action: string, ctx?: BarCtx): Promise<Effect> {
     case "next-tab": case "prev-tab": {
       const ids = ["all", ...st.tabs.map((t) => t.id)];
       tab = ids[(ids.indexOf(tab) + (action === "next-tab" ? 1 : ids.length - 1)) % ids.length];
-      cursor = undefined;
+      cursor = undefined; allRead = false;
       return redrawPop();
     }
     case "web": return { open: ctx?.ids?.length ? ctx.ids.map((x) => webUrl(Number(x))) : cur ? webUrl(cur.id) : webUrl() };

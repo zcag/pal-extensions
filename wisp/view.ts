@@ -1,18 +1,19 @@
 // The bar popover as a render tree (`View` in `@zcag/pal`), pure: the
 // gallery and the tests render a fixture state with this same function.
-// Every account's inbox in one place: a tab per network over the rows
-// (All first; a click, Tab or a digit switches), then the rows under
-// Wisp's own sections (a due To do first, then People, Work, Groups, Feed,
-// Paper), each the picture (the initial on a tile in the network's colour
-// while there is none), the conversation, its last line, the time, the
-// network's glyph and the unread count, or the To do's state. A row that
-// wants you (unread, or a To do that is due) leads with a dot and is drawn
-// in full ink; one already read recedes to the muted greys. A cursor (`selected`) the arrows move and a click sets; rows the
+// Every account's inbox in one place: one row of chips over the rows (All,
+// then the networks with something unread; past six the rest fold into a
+// +N chip that steps through them; a click, Tab or a digit switches), then
+// three blocks: Unread (what is meant for you first), the To dos that are
+// due, and the read ones as a line each, the first few of them until `a`
+// shows the rest. An unread or To do row is the picture (the initial on a
+// tile while there is none), the conversation, its last line, the time,
+// the network's glyph and the unread count or the To do's state; a read
+// line is the glyph, the name, the last line and the time. A cursor (`selected`) the arrows move and a click sets; rows the
 // shell can mark (`mark`) for `m`, `t` and `e` over them all. An account
 // that needs attention is a line at the foot. Replying turns the search row
 // into a text field (`View.input`). Nothing waiting is one calm line.
 import { POPOVER_W, column, keyHint, row, text, type Action, type HexColor, type TagColor, type View, type ViewNode } from "@zcag/pal";
-import { GLYPH, SECTION_ORDER } from "./data.ts";
+import { GLYPH } from "./data.ts";
 
 export type PopRow = {
   id: number;
@@ -27,7 +28,6 @@ export type PopRow = {
   channel: string;
   glyph: string;
   color: TagColor;
-  section: string;
   group: boolean;
   /** "To do", "Waiting", or the date it came back, on a To do row. */
   todo?: string;
@@ -45,6 +45,8 @@ export type PopState = {
   cursor?: number;
   replying?: number;
   draft?: string;
+  /** Every read conversation, not only the first few. */
+  allRead?: boolean;
   /** The To dos dated for later, said at inbox zero. */
   later: number;
   trouble: Trouble[];
@@ -54,28 +56,40 @@ export type PopState = {
 
 const AVATAR = 28, DOT = 6;
 const ROW_W = POPOVER_W - 8, SIDE_W = 56, TEXT_W = ROW_W - DOT - 4 - AVATAR - SIDE_W - 2 * 8;
+const LINE_GLYPH_W = 16, LINE_NAME_W = 96, LINE_TIME_W = 40, LINE_TEXT_W = ROW_W - LINE_GLYPH_W - LINE_NAME_W - LINE_TIME_W - 3 * 8;
+/** Read conversations listed before `a` shows the rest. */
+export const READ_SHOWN = 4;
+/** Network chips beside All before the rest fold into +N. */
+export const CHIPS = 6;
+/** The most rows the popover draws (a real inbox holds hundreds, past the view's node limit); the ones that want you go first. */
+export const MAX_ROWS = 40;
 
 const AVATAR_COLORS: HexColor[] = ["#1d6a73", "#2a9d8f", "#e76f51", "#f4a261", "#6a4c93", "#1982c4", "#8ac926", "#ff595e"];
 export const avatarColor = (name: string): HexColor => { let h = 5381; for (const ch of name) h = ((h * 33) ^ ch.codePointAt(0)!) >>> 0; return AVATAR_COLORS[h % AVATAR_COLORS.length]; };
 export const initial = (name: string) => { const n = name.replace(/^[#@+\s]+/, "").trim(); return n ? [...n][0]!.toUpperCase() : "?"; };
 
-/** The most rows the popover draws (a real inbox holds hundreds, past the view's node limit); the ones that want you go first. */
-export const MAX_ROWS = 40;
-const wants = (r: PopRow) => r.n > 0 || !!r.todo;
+/** A block's rows past what is drawn: `all-read` shows the rest of the read ones, `pal` (past `MAX_ROWS`) opens the inbox in pal. */
+type Block = { name: "Unread" | "To do" | "Read"; rows: PopRow[]; total: number; more?: "all-read" | "pal" };
 
-/** Every row of the tab, in section order. */
-function inTab(st: Pick<PopState, "rows" | "tab">): PopRow[] {
+/** The tab's rows in their blocks, at most `MAX_ROWS` in all: Unread (meant for you first), the To dos, then the read ones (the first few unless `allRead`). */
+export function blocks(st: Pick<PopState, "rows" | "tab" | "allRead">): Block[] {
   const rows = st.tab === "all" ? st.rows : st.rows.filter((r) => r.channel === st.tab);
-  return SECTION_ORDER.flatMap((s) => rows.filter((r) => r.section === s)).concat(rows.filter((r) => !SECTION_ORDER.includes(r.section)));
+  const unread = rows.filter((r) => r.n > 0), todo = rows.filter((r) => !r.n && r.todo), read = rows.filter((r) => !r.n && !r.todo);
+  let room = MAX_ROWS;
+  const block = (name: Block["name"], all: PopRow[], want = all): Block => {
+    const drawn = want.slice(0, room);
+    room -= drawn.length;
+    const more = drawn.length === all.length ? undefined : name === "Read" && !st.allRead && room > 0 ? "all-read" : "pal";
+    return { name, rows: drawn, total: all.length, ...(more && { more }) };
+  };
+  return [
+    block("Unread", [...unread.filter((r) => r.forMe), ...unread.filter((r) => !r.forMe)]),
+    block("To do", todo),
+    block("Read", read, st.allRead ? read : read.slice(0, READ_SHOWN)),
+  ].filter((b) => b.total);
 }
-
-/** The rows the popover draws, in section order: what the cursor walks. */
-export function visible(st: Pick<PopState, "rows" | "tab">): PopRow[] {
-  const all = inTab(st);
-  if (all.length <= MAX_ROWS) return all;
-  const kept = new Set([...all.filter(wants), ...all.filter((r) => !wants(r))].slice(0, MAX_ROWS));
-  return all.filter((r) => kept.has(r));
-}
+/** The rows the tab shows, in block order: what the cursor walks. */
+export const visible = (st: Pick<PopState, "rows" | "tab" | "allRead">): PopRow[] => blocks(st).flatMap((b) => b.rows);
 export const current = (st: PopState): PopRow | undefined => { const v = visible(st); return v.find((r) => r.id === st.cursor) ?? v[0]; };
 
 function avatar(r: PopRow, quiet: boolean): ViewNode {
@@ -84,19 +98,19 @@ function avatar(r: PopRow, quiet: boolean): ViewNode {
 }
 
 function rowNode(r: PopRow, focused: boolean, replying: boolean): ViewNode {
-  const want = wants(r);
+  const wants = r.n > 0 || !!r.todo;
   const tint = r.forMe ? "red" : r.n ? "blue" : "amber";
   const count: ViewNode = r.n ? { type: "badge", key: "n", text: r.forMe ? `@${r.n}` : String(r.n), color: r.forMe ? "red" : r.color } : r.todo ? { type: "badge", key: "n", text: r.todo, color: "amber" } : { type: "spacer", key: "n", size: 1 };
-  const dot: ViewNode = want ? { type: "tile", key: "dot", width: DOT, height: DOT, color: tint, fill: "solid" } : { type: "spacer", key: "dot", size: DOT };
+  const dot: ViewNode = wants ? { type: "tile", key: "dot", width: DOT, height: DOT, color: tint, fill: "solid" } : { type: "spacer", key: "dot", size: DOT };
   return row(
     [
-      row([dot, avatar(r, !want)], { key: "lead", gap: 1 }),
+      row([dot, avatar(r, !wants)], { key: "lead", gap: 1 }),
       column([
-        text(r.title, { size: "md", weight: want ? "semibold" : "regular", color: want ? undefined : "muted", width: TEXT_W }),
-        text(r.line || " ", { size: "sm", color: replying ? "accent" : want ? undefined : "faint", width: TEXT_W }),
+        text(r.title, { size: "md", weight: wants ? "semibold" : "regular", color: wants ? undefined : "muted", width: TEXT_W }),
+        text(r.line || " ", { size: "sm", color: replying ? "accent" : wants ? undefined : "faint", width: TEXT_W }),
       ], { key: "t", gap: 0 }),
       column([
-        row([text(r.glyph, { style: "glyph", size: "xs", color: want ? r.color : "faint" }), text(r.time, { size: "xs", weight: want ? "medium" : "regular", color: want ? "muted" : "faint" })], { key: "when", gap: 1, justify: "end" }),
+        row([text(r.glyph, { style: "glyph", size: "xs", color: wants ? r.color : "faint" }), text(r.time, { size: "xs", weight: wants ? "medium" : "regular", color: wants ? "muted" : "faint" })], { key: "when", gap: 1, justify: "end" }),
         row([count], { key: "c", gap: 0, justify: "end" }),
       ], { key: "side", gap: 1, width: SIDE_W, align: "end" }),
     ],
@@ -104,33 +118,46 @@ function rowNode(r: PopRow, focused: boolean, replying: boolean): ViewNode {
   );
 }
 
-const TABS_PER_ROW = 7;
+/** The network tabs that get a chip: the open one and those with something unread, at most `CHIPS`; the rest are behind +N. */
+export function chips(st: Pick<PopState, "tabs" | "tab">): { shown: Tab[]; folded: Tab[] } {
+  const open = st.tabs.find((t) => t.id === st.tab);
+  const pick = st.tabs.filter((t) => t.n && t !== open).slice(0, CHIPS - (open ? 1 : 0));
+  const shown = st.tabs.filter((t) => t === open || pick.includes(t));
+  return { shown, folded: st.tabs.filter((t) => !shown.includes(t)) };
+}
 
 function tabsNode(st: PopState): ViewNode[] {
   if (st.tabs.length < 2) return [];
   const all = st.tabs.reduce((n, t) => n + t.n, 0);
+  const { shown, folded } = chips(st);
   const count = (n: number, on: boolean): ViewNode[] => (n ? [text(String(n), { key: "n", size: "xs", weight: on ? "semibold" : "regular", color: on ? undefined : "muted" })] : []);
-  const one = (id: string, label: ViewNode[], on: boolean): ViewNode =>
-    row(label, { key: `tab-${id}`, gap: 1, padding: 1, radius: true, surface: on ? "elevated" : undefined, action: `tab:${id}` });
-  const tabs = [
+  const one = (id: string, label: ViewNode[], on: boolean, action = `tab:${id}`): ViewNode =>
+    row(label, { key: `tab-${id}`, gap: 1, padding: 1, radius: true, surface: on ? "elevated" : undefined, action });
+  const next = folded.find((t) => st.tabs.indexOf(t) > st.tabs.findIndex((x) => x.id === st.tab)) ?? folded[0];
+  return [row([
     one("all", [text("All", { size: "xs", weight: "semibold", color: st.tab === "all" ? undefined : "muted" }), ...count(all, st.tab === "all")], st.tab === "all"),
-    ...st.tabs.map((t) => one(t.id, [t.logo ? { type: "image", key: "logo", src: t.logo, width: 14, height: 14, alt: t.title } : text(t.glyph, { style: "glyph", size: "sm", color: t.color }), ...count(t.n, st.tab === t.id)], st.tab === t.id)),
-  ];
-  const per = Math.ceil(tabs.length / Math.ceil(tabs.length / TABS_PER_ROW));
-  const rows = Array.from({ length: Math.ceil(tabs.length / per) }, (_, i) => row(tabs.slice(i * per, (i + 1) * per), { key: `tabs${i || ""}`, gap: 1, minHeight: 26 }));
-  return rows.length > 1 ? [column(rows, { key: "tabrows", gap: 0 })] : rows;
+    ...shown.map((t) => one(t.id, [t.logo ? { type: "image", key: "logo", src: t.logo, width: 14, height: 14, alt: t.title } : text(t.glyph, { style: "glyph", size: "sm", color: t.color }), ...count(t.n, st.tab === t.id)], st.tab === t.id)),
+    ...(next ? [one("more", [text(`+${folded.length}`, { size: "xs", color: "muted" })], false, `tab:${next.id}`)] : []),
+  ], { key: "tabs", gap: 1, minHeight: 26 })];
+}
+
+function lineNode(r: PopRow, focused: boolean): ViewNode {
+  return row([
+    text(r.glyph, { style: "glyph", size: "xs", color: "faint", width: LINE_GLYPH_W, align: "center" }),
+    text(r.title, { size: "sm", color: "muted", width: LINE_NAME_W }),
+    text(r.line || " ", { size: "sm", color: "faint", width: LINE_TEXT_W }),
+    text(r.time, { size: "xs", color: "faint", width: LINE_TIME_W, align: "end" }),
+  ], { key: `r${r.id}`, mark: String(r.id), gap: 2, padding: 1, minHeight: 26, radius: true, surface: focused ? "elevated" : undefined, selected: focused || undefined, action: `at:${r.id}`, transition: { enter: "fade", exit: "fade" } });
 }
 
 function sections(st: PopState, cur: PopRow | undefined): ViewNode[] {
-  const all = inTab(st), rows = visible(st);
-  const names = [...new Set(rows.map((r) => r.section))];
-  const drawn = names.map((s) => {
-    const of = rows.filter((r) => r.section === s);
-    const label = row([text(s, { size: "xs", weight: "semibold", color: "muted" }), text(String(all.filter((r) => r.section === s).length), { size: "xs", color: "faint" })], { key: `h-${s}`, gap: 1, padding: 1, minHeight: 22 });
-    return column([label, ...of.map((r) => rowNode(r, r.id === cur?.id, st.replying === r.id))], { key: `s-${s}`, gap: 0 });
+  return blocks(st).map((b) => {
+    const label = row([text(b.name, { size: "xs", weight: "semibold", color: "muted" }), text(String(b.total), { size: "xs", color: "faint" })], { key: `h-${b.name}`, gap: 1, padding: 1, minHeight: 22 });
+    const hidden = b.total - b.rows.length;
+    const more = b.more ? [row([text(`${hidden} more`, { size: "xs", color: "muted" }), ...(b.more === "pal" ? keyHint("p", "pal") : keyHint("a", "Show all"))], { key: "more", gap: 1, minHeight: 24, justify: "center", action: b.more })] : [];
+    const rows = b.rows.map((r) => (b.name === "Read" ? lineNode(r, r.id === cur?.id) : rowNode(r, r.id === cur?.id, st.replying === r.id)));
+    return column([label, ...rows, ...more], { key: `s-${b.name}`, gap: 0 });
   });
-  const more = all.length - rows.length;
-  return more ? [...drawn, row([text(`${more} more read ones in the inbox`, { size: "xs", color: "muted" }), ...keyHint("p", "pal")], { key: "more", gap: 1, minHeight: 22, action: "pal" })] : drawn;
 }
 
 function troubleNode(st: PopState): ViewNode[] {
@@ -144,14 +171,15 @@ function troubleNode(st: PopState): ViewNode[] {
 const wayOut = (): ViewNode => row([...keyHint("w", "Wisp"), ...keyHint("p", "pal")], { key: "hints", gap: 1, minHeight: 22 });
 
 export function actions(st: PopState): Action[] {
-  const v = visible(st), cur = current(st);
+  const v = visible(st), cur = current(st), chipped = new Set(chips(st).shown);
   const clicks: Action[] = [
     ...v.map((r): Action => ({ id: `at:${r.id}`, title: `Go to ${r.title}`, hidden: true })),
     ...st.trouble.map((t): Action => ({ id: `account:${t.id}`, title: `Open ${t.label} in Wisp`, hidden: true })),
     { id: "tab:all", title: "All", hidden: true, shortcut: "1" },
-    // Every tab is clickable; the first eight also answer 2 to 9.
-    ...st.tabs.map((t, i): Action => ({ id: `tab:${t.id}`, title: t.title, hidden: true, ...(i < 8 && { shortcut: String(i + 2) }) })),
+    // A chip is clickable, the first eight networks also answer 2 to 9; one folded behind +N is listed in the actions.
+    ...st.tabs.map((t, i): Action => ({ id: `tab:${t.id}`, title: chipped.has(t) ? t.title : `Only ${t.title}`, ...(chipped.has(t) && { hidden: true as const }), ...(i < 8 && { shortcut: String(i + 2) }) })),
   ];
+  if (blocks(st).some((b) => b.more === "all-read")) clicks.push({ id: "all-read", title: "Show every read conversation", ...(st.replying ? { hidden: true as const } : { shortcut: "a" }) });
   if (st.replying) return [{ id: "send", title: "Send" }, { id: "cancel", title: "Cancel reply" }, ...clicks];
   return [
     ...(cur ? [
@@ -175,7 +203,7 @@ export function actions(st: PopState): Action[] {
 export function render(st: PopState): View {
   const cur = current(st);
   const shown = visible(st);
-  const unread = st.rows.filter((r) => r.n > 0).length, todo = st.rows.filter((r) => r.todo).length;
+  const unread = st.rows.filter((r) => r.n > 0).length, mine = st.rows.filter((r) => r.forMe).length, todo = st.rows.filter((r) => r.todo).length;
   let tree: ViewNode;
   if (st.problem && !st.rows.length) {
     tree = column([
@@ -200,7 +228,7 @@ export function render(st: PopState): View {
     ], { key: "compact", padding: 3, gap: 2 });
   }
   const replying = st.rows.find((r) => r.id === st.replying);
-  const title = replying ? `Reply to ${replying.title}` : [unread && `${unread} unread`, todo && `${todo} to do`].filter(Boolean).join(" · ") || "Wisp";
+  const title = replying ? `Reply to ${replying.title}` : [unread && `${unread} unread`, mine && `${mine} for you`, todo && `${todo} to do`].filter(Boolean).join(" · ") || "Wisp";
   return {
     tree,
     actions: actions(st),

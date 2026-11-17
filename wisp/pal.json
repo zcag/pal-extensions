@@ -264,7 +264,7 @@
   "bar": {
     "inbox": {
       "title": "Inbox",
-      "description": "Unread per network as each network's mark and count in the bar's own ink (or on a faint capsule, in their colours, or the font's glyphs; per network, per account, or one count after Wisp's glyph), a red @ count while something is meant for you, To dos that are due; a click on a network opens the popover on its tab, which is every account's inbox behind a tab per network: open a conversation, reply, mark read, To do or done without leaving it.",
+      "description": "Unread per network as each network's mark and count in the bar's own ink (or on a faint capsule, in their colours, or the font's glyphs; per network, per account, or one count after Wisp's glyph), a red @ count while something is meant for you, To dos that are due; a click on a network opens the popover on its tab, which is every account's inbox, unread first, with a chip per network: open a conversation, reply, mark read, To do or done without leaving it.",
       "refresh": {
         "every": 120,
         "on": [
@@ -509,7 +509,7 @@
       "Wisp's AI in the conversation: its summary on top, a suggested reply in the field on a key, a voice message's words; reply to one message or react to it",
       "To do, To do tomorrow, Waiting on them, Done and read or unread on a key, over many conversations at once",
       "One bar item: each network's mark and unread count in the bar's own ink, a red @ for mentions meant for you, To dos that are due; a click on a network opens its tab",
-      "Its popover is the whole inbox behind a tab per network: open, preview, reply, mark read, To do or done without opening anything",
+      "Its popover is the whole inbox, unread first, with a chip per network: open, preview, reply, mark read, To do or done without opening anything",
       "Wisp's search across every account, with from:, in:, is:unread and dates",
       "Each account's state, the ones that need attention first, on the strip's popover and in Wisp Accounts",
       "Follows Wisp's event stream, so the counts and an open conversation move as messages come in",
@@ -547,10 +547,10 @@
       },
       {
         "file": "bar-popover.png",
-        "caption": "A click opens every inbox behind a tab per network: Enter opens a conversation, r replies, m marks read, t makes a To do, e marks it done",
+        "caption": "A click opens every inbox: unread first, then the To dos, then a line per read conversation, one chip per network with something unread; Enter opens, r replies, m marks read, t To do, e done",
         "kind": "bar",
         "box": [
-          30,
+          28,
           64,
           840,
           960
@@ -561,7 +561,7 @@
         "caption": "A group conversation in the popover, each sender named, answered without opening pal",
         "kind": "bar",
         "box": [
-          30,
+          28,
           64,
           840,
           960

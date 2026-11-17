@@ -95,9 +95,13 @@ Hidden while nothing is unread or due (its `quiet` rule). Its settings:
 accounts are one), **per account**, or **one count** (after the Wisp glyph);
 **Every account** counts the accounts Wisp leaves out of its total.
 
-The popover is the whole Inbox: a tab per network over the rows (`1` all,
-`2` to `9` each network, Tab cycles), the rows under Wisp's sections, and a
-line per account that needs attention. Enter opens the conversation in the
+The popover is the whole Inbox: one row of chips over the rows (All, then
+each network with something unread; past six the rest fold into a `+N`
+chip that steps through them and are listed in the actions; `1` all, `2` to
+`9` each network, Tab cycles), then Unread (what is meant for you first),
+the To dos that are due, and the read conversations a line each (the first
+four; `a` shows the rest, up to 40 rows in all, past which `p` opens the
+Inbox palette), and a line per account that needs attention. Enter opens the conversation in the
 popover, Space previews it, `r` replies in a field, `m` marks read (or
 unread), `t` To do, `l` tomorrow, `e` Done, `w` Wisp, `p` the Inbox palette;
 `m`, `t`, `l`, `e` and `w` run over marked rows.

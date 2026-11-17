@@ -9,7 +9,7 @@
 // stream redrawing it, the links, and a refused token or no server.
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import { render as renderChat, BUDGET, type ChatState } from "../wisp/chat.ts";
-import { MAX_ROWS, render as renderPopover, visible, type PopRow, type PopState } from "../wisp/view.ts";
+import { MAX_ROWS, READ_SHOWN, render as renderPopover, visible, type PopRow, type PopState } from "../wisp/view.ts";
 import type { Item, View, ViewNode } from "../.pal/sdk/src/protocol.ts";
 import { checkView } from "../.pal/sdk/src/view.ts";
 import { Host } from "../.pal/host/test/harness.ts";
@@ -22,36 +22,47 @@ const ids = (v: View) => v.actions.filter((a) => !a.hidden).map((a) => a.id);
 const tags = (i: Item) => (i.accessories ?? []).flatMap((a) => ("tag" in a ? [a.tag] : []));
 
 describe("wisp views", () => {
-  const row = (o: Partial<PopRow> & Pick<PopRow, "id" | "title">): PopRow => ({ line: "hi", time: "10:00", n: 1, forMe: false, channel: "whatsapp", glyph: "x", color: "green", section: "People", group: false, ...o });
-  const rows = [row({ id: 1, title: "Ada" }), row({ id: 2, title: "Q4", channel: "gmail", color: "red", section: "Work" }), row({ id: 3, title: "Grace", n: 0, todo: "to do", section: "To do", channel: "gmail" })];
+  const row = (o: Partial<PopRow> & Pick<PopRow, "id" | "title">): PopRow => ({ line: "hi", time: "10:00", n: 1, forMe: false, channel: "whatsapp", glyph: "x", color: "green", group: false, ...o });
+  const read = Array.from({ length: 6 }, (_, i) => row({ id: 11 + i, title: `R${i}`, n: 0 }));
+  const rows = [row({ id: 1, title: "Ada" }), row({ id: 2, title: "Q4", channel: "gmail", color: "red", forMe: true }), row({ id: 3, title: "Grace", n: 0, todo: "to do", channel: "gmail" }), ...read];
   const pop = (o: Partial<PopState> = {}): View => checkView(renderPopover({ rows, tabs: [{ id: "whatsapp", title: "WhatsApp", glyph: "w", color: "green", n: 1 }, { id: "gmail", title: "Gmail", glyph: "g", color: "red", n: 2 }], tab: "all", later: 0, trouble: [], ...o }));
 
-  test("popover: tabs, a due To do first then the splits, the keys by the cursor's row, a tab narrowing the rows, the reply field, inbox zero", () => {
+  test("popover: one row of chips, Unread (for you first) then To do then the first read lines, the keys by the cursor's row, a tab narrowing the rows, the reply field, inbox zero", () => {
     const v = pop();
-    expect(texts(v)).toEqual(expect.arrayContaining(["All", "To do", "People", "Work"]));
-    expect(visible({ rows, tab: "all" }).map((r) => r.id)).toEqual([3, 1, 2]);
-    expect(v.title).toBe("2 unread · 1 to do");
-    expect(ids(v)).toEqual(["open", "preview", "reply", "unread", "todo", "later", "archive", "web", "pal"]);
-    expect(v.actions.find((a) => a.id === "todo")!.title).toBe("Clear the To do");
-    expect(ids(pop({ cursor: 1 }))).toContain("read");
-    expect(visible({ rows, tab: "gmail" }).map((r) => r.id)).toEqual([3, 2]);
+    expect(texts(v)).toEqual(expect.arrayContaining(["All", "Unread", "To do", "Read", "2 more", "Show all"]));
+    expect(visible({ rows, tab: "all" }).map((r) => r.id)).toEqual([2, 1, 3, 11, 12, 13, 14]);
+    expect(visible({ rows, tab: "all", allRead: true })).toHaveLength(9);
+    expect(texts(pop({ allRead: true }))).not.toContain("2 more");
+    expect(v.title).toBe("2 unread · 1 for you · 1 to do");
+    expect(ids(v)).toEqual(["open", "preview", "reply", "read", "todo", "later", "archive", "web", "pal", "all-read"]);
+    expect(pop({ cursor: 3 }).actions.find((a) => a.id === "todo")!.title).toBe("Clear the To do");
+    expect(ids(pop({ cursor: 3 }))).toContain("unread");
+    expect(visible({ rows, tab: "gmail" }).map((r) => r.id)).toEqual([2, 3]);
     expect(pop({ tab: "gmail" }).actions.find((a) => a.id === "tab:gmail")!.shortcut).toBe("3");
-    // More networks than digits: every tab still has its action (the view would be refused otherwise), the ninth and on without a key.
-    const many = pop({ tabs: Array.from({ length: 10 }, (_, i) => ({ id: `n${i}`, title: `N${i}`, glyph: "x", color: "grey" as const, n: 1 })) });
-    expect(many.actions.find((a) => a.id === "tab:n9")).toMatchObject({ hidden: true });
+    // More networks than chips: one row, the rest behind +N, which steps to the next folded network; every tab keeps its action, the ninth and on without a key.
+    const ten = Array.from({ length: 10 }, (_, i) => ({ id: `n${i}`, title: `N${i}`, glyph: "x", color: "grey" as const, n: 1 }));
+    const many = pop({ tabs: ten });
+    expect(many.actions.find((a) => a.id === "tab:n9")).toMatchObject({ title: "Only N9" });
+    expect(many.actions.find((a) => a.id === "tab:n9")!.hidden).toBeUndefined();
     expect(many.actions.find((a) => a.id === "tab:n9")!.shortcut).toBeUndefined();
+    expect(many.actions.find((a) => a.id === "tab:n0")).toMatchObject({ hidden: true, shortcut: "2" });
     const find = (n: unknown, key: string): any => { const o = n as { key?: string; children?: unknown[] }; return o.key === key ? o : o.children?.map((c) => find(c, key)).find(Boolean); };
-    expect([find(many.tree, "tabs").children.length, find(many.tree, "tabs1").children.length]).toEqual([6, 5]);
+    expect(find(many.tree, "tabs").children.length).toBe(8);
+    expect(find(many.tree, "tab-more")).toMatchObject({ action: "tab:n6" });
+    expect(find(pop({ tabs: ten, tab: "n8" }).tree, "tab-more")).toMatchObject({ action: "tab:n9" });
     expect(pop({ replying: 1, draft: "on my way" }).input).toEqual({ value: "on my way", placeholder: "Message Ada", submit: "send", cancel: "cancel" });
     expect(texts(pop({ rows: [], later: 2 }))).toEqual(expect.arrayContaining(["Inbox zero", "Nothing waiting; 2 To dos for later"]));
     expect(texts(pop({ trouble: [{ id: 4, label: "Acme", glyph: "s", state: "degraded", detail: "2 conversations could not sync" }] }))).toContain("Acme: 2 conversations could not sync");
     expect(texts(pop({ rows: [], problem: "Wisp is unreachable at http://x: refused" }))).toContain("Wisp is out of reach");
-    // A real inbox: 300 conversations, the unread ones oldest. The view stays under the node limit (checkView), every unread row is drawn, the rest is one line.
+    // A real inbox: 300 conversations, the unread ones oldest. The view stays under the node limit (checkView): every unread row, the first read ones and `a` for the rest, which still stop at MAX_ROWS with the inbox in pal for what is past it.
     const big = Array.from({ length: 300 }, (_, i) => row({ id: 100 + i, title: `C${i}`, n: i >= 290 ? 1 : 0 }));
     const capped = pop({ rows: big });
-    expect(visible({ rows: big, tab: "all" })).toHaveLength(MAX_ROWS);
+    expect(visible({ rows: big, tab: "all" })).toHaveLength(10 + READ_SHOWN);
     expect(visible({ rows: big, tab: "all" }).filter((r) => r.n).length).toBe(10);
-    expect(texts(capped)).toEqual(expect.arrayContaining(["300", `${300 - MAX_ROWS} more read ones in the inbox`]));
+    expect(texts(capped)).toEqual(expect.arrayContaining(["290", `${300 - 10 - READ_SHOWN} more`, "Show all"]));
+    const every = pop({ rows: big, allRead: true });
+    expect(visible({ rows: big, tab: "all", allRead: true })).toHaveLength(MAX_ROWS);
+    expect(texts(every)).toEqual(expect.arrayContaining([`${300 - MAX_ROWS} more`, "pal"]));
   });
 
   test("conversation: a line per day, theirs and yours, a group's senders, the photo inline, the field where sending is allowed, the budget from the newest back", () => {
@@ -244,10 +255,9 @@ describe("wisp", () => {
     expect(one.segments!.map((s) => [s.id, s.text, s.icon])).toEqual([["for_me", "1", expect.any(String)], ["all", "4", undefined], ["todo", "1", expect.any(String)]]);
     expect(one.icon).toBeDefined();
     await host.render(X, "inbox", { reason: "every", settings: {} });
-    // The popover: the cursor on the To do, a tab to WhatsApp, down past the read Tom, mark read (Family stays, read), the reply field and a send.
+    // The popover: a tab to WhatsApp, its unread first (Ada, then Family before the read Tom), mark read (Family stays, read), the reply field and a send.
     expect(texts((await host.barAction(X, "inbox", "tab:whatsapp", ctx)).view as View)).not.toContain("Q4 plan");
     expect(await host.barAction(X, "inbox", "open", ctx)).toMatchObject({ push: { palette: "conversation", args: { id: ADA } } });
-    await host.barAction(X, "inbox", "down", ctx);
     await host.barAction(X, "inbox", "down", ctx);
     expect(await host.barAction(X, "inbox", "read", ctx)).toMatchObject({ hud: "Marked read: Family" });
     expect((await host.barAction(X, "inbox", "reply", ctx)).view).toMatchObject({ input: { placeholder: "Message Family" } });
