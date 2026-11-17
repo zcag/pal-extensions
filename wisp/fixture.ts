@@ -29,7 +29,7 @@ try {
     effects: { [`inbox/${ADA}:open`]: { view: chat } },
     shots: {
       "1-list": { palette: "inbox", keys: ["wait:300"], caption: "Every account's inbox in one list, under Wisp's sections: the picture, the last line, the unread count in the network's colour, a To do that is due" },
-      "2-detail": { palette: "inbox", keys: ["down", "down", "cmd+i", "wait:400"], caption: "The pane: the latest messages of the conversation, its account and what is unread" },
+      "2-detail": { palette: "inbox", keys: ["down", "down", "down", "cmd+i", "wait:400"], caption: "The pane: the latest messages of the conversation, its account and what is unread" },
       "3-conversation": { palette: "inbox", keys: ["down", "enter", "wait:400"], caption: "Enter opens the conversation: messages by day, the photo inline, a field that sends on Enter; cmd+t makes it a To do, cmd+e marks it done" },
       "4-actions": { palette: "inbox", keys: ["cmd+k", "wait:300"], caption: "⌘K on a conversation: read or unread, send a message, To do, tomorrow, waiting on them, done, open in Wisp" },
     },

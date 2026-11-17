@@ -13,7 +13,7 @@ import { render as renderPopover, visible, type PopRow, type PopState } from "..
 import type { Item, View, ViewNode } from "../.pal/sdk/src/protocol.ts";
 import { checkView } from "../.pal/sdk/src/view.ts";
 import { Host } from "../.pal/host/test/harness.ts";
-import { ADA, DRAFT, FAMILY, GRACE, KARGO, LEASE, Q4, RELEASES, SUMMARY, T0, TOKEN, WispMock, conversations, iso, messages } from "./wisp-mock.ts";
+import { ADA, DESIGN, DRAFT, FAMILY, GRACE, KARGO, LEASE, Q4, RELEASES, SUMMARY, T0, TOKEN, TOM, WispMock, conversations, iso, messages } from "./wisp-mock.ts";
 
 const X = "wisp";
 const nodes = (n: ViewNode): ViewNode[] => [n, ...("children" in n && n.children ? n.children.flatMap(nodes) : [])];
@@ -94,16 +94,17 @@ describe("wisp", () => {
   test("inbox: Wisp's Inbox under its sections with pictures, counts and To dos; the other views; the pane; the writes", async () => {
     mock.reset();
     const rows = await host.list(X, "inbox", "", { refresh: true });
-    expect(rows.map((r) => [r.id, r.section])).toEqual([[String(GRACE), "To do"], [String(ADA), "People"], [String(Q4), "Work"], [String(RELEASES), "Work"], [String(FAMILY), "Groups"], [String(KARGO), "Paper"]]);
+    expect(rows.map((r) => [r.id, r.section])).toEqual([[String(GRACE), "To do"], [String(ADA), "People"], [String(TOM), "People"], [String(Q4), "Work"], [String(RELEASES), "Work"], [String(DESIGN), "Work"], [String(FAMILY), "Groups"], [String(KARGO), "Paper"]]);
     const ada = rows[1];
     expect(ada).toMatchObject({ name: "Ada Lindqvist", subtitle: "Are we still on for tonight?", icon: { image: expect.stringMatching(/^data:image\/svg\+xml;base64,/) }, args: [{ id: "text" }] });
     expect(ada.keywords).toEqual(["WhatsApp", "WhatsApp"]);
     // Pictures are asked for at the size they are drawn, never the originals.
     expect(mock.calls.find((c) => c.path === `/api/v1/conversations/${ADA}/avatar`)!.query).toBe("?v=1&size=64");
     expect(tags(ada)).toEqual(["2"]);
-    expect(tags(rows[3])).toEqual(["@3"]);
+    expect(tags(rows[2])).toEqual([]);
+    expect(tags(rows[4])).toEqual(["@3"]);
     expect(tags(rows[0])).toEqual(["to do"]);
-    expect(rows[5].args).toBeUndefined();
+    expect(rows[7].args).toBeUndefined();
     expect((await host.list(X, "inbox", "", { filter: "todo" })).map((r) => [r.id, tags(r)[0]])).toEqual([[String(GRACE), "to do"], [String(LEASE), expect.stringMatching(/^\w{3} \d+ \w{3} \d\d:\d\d$/)]]);
     expect((await host.list(X, "inbox", "", { filter: "screener" }))[0].name).toBe("The Screener is empty");
     const d = await host.detail(X, "inbox", String(Q4));
@@ -237,14 +238,15 @@ describe("wisp", () => {
     expect(one.segments!.map((s) => [s.id, s.text, s.icon])).toEqual([["for_me", "1", expect.any(String)], ["all", "4", undefined], ["todo", "1", expect.any(String)]]);
     expect(one.icon).toBeDefined();
     await host.render(X, "inbox", { reason: "every", settings: {} });
-    // The popover: the cursor on the To do, a tab to WhatsApp, down, mark read, the reply field and a send.
+    // The popover: the cursor on the To do, a tab to WhatsApp, down past the read Tom, mark read (Family stays, read), the reply field and a send.
     expect(texts((await host.barAction(X, "inbox", "tab:whatsapp", ctx)).view as View)).not.toContain("Q4 plan");
     expect(await host.barAction(X, "inbox", "open", ctx)).toMatchObject({ push: { palette: "conversation", args: { id: ADA } } });
     await host.barAction(X, "inbox", "down", ctx);
+    await host.barAction(X, "inbox", "down", ctx);
     expect(await host.barAction(X, "inbox", "read", ctx)).toMatchObject({ hud: "Marked read: Family" });
-    expect((await host.barAction(X, "inbox", "reply", ctx)).view).toMatchObject({ input: { placeholder: "Message Ada Lindqvist" } });
+    expect((await host.barAction(X, "inbox", "reply", ctx)).view).toMatchObject({ input: { placeholder: "Message Family" } });
     expect(await host.barAction(X, "inbox", "send", { ...ctx, values: { input: "omw" } })).toMatchObject({ toast: { title: "Sent" } });
-    expect(mock.posted(`/api/v1/conversations/${ADA}/messages`).at(-1)!.body).toEqual({ text: "omw" });
+    expect(mock.posted(`/api/v1/conversations/${FAMILY}/messages`).at(-1)!.body).toEqual({ text: "omw" });
     expect(await host.barAction(X, "inbox", "account:4", ctx)).toEqual({ open: `${mock.url}/accounts/4` });
     expect(await host.barAction(X, "inbox", "pal", ctx)).toEqual({ push: { extension: X, palette: "inbox" } });
     await host.until(() => mock.streaming > 0);

@@ -123,10 +123,10 @@ export function groups(c: Counts, split: Split, uncounted = false): Group[] {
 export function tabs(rows: Conversation[], c: Counts | undefined): { id: string; title: string; glyph: string; color: TagColor; n: number; logo?: string }[] {
   const order = [...new Set([...(c?.accounts ?? []).map((a) => a.channel), ...rows.map((r) => r.channel)])];
   return order.flatMap((ch) => {
-    const n = rows.filter((r) => r.channel === ch).length;
+    const of = rows.filter((r) => r.channel === ch);
     // A template logo (X's black) has no ink in a view: the glyph stands in.
     const l = logo(ch);
-    return n ? [{ id: ch, title: net(ch).name, glyph: net(ch).glyph, color: net(ch).color, n, ...(l && !l.template && { logo: l.image }) }] : [];
+    return of.length ? [{ id: ch, title: net(ch).name, glyph: net(ch).glyph, color: net(ch).color, n: of.filter((r) => r.unread).length, ...(l && !l.template && { logo: l.image }) }] : [];
   });
 }
 

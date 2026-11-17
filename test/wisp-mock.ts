@@ -24,7 +24,7 @@ const PICTURES: Record<string, string> = {
   ["/api/v1/attachments/9001"]: PHOTO,
 };
 
-export const ADA = 101, FAMILY = 102, Q4 = 103, RELEASES = 104, KARGO = 105, GRACE = 106, LEASE = 107;
+export const ADA = 101, FAMILY = 102, Q4 = 103, RELEASES = 104, KARGO = 105, GRACE = 106, LEASE = 107, TOM = 108, DESIGN = 109;
 
 export const accounts = (): Account[] => [
   { id: 1, channel: "whatsapp", label: "WhatsApp", identity: "+44 7700 900123", enabled: true, state: "connected", sendPolicy: "user", countUnread: true, unread: 2 },
@@ -44,6 +44,8 @@ export function conversations(): Conversation[] {
     conv({ id: FAMILY, accountId: 1, channel: "whatsapp", kind: "group", title: "Family", lastMessageAt: iso(18), lastPreview: "Mum: Sunday lunch at 1?", unread: 5, split: "groups" }),
     conv({ id: Q4, accountId: 3, channel: "gmail", title: "Q4 plan", lastMessageAt: iso(42), lastPreview: "Here is the draft for Thursday", unread: 1, split: "work", waitsOnYou: true }),
     conv({ id: RELEASES, accountId: 4, channel: "slack", kind: "channel", title: "#releases", lastMessageAt: iso(65), lastPreview: "Grace: @ana can you sign off 2.4?", unread: 3, forMe: 1, counted: false, split: "work" }),
+    conv({ id: TOM, accountId: 1, channel: "whatsapp", title: "Tom Becker", lastMessageAt: iso(95), lastPreview: "You: Perfect, see you there", lastFromMe: true }),
+    conv({ id: DESIGN, accountId: 4, channel: "slack", kind: "channel", title: "#design", lastMessageAt: iso(110), lastPreview: "Mia: new icons are in Figma", counted: false, split: "work" }),
     conv({ id: KARGO, accountId: 5, channel: "sms", title: "KARGO", lastMessageAt: iso(130), lastPreview: "Your parcel is out for delivery", unread: 1, split: "paper" }),
     conv({ id: GRACE, accountId: 2, channel: "gmail", title: "Grace Okafor", lastMessageAt: iso(60 * 26), lastPreview: "You: I will send the slides tonight", lastFromMe: true, triage: { state: "todo", until: iso(30) } }),
     conv({ id: LEASE, accountId: 2, channel: "gmail", title: "Lease renewal", lastMessageAt: iso(60 * 50), lastPreview: "The new terms are attached", triage: { state: "todo", until: new Date(T0 + 2 * 86_400_000).toISOString() }, split: "paper" }),
@@ -132,7 +134,7 @@ export class WispMock {
   reset() { this.accounts = accounts(); this.convs = conversations(); this.msgs = messages(); this.calls = []; this.failWith = 0; this.ai = { [ADA]: { available: true, summary: { text: SUMMARY, stale: false, state: "ready" } } }; this.making = {}; }
 
   counts(): Counts {
-    const inInbox = (c: Conversation) => c.triage.state !== "done" && (c.unread > 0 || ((c.triage.state === "todo" || c.triage.state === "waiting") && (!c.triage.until || Date.parse(c.triage.until) <= T0)));
+    const inInbox = (c: Conversation) => c.triage.state !== "done" && (c.triage.state === "inbox" || !c.triage.until || Date.parse(c.triage.until) <= T0);
     const counted = (c: Conversation) => c.counted && this.accounts.find((a) => a.id === c.accountId)!.countUnread;
     return {
       unread: this.convs.filter((c) => c.unread && counted(c) && c.triage.state !== "todo").length,
@@ -148,7 +150,7 @@ export class WispMock {
   private view(v: string): Conversation[] {
     const due = (c: Conversation) => (c.triage.state === "todo" || c.triage.state === "waiting") && (!c.triage.until || Date.parse(c.triage.until) <= T0);
     const all = [...this.convs].sort((a, b) => Date.parse(b.lastMessageAt ?? "") - Date.parse(a.lastMessageAt ?? ""));
-    if (v === "inbox") return all.filter((c) => c.triage.state !== "done" && (c.unread > 0 || due(c)));
+    if (v === "inbox") return all.filter((c) => c.triage.state !== "done" && (c.triage.state === "inbox" || due(c)));
     if (v === "now") return all.filter((c) => c.waitsOnYou);
     if (v === "todo") return all.filter((c) => c.triage.state === "todo" || c.triage.state === "waiting");
     if (v === "screener") return [];

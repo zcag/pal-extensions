@@ -5,8 +5,9 @@
 // Wisp's own sections (a due To do first, then People, Work, Groups, Feed,
 // Paper), each the picture (the initial on a tile in the network's colour
 // while there is none), the conversation, its last line, the time, the
-// network's glyph in its colour and the unread count, or the To do's
-// state. A cursor (`selected`) the arrows move and a click sets; rows the
+// network's glyph and the unread count, or the To do's state. A row that
+// wants you (unread, or a To do that is due) leads with a dot and is drawn
+// in full ink; one already read recedes to the muted greys. A cursor (`selected`) the arrows move and a click sets; rows the
 // shell can mark (`mark`) for `m`, `t` and `e` over them all. An account
 // that needs attention is a line at the foot. Replying turns the search row
 // into a text field (`View.input`). Nothing waiting is one calm line.
@@ -32,7 +33,7 @@ export type PopRow = {
   todo?: string;
   avatar?: string;
 };
-/** A network's tab: its logo (a data url) when it has one, else its glyph. */
+/** A network's tab: its logo (a data url) when it has one, else its glyph; `n` its unread conversations. */
 export type Tab = { id: string; title: string; glyph: string; color: TagColor; n: number; logo?: string };
 export type Trouble = { id: number; label: string; glyph: string; state: string; detail?: string };
 export type PopState = {
@@ -51,8 +52,8 @@ export type PopState = {
   problem?: string;
 };
 
-const AVATAR = 28;
-const ROW_W = POPOVER_W - 8, SIDE_W = 56, TEXT_W = ROW_W - AVATAR - SIDE_W - 2 * 8;
+const AVATAR = 28, DOT = 6;
+const ROW_W = POPOVER_W - 8, SIDE_W = 56, TEXT_W = ROW_W - DOT - 4 - AVATAR - SIDE_W - 2 * 8;
 
 const AVATAR_COLORS: HexColor[] = ["#1d6a73", "#2a9d8f", "#e76f51", "#f4a261", "#6a4c93", "#1982c4", "#8ac926", "#ff595e"];
 export const avatarColor = (name: string): HexColor => { let h = 5381; for (const ch of name) h = ((h * 33) ^ ch.codePointAt(0)!) >>> 0; return AVATAR_COLORS[h % AVATAR_COLORS.length]; };
@@ -65,22 +66,25 @@ export function visible(st: Pick<PopState, "rows" | "tab">): PopRow[] {
 }
 export const current = (st: PopState): PopRow | undefined => { const v = visible(st); return v.find((r) => r.id === st.cursor) ?? v[0]; };
 
-function avatar(r: PopRow): ViewNode {
+function avatar(r: PopRow, quiet: boolean): ViewNode {
   if (r.avatar) return { type: "image", key: "av", src: r.avatar, width: AVATAR, height: AVATAR, mask: "circle", alt: r.title };
-  return { type: "tile", key: "av", width: AVATAR, height: AVATAR, text: initial(r.title), color: avatarColor(r.title), fill: "solid" };
+  return { type: "tile", key: "av", width: AVATAR, height: AVATAR, text: initial(r.title), color: quiet ? "neutral" : avatarColor(r.title), fill: quiet ? "soft" : "solid" };
 }
 
 function rowNode(r: PopRow, focused: boolean, replying: boolean): ViewNode {
+  const wants = r.n > 0 || !!r.todo;
+  const tint = r.forMe ? "red" : r.n ? "blue" : "amber";
   const count: ViewNode = r.n ? { type: "badge", key: "n", text: r.forMe ? `@${r.n}` : String(r.n), color: r.forMe ? "red" : r.color } : r.todo ? { type: "badge", key: "n", text: r.todo, color: "amber" } : { type: "spacer", key: "n", size: 1 };
+  const dot: ViewNode = wants ? { type: "tile", key: "dot", width: DOT, height: DOT, color: tint, fill: "solid" } : { type: "spacer", key: "dot", size: DOT };
   return row(
     [
-      avatar(r),
+      row([dot, avatar(r, !wants)], { key: "lead", gap: 1 }),
       column([
-        text(r.title, { size: "md", weight: r.n ? "semibold" : "regular", width: TEXT_W }),
-        text(r.line || " ", { size: "sm", color: replying ? "accent" : r.forMe ? undefined : "muted", width: TEXT_W }),
+        text(r.title, { size: "md", weight: wants ? "semibold" : "regular", color: wants ? undefined : "muted", width: TEXT_W }),
+        text(r.line || " ", { size: "sm", color: replying ? "accent" : wants ? undefined : "faint", width: TEXT_W }),
       ], { key: "t", gap: 0 }),
       column([
-        row([text(r.glyph, { style: "glyph", size: "xs", color: r.color }), text(r.time, { size: "xs", color: "faint" })], { key: "when", gap: 1, justify: "end" }),
+        row([text(r.glyph, { style: "glyph", size: "xs", color: wants ? r.color : "faint" }), text(r.time, { size: "xs", weight: wants ? "medium" : "regular", color: wants ? "muted" : "faint" })], { key: "when", gap: 1, justify: "end" }),
         row([count], { key: "c", gap: 0, justify: "end" }),
       ], { key: "side", gap: 1, width: SIDE_W, align: "end" }),
     ],
@@ -93,11 +97,12 @@ const TABS_PER_ROW = 7;
 function tabsNode(st: PopState): ViewNode[] {
   if (st.tabs.length < 2) return [];
   const all = st.tabs.reduce((n, t) => n + t.n, 0);
+  const count = (n: number, on: boolean): ViewNode[] => (n ? [text(String(n), { key: "n", size: "xs", weight: on ? "semibold" : "regular", color: on ? undefined : "muted" })] : []);
   const one = (id: string, label: ViewNode[], on: boolean): ViewNode =>
-    row(label, { key: `tab-${id}`, gap: 1, padding: 1, radius: true, surface: on ? "elevated" : undefined, selected: on || undefined, action: `tab:${id}` });
+    row(label, { key: `tab-${id}`, gap: 1, padding: 1, radius: true, surface: on ? "elevated" : undefined, action: `tab:${id}` });
   const tabs = [
-    one("all", [text("All", { size: "xs", weight: "semibold" }), text(String(all), { size: "xs", color: "muted" })], st.tab === "all"),
-    ...st.tabs.map((t) => one(t.id, [t.logo ? { type: "image", key: "logo", src: t.logo, width: 14, height: 14, alt: t.title } : text(t.glyph, { style: "glyph", size: "sm", color: t.color }), text(String(t.n), { size: "xs", color: st.tab === t.id ? undefined : "muted" })], st.tab === t.id)),
+    one("all", [text("All", { size: "xs", weight: "semibold", color: st.tab === "all" ? undefined : "muted" }), ...count(all, st.tab === "all")], st.tab === "all"),
+    ...st.tabs.map((t) => one(t.id, [t.logo ? { type: "image", key: "logo", src: t.logo, width: 14, height: 14, alt: t.title } : text(t.glyph, { style: "glyph", size: "sm", color: t.color }), ...count(t.n, st.tab === t.id)], st.tab === t.id)),
   ];
   const per = Math.ceil(tabs.length / Math.ceil(tabs.length / TABS_PER_ROW));
   const rows = Array.from({ length: Math.ceil(tabs.length / per) }, (_, i) => row(tabs.slice(i * per, (i + 1) * per), { key: `tabs${i || ""}`, gap: 1, minHeight: 26 }));
@@ -109,7 +114,7 @@ function sections(st: PopState, cur: PopRow | undefined): ViewNode[] {
   const names = [...new Set(rows.map((r) => r.section))];
   return names.map((s) => {
     const of = rows.filter((r) => r.section === s);
-    const label = row([text(s, { size: "xs", weight: "semibold", color: "muted" }), { type: "badge", text: String(of.length), color: "grey" }], { key: `h-${s}`, gap: 1, minHeight: 22 });
+    const label = row([text(s, { size: "xs", weight: "semibold", color: "muted" }), text(String(of.length), { size: "xs", color: "faint" })], { key: `h-${s}`, gap: 1, padding: 1, minHeight: 22 });
     return column([label, ...of.map((r) => rowNode(r, r.id === cur?.id, st.replying === r.id))], { key: `s-${s}`, gap: 0 });
   });
 }
