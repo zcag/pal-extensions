@@ -39,7 +39,7 @@ describe("wisp views", () => {
     expect(ids(pop({ cursor: 3 }))).toContain("unread");
     expect(visible({ rows, tab: "gmail" }).map((r) => r.id)).toEqual([2, 3]);
     expect(pop({ tab: "gmail" }).actions.find((a) => a.id === "tab:gmail")!.shortcut).toBe("3");
-    // More networks than chips: one row, the rest behind +N, which steps to the next folded network; every tab keeps its action, the ninth and on without a key.
+    // More networks than fit: one row, the rest behind +N, which shows them all over two rows; every tab keeps its action, the ninth and on without a key.
     const ten = Array.from({ length: 10 }, (_, i) => ({ id: `n${i}`, title: `N${i}`, glyph: "x", color: "grey" as const, n: 1 }));
     const many = pop({ tabs: ten });
     expect(many.actions.find((a) => a.id === "tab:n9")).toMatchObject({ title: "Only N9" });
@@ -47,9 +47,14 @@ describe("wisp views", () => {
     expect(many.actions.find((a) => a.id === "tab:n9")!.shortcut).toBeUndefined();
     expect(many.actions.find((a) => a.id === "tab:n0")).toMatchObject({ hidden: true, shortcut: "2" });
     const find = (n: unknown, key: string): any => { const o = n as { key?: string; children?: unknown[] }; return o.key === key ? o : o.children?.map((c) => find(c, key)).find(Boolean); };
-    expect(find(many.tree, "tabs").children.length).toBe(8);
-    expect(find(many.tree, "tab-more")).toMatchObject({ action: "tab:n6" });
-    expect(find(pop({ tabs: ten, tab: "n8" }).tree, "tab-more")).toMatchObject({ action: "tab:n9" });
+    expect(find(many.tree, "tabs").children.length).toBe(9);
+    expect(find(many.tree, "tab-more")).toMatchObject({ action: "more-tabs" });
+    expect(find(pop({ tabs: ten, tab: "n8" }).tree, "tab-n8")).toBeDefined();
+    const open = pop({ tabs: ten, allTabs: true });
+    expect([find(open.tree, "tab-n9"), find(open.tree, "tab-more"), find(open.tree, "tabs1")]).toEqual([expect.anything(), undefined, expect.anything()]);
+    expect(find(open.tree, "tab-fewer")).toMatchObject({ action: "fewer-tabs" });
+    // Few networks with room to spare: a chip each, none folded, unread or not.
+    expect(find(pop({ tabs: ten.slice(0, 5).map((x, i) => ({ ...x, n: i ? 0 : 1 })) }).tree, "tab-more")).toBeUndefined();
     expect(pop({ replying: 1, draft: "on my way" }).input).toEqual({ value: "on my way", placeholder: "Message Ada", submit: "send", cancel: "cancel" });
     expect(texts(pop({ rows: [], later: 2 }))).toEqual(expect.arrayContaining(["Inbox zero", "Nothing waiting; 2 To dos for later"]));
     expect(texts(pop({ trouble: [{ id: 4, label: "Acme", glyph: "s", state: "degraded", detail: "2 conversations could not sync" }] }))).toContain("Acme: 2 conversations could not sync");
@@ -266,10 +271,13 @@ describe("wisp", () => {
     expect(await host.barAction(X, "inbox", "account:4", ctx)).toEqual({ open: `${mock.url}/accounts/4` });
     expect(await host.barAction(X, "inbox", "pal", ctx)).toEqual({ push: { extension: X, palette: "inbox" } });
     await host.until(() => mock.streaming > 0);
+    // A page of newer read ones arrives with it: the unread Q4 plan, now past Wisp's first page, still leads the popover.
+    mock.convs.push(...Array.from({ length: 200 }, (_, i) => ({ ...conversations()[0], id: 1000 + i, title: `Read ${i}`, lastMessageAt: iso(0), unread: 0 })));
     mock.convs.push({ ...conversations()[0], id: 200, accountId: 5, channel: "sms", title: "BANK", lastMessageAt: iso(0), lastPreview: "Your code is 4411", unread: 1 });
     mock.emit("message.new", { conversationId: 200, accountId: 5, channel: "sms", sender: "BANK", conversationTitle: "BANK" });
     const next = await host.nextUpdate(X, "inbox", (i) => i.segments?.find((s) => s.id === "sms")?.text === "2");
     expect(next.segments!.find((s) => s.id === "sms")!.text).toBe("2");
+    expect(texts((await host.barAction(X, "inbox", "tab:all", ctx)).view as View)).toContain("Q4 plan");
   });
 
   test("links: open by words of the title, search, send", async () => {

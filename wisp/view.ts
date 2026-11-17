@@ -1,8 +1,9 @@
 // The bar popover as a render tree (`View` in `@zcag/pal`), pure: the
 // gallery and the tests render a fixture state with this same function.
 // Every account's inbox in one place: one row of chips over the rows (All,
-// then the networks with something unread; past six the rest fold into a
-// +N chip that steps through them; a click, Tab or a digit switches), then
+// then as many networks as fit, those with something unread first; the
+// rest fold into a +N chip that shows every network until a tab is picked;
+// a click, Tab or a digit switches), then
 // three blocks: Unread (what is meant for you first), the To dos that are
 // due, and the read ones as a line each, the first few of them until `a`
 // shows the rest. An unread or To do row is the picture (the initial on a
@@ -47,6 +48,8 @@ export type PopState = {
   draft?: string;
   /** Every read conversation, not only the first few. */
   allRead?: boolean;
+  /** A chip for every network, over as many rows as they take. */
+  allTabs?: boolean;
   /** The To dos dated for later, said at inbox zero. */
   later: number;
   trouble: Trouble[];
@@ -59,8 +62,9 @@ const ROW_W = POPOVER_W - 8, SIDE_W = 56, TEXT_W = ROW_W - DOT - 4 - AVATAR - SI
 const LINE_GLYPH_W = 16, LINE_NAME_W = 96, LINE_TIME_W = 40, LINE_TEXT_W = ROW_W - LINE_GLYPH_W - LINE_NAME_W - LINE_TIME_W - 3 * 8;
 /** Read conversations listed before `a` shows the rest. */
 export const READ_SHOWN = 4;
-/** Network chips beside All before the rest fold into +N. */
-export const CHIPS = 6;
+/** A chip's width as drawn (padding, the 14 px logo, its count), so the row takes as many as fit. */
+const TABS_W = POPOVER_W - 24, CHIP_GAP = 4, chipW = (label: number, n = 0) => 8 + label + (n ? 4 + 7 * String(n).length : 0);
+const ALL_W = 20, LOGO_W = 14, MORE_W = 22;
 /** The most rows the popover draws (a real inbox holds hundreds, past the view's node limit); the ones that want you go first. */
 export const MAX_ROWS = 40;
 
@@ -118,27 +122,46 @@ function rowNode(r: PopRow, focused: boolean, replying: boolean): ViewNode {
   );
 }
 
-/** The network tabs that get a chip: the open one and those with something unread, at most `CHIPS`; the rest are behind +N. */
-export function chips(st: Pick<PopState, "tabs" | "tab">): { shown: Tab[]; folded: Tab[] } {
+const allCount = (st: Pick<PopState, "tabs">) => st.tabs.reduce((n, t) => n + t.n, 0);
+
+/** The network tabs that get a chip on the one row: the open one, then those with something unread, then the rest, as many as fit beside All and a +N for what does not; every one with `allTabs`. */
+export function chips(st: Pick<PopState, "tabs" | "tab" | "allTabs">): { shown: Tab[]; folded: Tab[] } {
+  if (st.allTabs) return { shown: st.tabs, folded: [] };
   const open = st.tabs.find((t) => t.id === st.tab);
-  const pick = st.tabs.filter((t) => t.n && t !== open).slice(0, CHIPS - (open ? 1 : 0));
-  const shown = st.tabs.filter((t) => t === open || pick.includes(t));
-  return { shown, folded: st.tabs.filter((t) => !shown.includes(t)) };
+  const order = [...(open ? [open] : []), ...st.tabs.filter((t) => t !== open && t.n), ...st.tabs.filter((t) => t !== open && !t.n)];
+  let room = TABS_W - chipW(ALL_W, allCount(st));
+  const pick = new Set<Tab>();
+  for (const [i, t] of order.entries()) {
+    const w = CHIP_GAP + chipW(LOGO_W, t.n);
+    if (w + (i < order.length - 1 ? CHIP_GAP + chipW(MORE_W) : 0) > room) break;
+    pick.add(t);
+    room -= w;
+  }
+  return { shown: st.tabs.filter((t) => pick.has(t)), folded: st.tabs.filter((t) => !pick.has(t)) };
 }
 
 function tabsNode(st: PopState): ViewNode[] {
   if (st.tabs.length < 2) return [];
-  const all = st.tabs.reduce((n, t) => n + t.n, 0);
+  const all = allCount(st);
   const { shown, folded } = chips(st);
   const count = (n: number, on: boolean): ViewNode[] => (n ? [text(String(n), { key: "n", size: "xs", weight: on ? "semibold" : "regular", color: on ? undefined : "muted" })] : []);
   const one = (id: string, label: ViewNode[], on: boolean, action = `tab:${id}`): ViewNode =>
     row(label, { key: `tab-${id}`, gap: 1, padding: 1, radius: true, surface: on ? "elevated" : undefined, action });
-  const next = folded.find((t) => st.tabs.indexOf(t) > st.tabs.findIndex((x) => x.id === st.tab)) ?? folded[0];
-  return [row([
-    one("all", [text("All", { size: "xs", weight: "semibold", color: st.tab === "all" ? undefined : "muted" }), ...count(all, st.tab === "all")], st.tab === "all"),
-    ...shown.map((t) => one(t.id, [t.logo ? { type: "image", key: "logo", src: t.logo, width: 14, height: 14, alt: t.title } : text(t.glyph, { style: "glyph", size: "sm", color: t.color }), ...count(t.n, st.tab === t.id)], st.tab === t.id)),
-    ...(next ? [one("more", [text(`+${folded.length}`, { size: "xs", color: "muted" })], false, `tab:${next.id}`)] : []),
-  ], { key: "tabs", gap: 1, minHeight: 26 })];
+  const chipsOf = [
+    { w: chipW(ALL_W, all), node: one("all", [text("All", { size: "xs", weight: "semibold", color: st.tab === "all" ? undefined : "muted" }), ...count(all, st.tab === "all")], st.tab === "all") },
+    ...shown.map((t) => ({ w: chipW(LOGO_W, t.n), node: one(t.id, [t.logo ? { type: "image", key: "logo", src: t.logo, width: 14, height: 14, alt: t.title } : text(t.glyph, { style: "glyph", size: "sm", color: t.color }), ...count(t.n, st.tab === t.id)], st.tab === t.id) })),
+    ...(folded.length ? [{ w: chipW(MORE_W), node: one("more", [text(`+${folded.length}`, { size: "xs", color: "muted" })], false, "more-tabs") }] : []),
+    ...(st.allTabs ? [{ w: chipW(MORE_W + 8), node: one("fewer", [text("Less", { size: "xs", color: "muted" })], false, "fewer-tabs") }] : []),
+  ];
+  const lines: ViewNode[][] = [[]];
+  let used = 0;
+  for (const c of chipsOf) {
+    if (lines.at(-1)!.length && used + CHIP_GAP + c.w > TABS_W) { lines.push([]); used = 0; }
+    used += (lines.at(-1)!.length ? CHIP_GAP : 0) + c.w;
+    lines.at(-1)!.push(c.node);
+  }
+  const rows = lines.map((l, i) => row(l, { key: `tabs${i || ""}`, gap: 1, minHeight: 26 }));
+  return rows.length > 1 ? [column(rows, { key: "tabrows", gap: 0 })] : rows;
 }
 
 function lineNode(r: PopRow, focused: boolean): ViewNode {
@@ -179,6 +202,8 @@ export function actions(st: PopState): Action[] {
     // A chip is clickable, the first eight networks also answer 2 to 9; one folded behind +N is listed in the actions.
     ...st.tabs.map((t, i): Action => ({ id: `tab:${t.id}`, title: chipped.has(t) ? t.title : `Only ${t.title}`, ...(chipped.has(t) && { hidden: true as const }), ...(i < 8 && { shortcut: String(i + 2) }) })),
   ];
+  if (chips(st).folded.length) clicks.push({ id: "more-tabs", title: "Show every network", hidden: true });
+  if (st.allTabs) clicks.push({ id: "fewer-tabs", title: "Fewer networks", hidden: true });
   if (blocks(st).some((b) => b.more === "all-read")) clicks.push({ id: "all-read", title: "Show every read conversation", ...(st.replying ? { hidden: true as const } : { shortcut: "a" }) });
   if (st.replying) return [{ id: "send", title: "Send" }, { id: "cancel", title: "Cancel reply" }, ...clicks];
   return [

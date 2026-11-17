@@ -89,7 +89,13 @@ export const drop = () => kept.clear();
 
 export const counts = (refresh = false) => cached<Counts>("counts", api.counts, refresh);
 export const accounts = (refresh = false) => cached<Account[]>("accounts", api.accounts, refresh, 60_000);
-export const list = (view: View, refresh = false) => cached<Conversation[]>(`list:${view}`, async () => (await api.conversations(view)).conversations, refresh);
+export const list = (view: View, refresh = false, unread = false) => cached<Conversation[]>(`list:${view}${unread ? ":unread" : ""}`, async () => (await api.conversations(view, { unread })).conversations, refresh);
+/** The inbox's first page with every unread conversation in it: one past the page (an old one, unread) is added at the end. */
+export async function inbox(refresh = false): Promise<Conversation[]> {
+  const [page, unread] = await Promise.all([list("inbox", refresh), list("inbox", refresh, true)]);
+  const seen = new Set(page.map((c) => c.id));
+  return [...page, ...unread.filter((c) => !seen.has(c.id))];
+}
 
 /** One conversation: from a list already at hand, else fetched. */
 export async function one(id: number): Promise<Conversation> {

@@ -170,7 +170,7 @@ export class WispMock {
     if (m === "GET" && p === "/api/v1/counts") return json(this.counts());
     if (m === "GET" && p === "/api/v1/accounts") return json({ accounts: this.accounts });
     if (m === "GET" && p === "/api/v1/networks") return json({ networks });
-    if (m === "GET" && p === "/api/v1/conversations") { const acc = Number(u.searchParams.get("account")); return json({ conversations: this.view(u.searchParams.get("view") ?? "inbox").filter((c) => !acc || c.accountId === acc) }); }
+    if (m === "GET" && p === "/api/v1/conversations") { const acc = Number(u.searchParams.get("account")); const unread = u.searchParams.get("unread") === "1"; return json({ conversations: this.view(u.searchParams.get("view") ?? "inbox").filter((c) => (!acc || c.accountId === acc) && (!unread || c.unread > 0)).slice(0, Number(u.searchParams.get("limit") ?? 200)) }); }
     if (m === "GET" && this.pictures[p]) return new Response(this.pictures[p], { headers: { "content-type": "image/svg+xml" } });
     if (m === "GET" && p === "/api/v1/events") {
       let ctl!: ReadableStreamDefaultController<string>;
