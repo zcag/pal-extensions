@@ -102,8 +102,8 @@ The popover is the whole Inbox: one row of chips over the rows (All, then
 each network with something unread; past six the rest fold into a `+N`
 chip that steps through them and are listed in the actions; `1` all, `2` to
 `9` each network, Tab cycles), then Unread (what is meant for you first),
-the To dos that are due (a badged person's rows wear the badge beside the
-network's mark), and the read conversations a line each (the first
+the To dos that are due (a badged person's rows wear the badge after the
+name), and the read conversations a line each (the first
 four; `a` shows the rest, up to 40 rows in all, past which `p` opens the
 Inbox palette), and a line per account that needs attention. Enter opens the conversation in the
 popover, Space previews it, `r` replies in a field, `m` marks read (or

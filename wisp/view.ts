@@ -7,8 +7,8 @@
 // three blocks: Unread (what is meant for you first), the To dos that are
 // due, and the read ones as a line each, the first few of them until `a`
 // shows the rest. An unread or To do row is the picture (the initial on a
-// tile while there is none), the conversation, its last line, the time,
-// the person's badge (one given in Wisp), the network's glyph and the unread count or the To do's state; a read
+// tile while there is none), the conversation (a badge given in Wisp after its name), its last line, the time,
+// the network's glyph and the unread count or the To do's state; a read
 // line is the glyph, the name, the last line and the time. A cursor (`selected`) the arrows move and a click sets; rows the
 // shell can mark (`mark`) for `m`, `t` and `e` over them all. An account
 // that needs attention is a line at the foot. Replying turns the search row
@@ -112,11 +112,13 @@ function rowNode(r: PopRow, focused: boolean, replying: boolean): ViewNode {
     [
       row([dot, avatar(r, !wants)], { key: "lead", gap: 1 }),
       column([
-        text(r.title, { size: "md", weight: wants ? "semibold" : "regular", color: wants ? undefined : "muted", width: TEXT_W }),
+        r.badge
+          ? row([text(r.title, { size: "md", weight: wants ? "semibold" : "regular", color: wants ? undefined : "muted", minWidth: 0 }), { type: "image", key: "badge", src: r.badge, width: BADGE, height: BADGE, alt: "Badge" }], { key: "title", gap: 1, width: TEXT_W })
+          : text(r.title, { size: "md", weight: wants ? "semibold" : "regular", color: wants ? undefined : "muted", width: TEXT_W }),
         text(r.line || " ", { size: "sm", color: replying ? "accent" : wants ? undefined : "faint", width: TEXT_W }),
       ], { key: "t", gap: 0 }),
       column([
-        row([...(r.badge ? [{ type: "image", key: "badge", src: r.badge, width: BADGE, height: BADGE, alt: "Badge" } as ViewNode] : []), text(r.glyph, { style: "glyph", size: "xs", color: wants ? r.color : "faint" }), text(r.time, { size: "xs", weight: wants ? "medium" : "regular", color: wants ? "muted" : "faint" })], { key: "when", gap: 1, justify: "end" }),
+        row([text(r.glyph, { style: "glyph", size: "xs", color: wants ? r.color : "faint" }), text(r.time, { size: "xs", weight: wants ? "medium" : "regular", color: wants ? "muted" : "faint" })], { key: "when", gap: 1, justify: "end" }),
         row([count], { key: "c", gap: 0, justify: "end" }),
       ], { key: "side", gap: 1, width: SIDE_W, align: "end" }),
     ],

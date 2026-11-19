@@ -554,7 +554,7 @@
         "caption": "A click opens every inbox: unread first, then the To dos, then a line per read conversation, one chip per network with something unread; Enter opens, r replies, m marks read, t To do, e done",
         "kind": "bar",
         "box": [
-          28,
+          16,
           64,
           840,
           960
@@ -565,7 +565,7 @@
         "caption": "A group conversation in the popover, each sender named, answered without opening pal",
         "kind": "bar",
         "box": [
-          28,
+          16,
           64,
           840,
           960
