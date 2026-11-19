@@ -5,7 +5,7 @@
 // strip counts by, and the formatting of times and lines.
 import { clock, dayName, mdEscape, now, oneLine, type TagColor, type TileColorName } from "@zcag/pal";
 import * as api from "./api.ts";
-import type { Account, AccountCounts, Channel, Conversation, Counts, Message, Split, View } from "./api.ts";
+import type { Account, AccountCounts, Badge, Channel, Conversation, Counts, Message, Split, View } from "./api.ts";
 
 /** Glyphs from the bundled Nerd Font's `md-` set. */
 export const GLYPH = {
@@ -46,22 +46,28 @@ export async function loadNetworks(refresh = false) {
 export const forgetNetworks = () => { known = new Map(); knownAt = 0; };
 
 /**
- * A network's logo as a picture (`{ image }`, an SVG data url) from the
- * server's mark: in its brand colour, or `mono`, a template the bar inks
- * (and so does a near-black brand, which would vanish on a dark bar).
- * None while the server has not said, or for a network without a mark.
+ * An SVG in `currentColor` as a picture (`{ image }`, a data url): in
+ * `color`, or `mono`, a template the bar inks (and so does a near-black
+ * colour, which would vanish on a dark bar).
  */
+export function inked(svg: string, color: string | undefined, mono = false): { image: string; template?: true } {
+  const hex = /^#[0-9a-f]{6}$/i.test(color ?? "") ? color! : "#000000";
+  const [r, g, b] = [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16));
+  const template = mono || 0.2126 * r + 0.7152 * g + 0.0722 * b < 48;
+  return { image: `data:image/svg+xml;utf8,${encodeURIComponent(svg.replaceAll("currentColor", template ? "#000000" : hex))}`, ...(template && { template: true as const }) };
+}
+
+/** A network's logo from the server's mark (`inked`); none while the server has not said, or for a network without a mark. */
 export function logo(c: Channel, mono = false, solid = false): { image: string; template?: true } | undefined {
   const n = known.get(c);
   if (!n?.logo) return undefined;
   // `solid`: a line drawing beside filled marks reads as another set; the caller's glyph stands in for it.
   if (solid && n.logo.includes('stroke="currentColor"')) return undefined;
-  const hex = /^#[0-9a-f]{6}$/i.test(n.color ?? "") ? n.color! : "#000000";
-  const [r, g, b] = [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16));
-  const dark = 0.2126 * r + 0.7152 * g + 0.0722 * b < 48;
-  const svg = n.logo.replaceAll("currentColor", mono || dark ? "#000000" : hex);
-  return { image: `data:image/svg+xml;utf8,${encodeURIComponent(svg)}`, ...((mono || dark) && { template: true as const }) };
+  return inked(n.logo, n.color, mono);
 }
+
+/** A person's badge in its colour (`inked`), or in the bar's ink with `mono`. */
+export const badgeMark = (b: Badge, mono = false) => inked(b.svg, b.color, mono);
 
 export function net(c: Channel): Net {
   const fallback = NETS[c] ?? { name: c ? c[0].toUpperCase() + c.slice(1) : "Other", glyph: GLYPH.other, color: "grey" as const, tile: "slate" as const };

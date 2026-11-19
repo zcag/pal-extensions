@@ -8,7 +8,7 @@
 // due, and the read ones as a line each, the first few of them until `a`
 // shows the rest. An unread or To do row is the picture (the initial on a
 // tile while there is none), the conversation, its last line, the time,
-// the network's glyph and the unread count or the To do's state; a read
+// the person's badge (one given in Wisp), the network's glyph and the unread count or the To do's state; a read
 // line is the glyph, the name, the last line and the time. A cursor (`selected`) the arrows move and a click sets; rows the
 // shell can mark (`mark`) for `m`, `t` and `e` over them all. An account
 // that needs attention is a line at the foot. Replying turns the search row
@@ -33,6 +33,8 @@ export type PopRow = {
   /** "To do", "Waiting", or the date it came back, on a To do row. */
   todo?: string;
   avatar?: string;
+  /** The person's badge from Wisp, a data url in its colour. */
+  badge?: string;
 };
 /** A network's tab: its logo (a data url) when it has one, else its glyph; `n` its unread conversations. */
 export type Tab = { id: string; title: string; glyph: string; color: TagColor; n: number; logo?: string };
@@ -57,7 +59,7 @@ export type PopState = {
   problem?: string;
 };
 
-const AVATAR = 28, DOT = 6;
+const AVATAR = 28, DOT = 6, BADGE = 11;
 const ROW_W = POPOVER_W - 8, SIDE_W = 56, TEXT_W = ROW_W - DOT - 4 - AVATAR - SIDE_W - 2 * 8;
 const LINE_GLYPH_W = 16, LINE_NAME_W = 96, LINE_TIME_W = 40, LINE_TEXT_W = ROW_W - LINE_GLYPH_W - LINE_NAME_W - LINE_TIME_W - 3 * 8;
 /** Read conversations listed before `a` shows the rest. */
@@ -114,7 +116,7 @@ function rowNode(r: PopRow, focused: boolean, replying: boolean): ViewNode {
         text(r.line || " ", { size: "sm", color: replying ? "accent" : wants ? undefined : "faint", width: TEXT_W }),
       ], { key: "t", gap: 0 }),
       column([
-        row([text(r.glyph, { style: "glyph", size: "xs", color: wants ? r.color : "faint" }), text(r.time, { size: "xs", weight: wants ? "medium" : "regular", color: wants ? "muted" : "faint" })], { key: "when", gap: 1, justify: "end" }),
+        row([...(r.badge ? [{ type: "image", key: "badge", src: r.badge, width: BADGE, height: BADGE, alt: "Badge" } as ViewNode] : []), text(r.glyph, { style: "glyph", size: "xs", color: wants ? r.color : "faint" }), text(r.time, { size: "xs", weight: wants ? "medium" : "regular", color: wants ? "muted" : "faint" })], { key: "when", gap: 1, justify: "end" }),
         row([count], { key: "c", gap: 0, justify: "end" }),
       ], { key: "side", gap: 1, width: SIDE_W, align: "end" }),
     ],

@@ -30,14 +30,18 @@ export class ApiError extends Error { constructor(readonly status: number, messa
 
 export type Channel = "whatsapp" | "gmail" | "imap" | "slack" | "telegram" | "sms" | "instagram" | "linkedin" | "x" | "phone" | "demo" | string;
 export type AccountCounts = { id: number; label: string; channel: Channel; counted: boolean; unread: number; inbox: number; todo: number; now: number };
-export type Counts = { unread: number; inbox: number; todo: number; now: number; screener: number; forMe?: number; accounts: AccountCounts[] };
+/** A person's own mark, given on their page in Wisp: an icon's name, its colour and the icon as an SVG document in `currentColor`. */
+export type Badge = { icon: string; color: string; svg: string };
+/** The unread of one badged person, or of them all (`key` `all`), as Wisp's Settings › Notifications › Badges says; counted even where the account or the conversation does not count unread. */
+export type BadgeCount = { key: string; personId?: number; name: string; names: string[]; badge: Badge; unread: number; accounts: { id: number; unread: number }[] };
+export type Counts = { unread: number; inbox: number; todo: number; now: number; screener: number; forMe?: number; accounts: AccountCounts[]; badges?: BadgeCount[] };
 export type AccountState = "connected" | "syncing" | "starting" | "setup" | "degraded" | "disconnected" | "error" | "stopped" | string;
 export type Account = { id: number; channel: Channel; label: string; identity: string; enabled: boolean; state: AccountState; detail?: string; sendPolicy: "user" | "agents" | "none" | string; countUnread: boolean; unread: number };
 export type Triage = { state: "inbox" | "todo" | "waiting" | "done" | string; until?: string };
 export type Conversation = {
   id: number; accountId: number; channel: Channel; kind: "direct" | "group" | "channel" | "thread" | "broadcast" | string; title: string;
   avatar?: string; lastMessageAt?: string; lastPreview: string; lastFromMe: boolean; unread: number; forMe?: number; counted: boolean;
-  triage: Triage; split?: "people" | "work" | "groups" | "feed" | "paper" | string; waitsOnYou: boolean; screener: boolean;
+  triage: Triage; split?: "people" | "work" | "groups" | "feed" | "paper" | string; waitsOnYou: boolean; screener: boolean; badge?: Badge;
 };
 export type Sender = { id: string; name: string; avatar?: string };
 export type Attachment = { id: number; kind: "image" | "video" | "audio" | "voice" | "document" | "sticker" | string; mime: string; filename?: string; size?: number; url?: string };

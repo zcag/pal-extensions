@@ -7,10 +7,11 @@
 // conversation, the AI summary and suggested reply (made on the second ask
 // after one is queued), transcription, reactions, and the event stream. The writes (send, read, unread,
 // To do, archive) are recorded and change the data as Wisp would; mark
-// unread on a network without the mark answers 501. A token other than
+// unread on a network without the mark answers 501. Ada wears a badge, so
+// the counts carry her unread apart. A token other than
 // `inbx_test` is a 401. Everyone in it is invented.
 import { now } from "../.pal/sdk/src/clock.ts";
-import type { AI, Account, Conversation, Counts, Message, Person, Reach } from "../wisp/api.ts";
+import type { AI, Account, Badge, Conversation, Counts, Message, Person, Reach } from "../wisp/api.ts";
 
 export const TOKEN = "inbx_test";
 export const T0 = Math.floor(now() / 60_000) * 60_000;
@@ -23,6 +24,9 @@ export const PICTURES: Record<string, string> = {
   ["/api/v1/avatars/contact/1/mum"]: portrait("#a8dadc", "#e8c4a0", "#8d8d8d"),
   ["/api/v1/attachments/9001"]: PHOTO,
 };
+
+/** Ada's badge as Wisp serves it: a filled mark in currentColor and its colour. */
+export const BADGE: Badge = { icon: "heart", color: "#d6409f", svg: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path fill="currentColor" d="M12 20l-8-8a4.5 4.5 0 0 1 8-5 4.5 4.5 0 0 1 8 5z"/></svg>` };
 
 export const ADA = 101, FAMILY = 102, Q4 = 103, RELEASES = 104, KARGO = 105, GRACE = 106, LEASE = 107, TOM = 108, DESIGN = 109;
 
@@ -40,7 +44,7 @@ const conv = (o: Partial<Conversation> & Pick<Conversation, "id" | "accountId" |
 
 export function conversations(): Conversation[] {
   return [
-    conv({ id: ADA, accountId: 1, channel: "whatsapp", title: "Ada Lindqvist", avatar: `/api/v1/conversations/${ADA}/avatar?v=1`, lastMessageAt: iso(4), lastPreview: "Are we still on for tonight?", unread: 2, waitsOnYou: true }),
+    conv({ id: ADA, accountId: 1, channel: "whatsapp", title: "Ada Lindqvist", avatar: `/api/v1/conversations/${ADA}/avatar?v=1`, lastMessageAt: iso(4), lastPreview: "Are we still on for tonight?", unread: 2, waitsOnYou: true, badge: BADGE }),
     conv({ id: FAMILY, accountId: 1, channel: "whatsapp", kind: "group", title: "Family", lastMessageAt: iso(18), lastPreview: "Mum: Sunday lunch at 1?", unread: 5, split: "groups" }),
     conv({ id: Q4, accountId: 3, channel: "gmail", title: "Q4 plan", lastMessageAt: iso(42), lastPreview: "Here is the draft for Thursday", unread: 1, split: "work", waitsOnYou: true }),
     conv({ id: RELEASES, accountId: 4, channel: "slack", kind: "channel", title: "#releases", lastMessageAt: iso(65), lastPreview: "Grace: @ana can you sign off 2.4?", unread: 3, forMe: 1, counted: false, split: "work" }),
@@ -147,6 +151,7 @@ export class WispMock {
       now: this.convs.filter((c) => c.waitsOnYou).length,
       screener: 0,
       accounts: this.accounts.map((a) => ({ id: a.id, label: a.label, channel: a.channel, counted: a.countUnread, unread: this.convs.filter((c) => c.accountId === a.id && c.unread).length, inbox: 0, todo: 0, now: 0 })),
+      badges: this.convs.filter((c) => c.badge && c.unread).map((c) => ({ key: `person:${c.id}`, personId: c.id, name: c.title.split(" ")[0], names: [c.title.split(" ")[0]], badge: c.badge!, unread: 1, accounts: [{ id: c.accountId, unread: 1 }] })),
     };
   }
 

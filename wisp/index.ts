@@ -15,7 +15,7 @@ import { bar, errorMessage, failed, hint, mdEscape, now, preview, settings, stat
 import * as api from "./api.ts";
 import { ApiError, EXT, NotSetUp, Unreachable, accountUrl, conf, forgetPictures, log, picture, webUrl, type AI, type Account, type Conversation, type Counts, type Message, type Person, type Split } from "./api.ts";
 import { render as renderChat, type ChatState } from "./chat.ts";
-import { GLYPH, SECTION_ORDER, accounts, counts, drop, forMe, forgetNetworks, groups, healthy, inbox, isDue, isGroup, isTodo, line, list, loadNetworks, logo, markdown, net, one, plural, preview as lastLine, sectionOf, short, tabs, until } from "./data.ts";
+import { GLYPH, SECTION_ORDER, accounts, badgeMark, counts, drop, forMe, forgetNetworks, groups, healthy, inbox, isDue, isGroup, isTodo, line, list, loadNetworks, logo, markdown, net, one, plural, preview as lastLine, sectionOf, short, tabs, until } from "./data.ts";
 import * as live from "./live.ts";
 import { actions as popActions, avatarColor, current, initial, render as renderPopover, visible, type PopRow, type PopState } from "./view.ts";
 
@@ -595,7 +595,7 @@ async function popRows(cs: Conversation[]): Promise<PopRow[]> {
     const n = net(c.channel);
     return {
       id: c.id, title: c.title, line: lastLine(c), time: short(c.lastMessageAt), n: c.unread, forMe: forMe(c), channel: c.channel, glyph: n.glyph, color: n.color,
-      group: isGroup(c), avatar: await picture(c.avatar),
+      group: isGroup(c), avatar: await picture(c.avatar), ...(c.badge && { badge: badgeMark(c.badge).image }),
       ...(isTodo(c) && !c.unread && { todo: c.triage.state === "waiting" ? "waiting" : "to do" }),
     };
   }));
@@ -623,7 +623,7 @@ async function fetchBar(refresh: boolean) {
   }
 }
 
-/** The facts the manifest's rules and anyone's states read: `wisp/unread`, `wisp/for_me`, `wisp/todo`, `wisp/now`, `wisp/trouble`. */
+/** The facts the manifest's rules and anyone's states read: `wisp/unread`, `wisp/for_me`, `wisp/todo`, `wisp/now`, `wisp/badged`, `wisp/trouble`. */
 function facts(): Record<string, number> {
   const c = last.counts;
   return {
@@ -631,6 +631,7 @@ function facts(): Record<string, number> {
     for_me: c?.forMe ?? last.rows.filter(forMe).length,
     todo: last.rows.filter((r) => isDue(r)).length,
     now: c?.now ?? 0,
+    badged: (c?.badges ?? []).reduce((n, b) => n + b.unread, 0),
     trouble: last.accs.filter((a) => !healthy(a)).length,
   };
 }
@@ -642,12 +643,14 @@ export function strip(c: Counts | undefined, rows: Conversation[], s: BarSetting
   const due = rows.filter((r) => isDue(r)).length, mine = c.forMe ?? 0;
   const segments: NonNullable<BarItem["segments"]> = [];
   if (mine) segments.push({ id: "for_me", icon: GLYPH.at, text: String(mine), color: "red", tooltip: `${plural(mine, "conversation")} with something meant for you` });
+  const badges = (c.badges ?? []).filter((b) => b.unread > 0);
+  segments.push(...badges.slice(0, 8 - segments.length - (due ? 1 : 0)).map((b) => ({ id: `badge:${b.key}`, icon: badgeMark(b.badge, inked), text: String(b.unread), tooltip: `${b.unread} unread from ${b.name}` })));
   segments.push(...gs.slice(0, 8 - segments.length - (due ? 1 : 0)).map((g) => ({
     id: g.id, icon: s.split === "total" ? undefined : (look !== "glyphs" && g.channel ? logo(g.channel, inked, inked) : undefined) ?? g.glyph, text: String(g.unread), ...(!inked && s.split !== "total" && { color: g.color }), tooltip: `${g.title}: ${g.unread} unread`,
   })));
   if (due) segments.push({ id: "todo", icon: GLYPH.todo, text: String(due), ...(!inked && { color: "amber" as const }), tooltip: `${plural(due, "To do")} due` });
   const lead = rows.filter((r) => r.unread).slice(0, 3).map((r) => `${r.title}: ${truncate(lastLine(r), 60)}`);
-  const words = [mine ? `${mine} for you` : "", gs.map((g) => `${g.title} ${g.unread}`).join(", "), due ? `${plural(due, "To do")} due` : ""].filter(Boolean);
+  const words = [mine ? `${mine} for you` : "", badges.map((b) => `${b.name} ${b.unread}`).join(", "), gs.map((g) => `${g.title} ${g.unread}`).join(", "), due ? `${plural(due, "To do")} due` : ""].filter(Boolean);
   return { segments, ...(capsule && segments.length && { background: "subtle" }), tooltip: [words.join(" · ") || "Nothing unread", ...lead].join("\n") };
 }
 
@@ -657,7 +660,7 @@ async function renderBar(ctx?: BarCtx): Promise<BarItem> {
   if (ctx?.reason === "wake" || ctx?.reason === "network") live.restart();
   live.start();
   try { await fetchBar(ctx?.reason === "every" || ctx?.reason === "wake" || ctx?.reason === "update" || ctx?.reason === "cli"); } catch (e) {
-    if (e instanceof NotSetUp) return { hidden: true, states: { unread: null, for_me: null, todo: null, now: null, trouble: null } };
+    if (e instanceof NotSetUp) return { hidden: true, states: { unread: null, for_me: null, todo: null, now: null, badged: null, trouble: null } };
   }
   const states = facts();
   for (const [k, v] of Object.entries(states)) state.set(k, v, EXT).catch(() => {});
@@ -680,11 +683,11 @@ async function popAction(action: string, ctx?: BarCtx): Promise<Effect> {
   if (action === "more-tabs" || action === "fewer-tabs") { allTabs = action === "more-tabs"; return redrawPop(); }
   if (action === "all-read") { allRead = true; return redrawPop(); }
   if (action.startsWith("account:")) return { open: accountUrl(Number(action.slice(8))) };
-  // A click on a network's count opens the popover on its tab (a per-account count on its network's); the @ and To do counts on All.
+  // A click on a network's count opens the popover on its tab (a per-account count on its network's); the @, a badge's and the To do counts on All.
   if (action.startsWith("segment:")) {
     const id = action.slice(8);
     const account = /^a\d+$/.test(id) ? last.counts?.accounts.find((a) => `a${a.id}` === id)?.channel : undefined;
-    tab = account ?? (id === "for_me" || id === "todo" || id === "all" ? "all" : id);
+    tab = account ?? (id === "for_me" || id === "todo" || id === "all" || id.startsWith("badge:") ? "all" : id);
     cursor = undefined; allRead = false;
     return redrawPop();
   }

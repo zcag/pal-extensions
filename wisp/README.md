@@ -83,13 +83,16 @@ first. Enter opens the account in Wisp.
 the count in the bar's own ink, an `@` count in red for
 conversations with something meant for you (a mention, a reply in a thread you
 follow, even where the conversation is set to Don't count), and the To dos
-that are due. The names, brand colours and logos come from Wisp
+that are due. A person you gave a badge in Wisp (on their page) has their own
+count after the `@`, under their badge's icon: one per person, or one for them
+all, as Wisp's Settings › Notifications › Badges says. It counts even where
+the account or the conversation does not count unread. The names, brand colours and logos come from Wisp
 (`/api/v1/networks`: each connector's brand mark, or Wisp's line drawing), so
 a network Wisp gains shows up with its logo and nothing here changes; a server
 before that endpoint gets the font's glyphs. On the macOS menu bar the logos
 make each network a status item of its own (no capsule there). A click on a
-network opens the popover on its tab; the `@` and To do counts open it on All.
-Hidden while nothing is unread or due (its `quiet` rule). Its settings:
+network opens the popover on its tab; the `@`, badge and To do counts open it on All.
+Hidden while nothing is unread, from a badged person or due (its `quiet` rule). Its settings:
 **Look**, Mono (the default), Capsule (the same on a faint capsule), Colour
 (each logo and count in its network's colours) or Glyphs (the font's marks); count **per network** (two Gmail
 accounts are one), **per account**, or **one count** (after the Wisp glyph);
@@ -99,15 +102,16 @@ The popover is the whole Inbox: one row of chips over the rows (All, then
 each network with something unread; past six the rest fold into a `+N`
 chip that steps through them and are listed in the actions; `1` all, `2` to
 `9` each network, Tab cycles), then Unread (what is meant for you first),
-the To dos that are due, and the read conversations a line each (the first
+the To dos that are due (a badged person's rows wear the badge beside the
+network's mark), and the read conversations a line each (the first
 four; `a` shows the rest, up to 40 rows in all, past which `p` opens the
 Inbox palette), and a line per account that needs attention. Enter opens the conversation in the
 popover, Space previews it, `r` replies in a field, `m` marks read (or
 unread), `t` To do, `l` tomorrow, `e` Done, `w` Wisp, `p` the Inbox palette;
 `m`, `t`, `l`, `e` and `w` run over marked rows.
 
-The states `wisp/unread`, `wisp/for_me`, `wisp/todo`, `wisp/now` and
-`wisp/trouble` are published with every render, for a rule or a state of
+The states `wisp/unread`, `wisp/for_me`, `wisp/todo`, `wisp/now`,
+`wisp/badged` and `wisp/trouble` are published with every render, for a rule or a state of
 your own.
 
 ## Links

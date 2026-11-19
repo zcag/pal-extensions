@@ -256,6 +256,10 @@
       "description": "Conversations waiting on your reply",
       "kind": "number"
     },
+    "badged": {
+      "description": "Unread from the people you gave a badge in Wisp, counted even where the account or the conversation does not count unread",
+      "kind": "number"
+    },
     "trouble": {
       "description": "Accounts that need attention: degraded, disconnected, waiting on setup",
       "kind": "number"
@@ -407,8 +411,8 @@
       "rules": [
         {
           "id": "quiet",
-          "when": "wisp.unread == 0 and wisp.todo == 0",
-          "description": "Nothing unread and no To do due.",
+          "when": "wisp.unread == 0 and wisp.todo == 0 and wisp.badged == 0",
+          "description": "Nothing unread, nothing from a badged person and no To do due.",
           "hidden": true
         }
       ],
@@ -508,7 +512,7 @@
       "A conversation to read and answer inside pal: messages by day, photos inline, reactions, a field that sends on Enter, new messages as they arrive",
       "Wisp's AI in the conversation: its summary on top, a suggested reply in the field on a key, a voice message's words; reply to one message or react to it",
       "To do, To do tomorrow, Waiting on them, Done and read or unread on a key, over many conversations at once",
-      "One bar item: each network's mark and unread count in the bar's own ink, a red @ for mentions meant for you, To dos that are due; a click on a network opens its tab",
+      "One bar item: each network's mark and unread count in the bar's own ink, a red @ for mentions meant for you, a count under their own badge for the people you gave one in Wisp, To dos that are due; a click on a network opens its tab",
       "Its popover is the whole inbox, unread first, with a chip per network: open, preview, reply, mark read, To do or done without opening anything",
       "Wisp's search across every account, with from:, in:, is:unread and dates",
       "Each account's state, the ones that need attention first, on the strip's popover and in Wisp Accounts",
