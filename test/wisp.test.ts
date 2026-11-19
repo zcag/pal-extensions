@@ -225,26 +225,27 @@ describe("wisp", () => {
     expect(await host.pick(X, "accounts", "4")).toEqual({ open: `${mock.url}/accounts/4` });
   });
 
-  test("bar: a mark and count per network in the bar's ink (on a capsule, in colour, as glyphs; per account, one count), the due To do, a badged person's own count after the @, the facts; a click on a network opens its tab; the popover's keys; the stream redraws it", async () => {
+  test("bar: a mark and count per network in the bar's ink (on a capsule, in colour, as glyphs; per account, one count), the due To do, a badged person's own count after the @ (their network's logo with the badge on it, out of the network's count), the facts; a click on a network opens its tab; the popover's keys; the stream redraws it", async () => {
     mock.reset();
     const item = await host.render(X, "inbox", { reason: "every" });
     // Mono: every count in the bar's ink but the @, a filled mark as a template the bar inks, a line drawing's place taken by the font's solid glyph; no band.
     expect(item.background).toBeUndefined();
-    expect(item.segments!.map((s) => [s.id, s.text, s.color])).toEqual([["for_me", "1", "red"], ["badge:person:101", "1", undefined], ["whatsapp", "2", undefined], ["gmail", "1", undefined], ["sms", "1", undefined], ["todo", "1", undefined]]);
-    expect(item.segments![1].tooltip).toBe("1 unread from Ada");
+    expect(item.segments!.map((s) => [s.id, s.text, s.color])).toEqual([["for_me", "1", "red"], ["badge:person:101", "1", undefined], ["whatsapp", "1", undefined], ["gmail", "1", undefined], ["sms", "1", undefined], ["todo", "1", undefined]]);
+    expect(item.segments![1].tooltip).toBe("WhatsApp: 1 unread from Ada");
     expect(item.states).toEqual({ unread: 4, for_me: 1, todo: 1, now: 2, badged: 1, trouble: 1 });
     const icons = Object.fromEntries(item.segments!.map((s) => [s.id, s.icon]));
     expect(icons.gmail).toEqual({ image: expect.stringMatching(/^data:image\/svg\+xml;utf8,.*%23000000/), template: true });
-    expect(typeof icons.whatsapp).toBe("string");
+    expect(typeof icons.sms).toBe("string");
     expect(typeof icons.for_me).toBe("string");
-    expect(icons["badge:person:101"]).toEqual({ image: expect.stringMatching(/%23000000/), template: true });
+    // Ada's count: WhatsApp's mark with her badge on its corner, one template; out of WhatsApp's count above.
+    expect(icons["badge:person:101"]).toEqual({ image: expect.stringMatching(/mask.*%23000000.*%23000000/), template: true });
     expect((await host.render(X, "inbox", { reason: "every", settings: { look: "capsule" } })).background).toBe("subtle");
     // Colour: the marks in their brand colours (a near-black one inks), the counts too, no band; glyphs: the font's marks.
     const colour = await host.render(X, "inbox", { reason: "every", settings: { look: "colour" } });
     expect(colour.background).toBeUndefined();
     expect(colour.segments!.map((s) => [s.id, s.color])).toEqual([["for_me", "red"], ["badge:person:101", undefined], ["whatsapp", "green"], ["gmail", "red"], ["sms", "teal"], ["todo", "amber"]]);
     expect(Object.fromEntries(colour.segments!.map((s) => [s.id, s.icon])).gmail).toEqual({ image: expect.stringMatching(/%23EA4335/) });
-    expect(Object.fromEntries(colour.segments!.map((s) => [s.id, s.icon]))["badge:person:101"]).toEqual({ image: expect.stringMatching(/%23d6409f/) });
+    expect(Object.fromEntries(colour.segments!.map((s) => [s.id, s.icon]))["badge:person:101"]).toEqual({ image: expect.stringMatching(/%2325D366.*%23d6409f/) });
     const glyphs = await host.render(X, "inbox", { reason: "every", settings: { look: "glyphs" } });
     expect(glyphs.segments!.every((s) => typeof s.icon === "string" || s.id.startsWith("badge:"))).toBe(true);
     // A click on a segment is `segment:<id>`: the popover on that network's tab (a per-account count on its network's), the @ on All.
@@ -259,11 +260,11 @@ describe("wisp", () => {
     // The networks' glyphs stand for Wisp's: its own leads only one count.
     expect(item.icon).toBeUndefined();
     expect(item.empty!.icon).toBeDefined();
-    expect(item.tooltip!.split("\n")[0]).toBe("1 for you · Ada 1 · WhatsApp 2, Gmail 1, SMS 1 · 1 To do due");
+    expect(item.tooltip!.split("\n")[0]).toBe("1 for you · Ada 1 · WhatsApp 1, Gmail 1, SMS 1 · 1 To do due");
     const per = await host.render(X, "inbox", { reason: "every", settings: { split: "account", uncounted: true } });
-    expect(per.segments!.map((s) => [s.id, s.text])).toEqual([["for_me", "1"], ["badge:person:101", "1"], ["a1", "2"], ["a3", "1"], ["a4", "1"], ["a5", "1"], ["todo", "1"]]);
+    expect(per.segments!.map((s) => [s.id, s.text])).toEqual([["for_me", "1"], ["badge:person:101", "1"], ["a1", "1"], ["a3", "1"], ["a4", "1"], ["a5", "1"], ["todo", "1"]]);
     const one = await host.render(X, "inbox", { reason: "every", settings: { split: "total" } });
-    expect(one.segments!.map((s) => [s.id, s.text, s.icon])).toEqual([["for_me", "1", expect.any(String)], ["badge:person:101", "1", expect.anything()], ["all", "4", undefined], ["todo", "1", expect.any(String)]]);
+    expect(one.segments!.map((s) => [s.id, s.text, s.icon])).toEqual([["for_me", "1", expect.any(String)], ["badge:person:101", "1", expect.anything()], ["all", "3", undefined], ["todo", "1", expect.any(String)]]);
     expect(one.icon).toBeDefined();
     await host.render(X, "inbox", { reason: "every", settings: {} });
     // The popover: a tab to WhatsApp, its unread first (Ada, then Family before the read Tom), mark read (Family stays, read), the reply field and a send.
@@ -278,8 +279,8 @@ describe("wisp", () => {
     expect(await host.barAction(X, "inbox", "pal", ctx)).toEqual({ push: { extension: X, palette: "inbox" } });
     await host.until(() => mock.streaming > 0);
     // A page of newer read ones arrives with it: the unread Q4 plan, now past Wisp's first page, still leads the popover.
-    mock.convs.push(...Array.from({ length: 200 }, (_, i) => ({ ...conversations()[0], id: 1000 + i, title: `Read ${i}`, lastMessageAt: iso(0), unread: 0 })));
-    mock.convs.push({ ...conversations()[0], id: 200, accountId: 5, channel: "sms", title: "BANK", lastMessageAt: iso(0), lastPreview: "Your code is 4411", unread: 1 });
+    mock.convs.push(...Array.from({ length: 200 }, (_, i) => ({ ...conversations()[0], badge: undefined, id: 1000 + i, title: `Read ${i}`, lastMessageAt: iso(0), unread: 0 })));
+    mock.convs.push({ ...conversations()[0], badge: undefined, id: 200, accountId: 5, channel: "sms", title: "BANK", lastMessageAt: iso(0), lastPreview: "Your code is 4411", unread: 1 });
     mock.emit("message.new", { conversationId: 200, accountId: 5, channel: "sms", sender: "BANK", conversationTitle: "BANK" });
     const next = await host.nextUpdate(X, "inbox", (i) => i.segments?.find((s) => s.id === "sms")?.text === "2");
     expect(next.segments!.find((s) => s.id === "sms")!.text).toBe("2");

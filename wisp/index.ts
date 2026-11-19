@@ -15,7 +15,7 @@ import { bar, errorMessage, failed, hint, mdEscape, now, preview, settings, stat
 import * as api from "./api.ts";
 import { ApiError, EXT, NotSetUp, Unreachable, accountUrl, conf, forgetPictures, log, picture, webUrl, type AI, type Account, type Conversation, type Counts, type Message, type Person, type Split } from "./api.ts";
 import { render as renderChat, type ChatState } from "./chat.ts";
-import { GLYPH, SECTION_ORDER, accounts, badgeMark, counts, drop, forMe, forgetNetworks, groups, healthy, inbox, isDue, isGroup, isTodo, line, list, loadNetworks, logo, markdown, net, one, plural, preview as lastLine, sectionOf, short, tabs, until } from "./data.ts";
+import { GLYPH, SECTION_ORDER, accountOf, accounts, badgeMark, counts, drop, forMe, forgetNetworks, groups, healthy, inbox, isDue, isGroup, isTodo, line, list, loadNetworks, logo, logoWithBadge, markdown, net, one, plural, preview as lastLine, sectionOf, short, tabs, until } from "./data.ts";
 import * as live from "./live.ts";
 import { actions as popActions, avatarColor, current, initial, render as renderPopover, visible, type PopRow, type PopState } from "./view.ts";
 
@@ -639,12 +639,20 @@ function facts(): Record<string, number> {
 export function strip(c: Counts | undefined, rows: Conversation[], s: BarSettings): Pick<BarItem, "segments" | "tooltip" | "background"> {
   if (!c) return {};
   const look = s.look ?? "mono", capsule = look === "capsule", inked = look === "mono" || capsule;
-  const gs = groups(c, s.split ?? "network", !!s.uncounted).filter((g) => g.unread > 0);
   const due = rows.filter((r) => isDue(r)).length, mine = c.forMe ?? 0;
   const segments: NonNullable<BarItem["segments"]> = [];
   if (mine) segments.push({ id: "for_me", icon: GLYPH.at, text: String(mine), color: "red", tooltip: `${plural(mine, "conversation")} with something meant for you` });
-  const badges = (c.badges ?? []).filter((b) => b.unread > 0);
-  segments.push(...badges.slice(0, 8 - segments.length - (due ? 1 : 0)).map((b) => ({ id: `badge:${b.key}`, icon: badgeMark(b.badge, inked), text: String(b.unread), tooltip: `${b.unread} unread from ${b.name}` })));
+  // A badged person's unread is theirs alone: under their network's logo with the badge on it, and out of that network's count.
+  const badges = (c.badges ?? []).filter((b) => b.unread > 0).slice(0, 8 - segments.length - (due ? 1 : 0));
+  const taken = new Map<number, number>();
+  for (const b of badges) for (const a of b.accounts) taken.set(a.id, (taken.get(a.id) ?? 0) + a.unread);
+  segments.push(...badges.map((b) => {
+    const nets = [...new Set(b.accounts.map((a) => accountOf(c, a.id)?.channel).filter((x): x is string => !!x))];
+    const one = nets.length === 1 ? nets[0] : undefined;
+    return { id: `badge:${b.key}`, icon: (one && look !== "glyphs" && logoWithBadge(one, b.badge, inked, inked)) || badgeMark(b.badge, inked), text: String(b.unread), tooltip: `${one ? `${net(one).name}: ` : ""}${b.unread} unread from ${b.name}` };
+  }));
+  const rest: Counts = { ...c, unread: Math.max(0, c.unread - c.accounts.filter((a) => a.counted).reduce((n, a) => n + (taken.get(a.id) ?? 0), 0)), accounts: c.accounts.map((a) => ({ ...a, unread: Math.max(0, a.unread - (taken.get(a.id) ?? 0)) })) };
+  const gs = groups(rest, s.split ?? "network", !!s.uncounted).filter((g) => g.unread > 0);
   segments.push(...gs.slice(0, 8 - segments.length - (due ? 1 : 0)).map((g) => ({
     id: g.id, icon: s.split === "total" ? undefined : (look !== "glyphs" && g.channel ? logo(g.channel, inked, inked) : undefined) ?? g.glyph, text: String(g.unread), ...(!inked && s.split !== "total" && { color: g.color }), tooltip: `${g.title}: ${g.unread} unread`,
   })));

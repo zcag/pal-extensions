@@ -50,24 +50,47 @@ export const forgetNetworks = () => { known = new Map(); knownAt = 0; };
  * `color`, or `mono`, a template the bar inks (and so does a near-black
  * colour, which would vanish on a dark bar).
  */
-export function inked(svg: string, color: string | undefined, mono = false): { image: string; template?: true } {
-  const hex = /^#[0-9a-f]{6}$/i.test(color ?? "") ? color! : "#000000";
-  const [r, g, b] = [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16));
-  const template = mono || 0.2126 * r + 0.7152 * g + 0.0722 * b < 48;
-  return { image: `data:image/svg+xml;utf8,${encodeURIComponent(svg.replaceAll("currentColor", template ? "#000000" : hex))}`, ...(template && { template: true as const }) };
+export function inked(svg: string, color: string | undefined, mono = false): Picture {
+  const template = mono || dark(color);
+  return picture(svg.replaceAll("currentColor", template ? "#000000" : hex(color)), template);
+}
+
+type Picture = { image: string; template?: true };
+const hex = (color: string | undefined) => (/^#[0-9a-f]{6}$/i.test(color ?? "") ? color! : "#000000");
+const dark = (color: string | undefined) => { const h = hex(color); const [r, g, b] = [1, 3, 5].map((i) => parseInt(h.slice(i, i + 2), 16)); return 0.2126 * r + 0.7152 * g + 0.0722 * b < 48; };
+const picture = (svg: string, template: boolean): Picture => ({ image: `data:image/svg+xml;utf8,${encodeURIComponent(svg)}`, ...(template && { template: true as const }) });
+
+/** The server's mark for a network; `solid` leaves out a line drawing, which beside filled marks reads as another set (the caller's glyph stands in for it). */
+function mark(c: Channel, solid: boolean): api.Network | undefined {
+  const n = known.get(c);
+  return n?.logo && !(solid && n.logo.includes('stroke="currentColor"')) ? n : undefined;
 }
 
 /** A network's logo from the server's mark (`inked`); none while the server has not said, or for a network without a mark. */
-export function logo(c: Channel, mono = false, solid = false): { image: string; template?: true } | undefined {
-  const n = known.get(c);
-  if (!n?.logo) return undefined;
-  // `solid`: a line drawing beside filled marks reads as another set; the caller's glyph stands in for it.
-  if (solid && n.logo.includes('stroke="currentColor"')) return undefined;
-  return inked(n.logo, n.color, mono);
+export function logo(c: Channel, mono = false, solid = false): Picture | undefined {
+  const n = mark(c, solid);
+  return n && inked(n.logo!, n.color, mono);
 }
 
 /** A person's badge in its colour (`inked`), or in the bar's ink with `mono`. */
 export const badgeMark = (b: Badge, mono = false) => inked(b.svg, b.color, mono);
+
+/** An SVG document placed in a box of another, at `x`,`y` and `size` across. */
+const place = (svg: string, x: number, y: number, size: number) => svg.replace(/^<svg\b/, `<svg x="${x}" y="${y}" width="${size}" height="${size}"`);
+
+/**
+ * A network's logo with a person's badge on its corner, one square picture
+ * (the bar draws each segment's picture square): the logo cut away around
+ * the badge so the two read apart in one ink. Both in their colours, or
+ * both a template when `mono` or either is too dark for a dark bar.
+ */
+export function logoWithBadge(c: Channel, b: Badge, mono = false, solid = false): Picture | undefined {
+  const n = mark(c, solid);
+  if (!n) return undefined;
+  const template = mono || dark(n.color) || dark(b.color);
+  const paint = (svg: string, color: string) => svg.replaceAll("currentColor", template ? "#000000" : hex(color));
+  return picture(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><defs><mask id="cut"><rect width="24" height="24" fill="#fff"/><circle cx="18" cy="18" r="7.5" fill="#000"/></mask></defs><g mask="url(#cut)">${place(paint(n.logo!, n.color ?? ""), 0, 0, 20)}</g>${place(paint(b.svg, b.color), 11, 11, 14)}</svg>`, template);
+}
 
 export function net(c: Channel): Net {
   const fallback = NETS[c] ?? { name: c ? c[0].toUpperCase() + c.slice(1) : "Other", glyph: GLYPH.other, color: "grey" as const, tile: "slate" as const };

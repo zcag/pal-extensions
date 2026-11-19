@@ -84,7 +84,7 @@ the count in the bar's own ink, an `@` count in red for
 conversations with something meant for you (a mention, a reply in a thread you
 follow, even where the conversation is set to Don't count), and the To dos
 that are due. A person you gave a badge in Wisp (on their page) has their own
-count after the `@`, under their badge's icon: one per person, or one for them
+count after the `@`, under their network's logo with the badge on its corner (the badge alone when they wrote on several), and that count leaves the network's own: one per person, or one for them
 all, as Wisp's Settings › Notifications › Badges says. It counts even where
 the account or the conversation does not count unread. The names, brand colours and logos come from Wisp
 (`/api/v1/networks`: each connector's brand mark, or Wisp's line drawing), so
